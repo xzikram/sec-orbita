@@ -3,13 +3,35 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { hash } from 'bcryptjs';
 
-const adapter = new PrismaMariaDb({
+// Parse DATABASE_URL if available
+let connectionConfig = {
   host: 'localhost',
   port: 3306,
   user: 'root',
   password: '',
   database: 'security_patrol',
-});
+};
+
+const dbUrl = process.env.DATABASE_URL;
+if (dbUrl) {
+  try {
+    // Format: mysql://user:password@host:port/database
+    const match = dbUrl.match(/mysql:\/\/([^:@]+)(?::([^@]+))?@([^:/]+)(?::(\d+))?\/(.+)/);
+    if (match) {
+      connectionConfig = {
+        user: match[1],
+        password: match[2] || '',
+        host: match[3],
+        port: match[4] ? parseInt(match[4], 10) : 3306,
+        database: match[5].split('?')[0], // strip any query params
+      };
+    }
+  } catch (e) {
+    console.error('Failed to parse DATABASE_URL, using default configuration.', e);
+  }
+}
+
+const adapter = new PrismaMariaDb(connectionConfig);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
