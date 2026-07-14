@@ -72,7 +72,8 @@ export async function syncOfflineData(): Promise<SyncResult> {
         await deleteOfflineCheck(check.id);
         checksSynced++;
       } else {
-        throw new Error('Gagal menyinkronkan pemeriksaan ruangan');
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Gagal menyinkronkan pemeriksaan ruangan');
       }
     }
 
@@ -88,7 +89,8 @@ export async function syncOfflineData(): Promise<SyncResult> {
         await deleteOfflineFinding(finding.id);
         findingsSynced++;
       } else {
-        throw new Error('Gagal menyinkronkan temuan');
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Gagal menyinkronkan temuan');
       }
     }
 
