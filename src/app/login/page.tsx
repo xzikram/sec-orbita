@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './login.module.css';
 
@@ -11,6 +11,20 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedId = localStorage.getItem('saved-employee-id');
+      if (savedId) {
+        setEmployeeId(savedId);
+      }
+      const savedRemember = localStorage.getItem('saved-remember-me');
+      if (savedRemember === 'false') {
+        setRememberMe(false);
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +54,15 @@ export default function LoginPage() {
         setError(data.error || 'Login gagal');
         setLoading(false);
         return;
+      }
+
+      // Save/remove employee ID based on remember me
+      if (rememberMe) {
+        localStorage.setItem('saved-employee-id', employeeId.trim().toUpperCase());
+        localStorage.setItem('saved-remember-me', 'true');
+      } else {
+        localStorage.removeItem('saved-employee-id');
+        localStorage.setItem('saved-remember-me', 'false');
       }
 
       router.push(data.redirect);
@@ -127,6 +150,17 @@ export default function LoginPage() {
                 )}
               </button>
             </div>
+          </div>
+
+          <div className={styles.rememberMeContainer}>
+            <input
+              type="checkbox"
+              id="rememberMe"
+              className={styles.rememberMeCheckbox}
+              checked={rememberMe}
+              onChange={e => setRememberMe(e.target.checked)}
+            />
+            <label htmlFor="rememberMe" style={{ cursor: 'pointer' }}>Ingat Saya</label>
           </div>
 
           {error && (
