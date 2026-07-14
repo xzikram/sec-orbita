@@ -128,7 +128,7 @@ export default function SecurityLayout({
       </header>
 
       {/* Page Content */}
-      <div className="page-container" style={{ paddingTop: '16px', paddingBottom: '90px' }}>
+      <div className="page-container" style={{ paddingTop: '0px', paddingBottom: '76px' }}>
         <SyncStatus />
         <PwaInstallBanner />
         {children}
