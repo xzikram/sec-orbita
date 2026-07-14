@@ -14,6 +14,11 @@ export interface AuthUser {
   email: string;
   role: 'security' | 'supervisor' | 'admin';
   shiftId: string | null;
+  shift?: {
+    name: string;
+    startTime: string;
+    endTime: string;
+  } | null;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -51,11 +56,26 @@ export async function getAuthUser(): Promise<AuthUser | null> {
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
-      select: { id: true, employeeId: true, name: true, email: true, role: true, shiftId: true, isActive: true },
+      select: {
+        id: true,
+        employeeId: true,
+        name: true,
+        email: true,
+        role: true,
+        shiftId: true,
+        isActive: true,
+        shift: {
+          select: {
+            name: true,
+            startTime: true,
+            endTime: true,
+          },
+        },
+      },
     });
 
     if (!user || !user.isActive) return null;
-    return user as AuthUser;
+    return user as unknown as AuthUser;
   } catch {
     return null;
   }

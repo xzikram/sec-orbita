@@ -168,51 +168,6 @@ export default function SecurityDashboard() {
         </div>
       </div>
 
-      {/* Floor List */}
-      <div className="section-header mt-6">
-        <h3 className="section-title">Daftar Lantai</h3>
-        <Link href="/security/patrol" className="section-link">Lihat Semua →</Link>
-      </div>
-
-      <div className={styles.floorList}>
-        {floorProgress.map((fp, index) => (
-          <Link
-            key={fp.id}
-            href={`/security/patrol/floor/${fp.floorId}`}
-            className={`card card-interactive ${styles.floorCard} animate-slide-up stagger-${index + 2}`}
-            id={`floor-card-${fp.floor.code}`}
-          >
-            <div className="card-body">
-              <div className={styles.floorCardContent}>
-                <div className={styles.floorCardLeft}>
-                  <div className={styles.floorCardHeader}>
-                    <span className={`status-dot ${getStatusDot(fp.status)}`} />
-                    <h4 className={styles.floorName}>{fp.floor.name}</h4>
-                  </div>
-                  <p className={styles.floorRoomCount}>
-                    {fp.checked}/{fp.total} Ruangan
-                  </p>
-                  {getStatusBadge(fp.status)}
-                </div>
-
-                <div className={styles.floorCardRight}>
-                  <div className={styles.floorPercent}>
-                    <span className={styles.floorPercentValue}>{fp.percent}</span>
-                    <span className={styles.floorPercentSign}>%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="progress-bar mt-3">
-                <div
-                  className={`progress-bar-fill ${getProgressColor(fp.percent)}`}
-                  style={{ width: `${fp.percent}%` }}
-                />
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
 
       {/* Start Patrol CTA */}
       <div className={`${styles.ctaSection} animate-slide-up`}>
