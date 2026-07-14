@@ -338,17 +338,29 @@ export function getRoomById(roomId: string): Room | undefined {
   return rooms.find(r => r.id === roomId);
 }
 
-export function getCurrentSchedule(): PatrolSchedule | undefined {
+export function getCurrentSchedule(): PatrolSchedule {
   const now = new Date();
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: 'Asia/Makassar',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  };
+  const formatter = new Intl.DateTimeFormat('id-ID', options);
+  const parts = formatter.formatToParts(now);
+  const hour = parts.find(p => p.type === 'hour')?.value || '00';
+  const minute = parts.find(p => p.type === 'minute')?.value || '00';
+  const currentTime = `${hour}:${minute}`;
 
-  return patrolSchedules.find(s => {
+  const sched = patrolSchedules.find(s => {
     if (s.startTime < s.endTime) {
       return currentTime >= s.startTime && currentTime < s.endTime;
     }
-    // handle midnight wrap (21:00 - 00:00)
+    // handle midnight wrap (e.g. 22:00 - 01:00)
     return currentTime >= s.startTime || currentTime < s.endTime;
   });
+
+  return sched || patrolSchedules[3]; // Default fallback to Patroli 4 (16:00 - 19:00)
 }
 
 export function getCurrentUser(): User {
@@ -356,18 +368,21 @@ export function getCurrentUser(): User {
 }
 
 export function getCurrentShift(): Shift {
-  return shifts[0]; // Shift Pagi
+  const currentSched = getCurrentSchedule();
+  return currentSched.patrolNumber <= 4 ? shifts[0] : shifts[1];
 }
 
 // --- Active Patrol Session (dummy in-progress data) ---
 
+const currentSched = getCurrentSchedule();
+
 export const activeSession: PatrolSession = {
   id: 'session-today-3',
   userId: 'user-1',
-  scheduleId: 'sched-6',
-  shiftId: 'shift-1',
-  patrolDate: new Date().toISOString().split('T')[0],
-  patrolNumber: 6,
+  scheduleId: currentSched.id,
+  shiftId: currentSched.patrolNumber <= 4 ? 'shift-1' : 'shift-2',
+  patrolDate: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' }),
+  patrolNumber: currentSched.patrolNumber,
   status: 'in_progress',
   startedAt: new Date().toISOString(),
 };

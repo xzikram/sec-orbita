@@ -204,7 +204,7 @@ export default function FloorDetailPage({
               <div className={styles.roomAction}>
                 {isChecked ? (
                   <span className="badge badge-success">✓</span>
-                ) : isNext ? (
+                ) : (
                   <Link
                     href={`/security/patrol/room/${room.id}`}
                     className="btn btn-primary btn-sm"
@@ -212,8 +212,6 @@ export default function FloorDetailPage({
                   >
                     Periksa
                   </Link>
-                ) : (
-                  <span className="badge badge-neutral">Antri</span>
                 )}
               </div>
             </div>
