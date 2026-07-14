@@ -1,0 +1,69 @@
+/* ============================================================
+   ADMIN SHARED CRUD STYLES
+   Reusable across all admin CRUD pages
+   ============================================================ */
+
+/* Page header */
+.pageHeader { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3); }
+.pageTitle { font-size: var(--font-size-2xl); font-weight: var(--font-weight-extrabold); }
+.pageSub { font-size: var(--font-size-sm); color: var(--text-secondary); margin-top: 2px; }
+
+/* Data table */
+.tableWrap { background: var(--bg-card); border-radius: var(--radius-xl); box-shadow: var(--shadow-card); border: 1px solid var(--border-light); overflow: hidden; }
+.tableHeader { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-light); flex-wrap: wrap; gap: var(--space-3); }
+.tableTitle { font-size: var(--font-size-md); font-weight: var(--font-weight-bold); }
+.tableActions { display: flex; gap: var(--space-2); align-items: center; }
+.searchInput { padding: var(--space-2) var(--space-3); border: 1.5px solid var(--color-neutral-200); border-radius: var(--radius-md); font-size: var(--font-size-sm); width: 220px; background: var(--bg-card); transition: border-color 150ms ease; }
+.searchInput:focus { outline: none; border-color: var(--color-primary-400); box-shadow: 0 0 0 3px rgba(21,101,192,0.08); }
+
+.table { width: 100%; border-collapse: collapse; }
+.th { text-align: left; padding: var(--space-3) var(--space-4); font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; background: var(--color-neutral-50); border-bottom: 1px solid var(--border-light); white-space: nowrap; }
+.td { padding: var(--space-3) var(--space-4); font-size: var(--font-size-sm); border-bottom: 1px solid var(--border-light); vertical-align: middle; }
+.tr { transition: background 100ms ease; }
+.tr:hover { background: rgba(21,101,192,0.02); }
+.tr:last-child .td { border-bottom: none; }
+
+.tdBold { font-weight: var(--font-weight-semibold); }
+.tdMuted { color: var(--text-muted); font-size: var(--font-size-xs); }
+.tdCode { font-family: 'SF Mono', 'Fira Code', monospace; font-size: var(--font-size-xs); color: var(--color-primary-600); background: var(--color-primary-50); padding: 2px 6px; border-radius: var(--radius-sm); }
+
+.actionBtns { display: flex; gap: var(--space-1); }
+.actionBtn { width: 32px; height: 32px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--text-muted); transition: all 150ms ease; }
+.actionBtn:hover { background: var(--color-neutral-100); color: var(--text-primary); }
+.actionBtnDanger:hover { background: var(--color-danger-50); color: var(--color-danger-600); }
+
+.emptyRow { text-align: center; padding: var(--space-8) !important; color: var(--text-muted); }
+
+/* Table footer */
+.tableFooter { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-5); border-top: 1px solid var(--border-light); font-size: var(--font-size-xs); color: var(--text-muted); }
+
+/* Modal */
+.modalOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 500; display: flex; align-items: center; justify-content: center; padding: var(--space-4); animation: fadeIn 150ms ease; }
+.modal { background: var(--bg-card); border-radius: var(--radius-xl); max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; animation: scaleIn 200ms ease; box-shadow: var(--shadow-xl); }
+.modalHeader { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-light); }
+.modalTitle { font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); }
+.modalClose { width: 32px; height: 32px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; color: var(--text-muted); transition: all 150ms ease; }
+.modalClose:hover { background: var(--color-neutral-100); }
+.modalBody { padding: var(--space-5); }
+.modalFooter { display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border-light); }
+
+/* Form inside modal */
+.formGroup { margin-bottom: var(--space-4); }
+.formLabel { display: block; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: var(--text-secondary); margin-bottom: var(--space-1); }
+.formInput { width: 100%; padding: var(--space-2) var(--space-3); border: 1.5px solid var(--color-neutral-200); border-radius: var(--radius-md); font-size: var(--font-size-sm); transition: border-color 150ms ease; background: var(--bg-card); }
+.formInput:focus { outline: none; border-color: var(--color-primary-400); box-shadow: 0 0 0 3px rgba(21,101,192,0.08); }
+.formSelect { composes: formInput; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+.formRow { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.formToggle { display: flex; align-items: center; gap: var(--space-2); }
+.toggleSwitch { width: 40px; height: 22px; border-radius: 11px; background: var(--color-neutral-300); position: relative; cursor: pointer; transition: background 200ms ease; }
+.toggleSwitchOn { background: var(--color-success-500); }
+.toggleSwitch::after { content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: transform 200ms ease; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.toggleSwitchOn::after { transform: translateX(18px); }
+
+/* Responsive table */
+@media (max-width: 768px) {
+  .searchInput { width: 100%; }
+  .tableHeader { flex-direction: column; align-items: stretch; }
+  .tableActions { width: 100%; }
+  .td, .th { padding: var(--space-2) var(--space-3); }
+}

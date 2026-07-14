@@ -1,0 +1,21 @@
+.topBar { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.backBtn { width: 36px; height: 36px; border-radius: var(--radius-full); background: var(--bg-card); border: 1px solid var(--border-light); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.topTitle { flex: 1; font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); }
+
+.findingNo { font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); color: var(--color-primary-500); font-family: 'SF Mono', 'Fira Code', monospace; margin-bottom: var(--space-3); letter-spacing: 0.05em; }
+
+.photoCard { margin-bottom: var(--space-3); overflow: hidden; }
+.photoArea { aspect-ratio: 16/9; background: var(--color-neutral-100); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); color: var(--color-neutral-400); font-size: var(--font-size-sm); }
+
+.descCard { padding: var(--space-4); margin-bottom: var(--space-3); }
+.catBadge { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); background: var(--color-neutral-100); border-radius: var(--radius-full); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-3); }
+.descText { font-size: var(--font-size-sm); line-height: var(--line-height-relaxed); color: var(--text-primary); }
+
+.metaCard { padding: var(--space-4); margin-bottom: var(--space-3); }
+.metaRow { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) 0; border-bottom: 1px solid var(--border-light); }
+.metaRow:last-child { border-bottom: none; }
+.metaLabel { font-size: var(--font-size-sm); color: var(--text-secondary); }
+.metaValue { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }
+
+.infoBox { display: flex; gap: var(--space-3); padding: var(--space-4); background: var(--color-primary-50); border: 1px solid var(--color-primary-100); border-radius: var(--radius-xl); font-size: var(--font-size-sm); color: var(--color-primary-700); line-height: var(--line-height-relaxed); }
+.infoBox svg { flex-shrink: 0; margin-top: 2px; }

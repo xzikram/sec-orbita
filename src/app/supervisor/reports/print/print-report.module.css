@@ -1,0 +1,238 @@
+/* Print Page Styling resembling BUKU PATROLI spreadsheet */
+
+.printContainer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-6);
+  background: white;
+  color: black;
+  font-family: Arial, sans-serif;
+}
+
+/* Brand header */
+.headerBlock {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  border-bottom: 2px solid black;
+  padding-bottom: var(--space-3);
+}
+
+.logoArea {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.logoText {
+  display: flex;
+  flex-direction: column;
+}
+
+.brandName {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0b6623; /* Dark green matching JEC Orbita logo */
+  letter-spacing: -0.03em;
+  line-height: 0.9;
+}
+
+.brandSub {
+  font-size: 11px;
+  color: #333;
+  font-weight: 600;
+}
+
+.titleArea {
+  text-align: center;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.titleText {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-decoration: underline;
+  margin-bottom: var(--space-2);
+}
+
+/* Meta fields block layout */
+.metaBlock {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.metaCol {
+  width: 45%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.metaRow {
+  display: flex;
+  align-items: flex-end;
+}
+
+.metaLabel {
+  font-weight: 700;
+  width: 110px;
+  white-space: nowrap;
+}
+
+.metaValue {
+  border-bottom: 1px dotted black;
+  flex-grow: 1;
+  padding-left: var(--space-2);
+  min-height: 18px;
+}
+
+/* Table grid lines matching Excel */
+.reportTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--space-6);
+  font-size: 11px;
+  color: black;
+}
+
+.reportTable th,
+.reportTable td {
+  border: 1px solid black;
+  padding: 5px 6px;
+  vertical-align: middle;
+}
+
+.reportTable th {
+  background: #f0f0f0;
+  font-weight: 700;
+  text-align: center;
+}
+
+.reportTable td {
+  background: white;
+}
+
+/* Specific alignments */
+.textCenter {
+  text-align: center;
+}
+
+.textLeft {
+  text-align: left;
+}
+
+.floorCell {
+  font-weight: bold;
+  background: #eaeaea !important;
+  text-align: center;
+  font-size: 12px;
+  width: 70px;
+}
+
+.roomNameCell {
+  font-weight: 600;
+  font-size: 11px;
+  width: 250px;
+}
+
+.timeCell {
+  text-align: center;
+  width: 60px;
+  font-size: 11px;
+}
+
+.checkCell {
+  text-align: center;
+  width: 40px;
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.remarksCell {
+  text-align: left;
+  font-size: 11px;
+}
+
+.signatureCell {
+  width: 110px;
+}
+
+/* Signatures footer */
+.footerArea {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 40px;
+  font-size: 13px;
+  page-break-inside: avoid;
+}
+
+.signatureBox {
+  width: 250px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.signatureLabel {
+  font-weight: 700;
+  margin-bottom: 70px;
+}
+
+.signatureLine {
+  border-top: 1px solid black;
+  width: 200px;
+  padding-top: var(--space-1);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Toolbar controls */
+.toolbar {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-6);
+  background: var(--color-neutral-900);
+  color: white;
+  border-bottom: 1px solid var(--color-neutral-800);
+}
+
+.toolbarTitle {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.toolbarActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Hide print controls when printing */
+@media print {
+  .toolbar {
+    display: none !important;
+  }
+  .printContainer {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+  
+  /* Ensure page breaks don't orphan table headers */
+  :global(thead) {
+    display: table-header-group;
+  }
+  
+  :global(tr) {
+    page-break-inside: avoid;
+  }
+}

@@ -1,0 +1,419 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ============================================================
+// USER & AUTH
+// ============================================================
+
+model User {
+  id          String   @id @default(uuid())
+  employeeId  String   @unique @map("employee_id")
+  name        String
+  email       String   @unique
+  password    String
+  phone       String?
+  role        Role     @default(security)
+  shiftId     String?  @map("shift_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  shift           Shift?            @relation(fields: [shiftId], references: [id])
+  patrolSessions  PatrolSession[]
+  patrolChecks    PatrolCheck[]
+  findings        Finding[]
+  findingUpdates  FindingUpdate[]
+  activityLogs    ActivityLog[]
+  patrolPhotos    PatrolPhoto[]
+
+  @@map("users")
+}
+
+enum Role {
+  security
+  supervisor
+  admin
+}
+
+// ============================================================
+// SHIFT
+// ============================================================
+
+model Shift {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  startTime String   @map("start_time")
+  endTime   String   @map("end_time")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users           User[]
+  patrolSessions  PatrolSession[]
+
+  @@map("shifts")
+}
+
+// ============================================================
+// BUILDING / FLOOR / ROOM
+// ============================================================
+
+model Building {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  address   String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  floors Floor[]
+
+  @@map("buildings")
+}
+
+model Floor {
+  id         String   @id @default(uuid())
+  buildingId String   @map("building_id")
+  code       String   @unique
+  name       String
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  building      Building          @relation(fields: [buildingId], references: [id])
+  rooms         Room[]
+  qrCode        FloorQrCode?
+  sessionFloors PatrolSessionFloor[]
+  findings      Finding[]
+
+  @@map("floors")
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  floorId     String   @map("floor_id")
+  code        String   @unique
+  name        String
+  patrolOrder Int      @default(0) @map("patrol_order")
+  hasAc       Boolean  @default(true) @map("has_ac")
+  hasLight    Boolean  @default(true) @map("has_light")
+  photoGuide  String?  @map("photo_guide") @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  floor        Floor         @relation(fields: [floorId], references: [id])
+  patrolChecks PatrolCheck[]
+  findings     Finding[]
+
+  @@map("rooms")
+}
+
+// ============================================================
+// QR CODE
+// ============================================================
+
+model FloorQrCode {
+  id          String   @id @default(uuid())
+  floorId     String   @unique @map("floor_id")
+  token       String   @unique
+  qrContent   String   @map("qr_content")
+  isActive    Boolean  @default(true) @map("is_active")
+  generatedAt DateTime @default(now()) @map("generated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  floor Floor @relation(fields: [floorId], references: [id])
+
+  @@map("floor_qr_codes")
+}
+
+// ============================================================
+// PATROL SCHEDULE
+// ============================================================
+
+model PatrolSchedule {
+  id           String   @id @default(uuid())
+  name         String
+  patrolNumber Int      @map("patrol_number")
+  startTime    String   @map("start_time")
+  endTime      String   @map("end_time")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  patrolSessions PatrolSession[]
+
+  @@map("patrol_schedules")
+}
+
+// ============================================================
+// PATROL SESSION (1 patroli = 1 session)
+// ============================================================
+
+model PatrolSession {
+  id           String        @id @default(uuid())
+  userId       String        @map("user_id")
+  scheduleId   String        @map("schedule_id")
+  shiftId      String        @map("shift_id")
+  patrolDate   DateTime      @map("patrol_date") @db.Date
+  patrolNumber Int           @map("patrol_number")
+  status       SessionStatus @default(pending)
+  startedAt    DateTime?     @map("started_at")
+  completedAt  DateTime?     @map("completed_at")
+  notes        String?       @db.Text
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  user          User                @relation(fields: [userId], references: [id])
+  schedule      PatrolSchedule      @relation(fields: [scheduleId], references: [id])
+  shift         Shift               @relation(fields: [shiftId], references: [id])
+  sessionFloors PatrolSessionFloor[]
+  findings      Finding[]
+
+  @@unique([userId, scheduleId, patrolDate])
+  @@map("patrol_sessions")
+}
+
+enum SessionStatus {
+  pending
+  in_progress
+  completed
+  late
+  incomplete
+}
+
+// ============================================================
+// PATROL SESSION FLOOR (per lantai per sesi)
+// ============================================================
+
+model PatrolSessionFloor {
+  id                 String      @id @default(uuid())
+  sessionId          String      @map("session_id")
+  floorId            String      @map("floor_id")
+  floorNameSnapshot  String      @map("floor_name_snapshot")
+  floorCodeSnapshot  String      @map("floor_code_snapshot")
+  status             FloorStatus @default(pending)
+  qrValidated        Boolean     @default(false) @map("qr_validated")
+  qrScannedAt        DateTime?   @map("qr_scanned_at")
+  qrTokenUsed        String?     @map("qr_token_used")
+  startedAt          DateTime?   @map("started_at")
+  completedAt        DateTime?   @map("completed_at")
+  createdAt          DateTime    @default(now()) @map("created_at")
+
+  session      PatrolSession @relation(fields: [sessionId], references: [id])
+  floor        Floor         @relation(fields: [floorId], references: [id])
+  patrolChecks PatrolCheck[]
+
+  @@map("patrol_session_floors")
+}
+
+enum FloorStatus {
+  pending
+  in_progress
+  completed
+}
+
+// ============================================================
+// PATROL CHECK (per ruangan)
+// ============================================================
+
+model PatrolCheck {
+  id                String      @id @default(uuid())
+  sessionFloorId    String      @map("session_floor_id")
+  roomId            String      @map("room_id")
+  userId            String      @map("user_id")
+  roomNameSnapshot  String      @map("room_name_snapshot")
+  roomCodeSnapshot  String      @map("room_code_snapshot")
+  floorNameSnapshot String      @map("floor_name_snapshot")
+  roomOrderSnapshot Int         @map("room_order_snapshot")
+  acStatus          AcStatus    @default(not_available) @map("ac_status")
+  lightStatus       LightStatus @default(off) @map("light_status")
+  condition         Condition   @default(normal)
+  remarks           String?     @db.Text
+  checkedAt         DateTime    @map("checked_at")
+  isSynced          Boolean     @default(true) @map("is_synced")
+  syncedAt          DateTime?   @map("synced_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+
+  sessionFloor PatrolSessionFloor @relation(fields: [sessionFloorId], references: [id])
+  room         Room               @relation(fields: [roomId], references: [id])
+  user         User               @relation(fields: [userId], references: [id])
+  photos       PatrolPhoto[]
+  findings     Finding[]
+
+  @@map("patrol_checks")
+}
+
+enum AcStatus {
+  on
+  off
+  not_available
+}
+
+enum LightStatus {
+  on
+  off
+}
+
+enum Condition {
+  normal
+  finding
+}
+
+// ============================================================
+// PATROL PHOTO
+// ============================================================
+
+model PatrolPhoto {
+  id               String   @id @default(uuid())
+  checkId          String   @map("check_id")
+  userId           String   @map("user_id")
+  filePath         String   @map("file_path")
+  thumbnailPath    String?  @map("thumbnail_path")
+  originalFilename String   @map("original_filename")
+  fileSize         Int      @map("file_size")
+  mimeType         String   @map("mime_type")
+  isPrimary        Boolean  @default(true) @map("is_primary")
+  hasWatermark     Boolean  @default(false) @map("has_watermark")
+  watermarkData    Json?    @map("watermark_data")
+  metadata         Json?
+  takenAt          DateTime @map("taken_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  check PatrolCheck @relation(fields: [checkId], references: [id])
+  user  User        @relation(fields: [userId], references: [id])
+
+  @@map("patrol_photos")
+}
+
+// ============================================================
+// FINDING (TEMUAN)
+// ============================================================
+
+model Finding {
+  id                String        @id @default(uuid())
+  findingNumber     String        @unique @map("finding_number")
+  checkId           String?       @map("check_id")
+  sessionId         String?       @map("session_id")
+  userId            String        @map("user_id")
+  floorId           String?       @map("floor_id")
+  roomId            String?       @map("room_id")
+  floorNameSnapshot String        @map("floor_name_snapshot")
+  roomNameSnapshot  String        @map("room_name_snapshot")
+  category          FindingCategory
+  description       String        @db.Text
+  status            FindingStatus @default(new)
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  check    PatrolCheck?    @relation(fields: [checkId], references: [id])
+  session  PatrolSession?  @relation(fields: [sessionId], references: [id])
+  user     User            @relation(fields: [userId], references: [id])
+  floor    Floor?          @relation(fields: [floorId], references: [id])
+  room     Room?           @relation(fields: [roomId], references: [id])
+  updates  FindingUpdate[]
+
+  @@map("findings")
+}
+
+enum FindingCategory {
+  keamanan
+  fasilitas
+  listrik
+  ac
+  kebersihan
+  akses_pintu
+  orang_mencurigakan
+  lainnya
+}
+
+enum FindingStatus {
+  new
+  in_progress
+  resolved
+}
+
+// ============================================================
+// FINDING UPDATES
+// ============================================================
+
+model FindingUpdate {
+  id        String       @id @default(uuid())
+  findingId String       @map("finding_id")
+  userId    String       @map("user_id")
+  action    UpdateAction
+  oldStatus FindingStatus? @map("old_status")
+  newStatus FindingStatus? @map("new_status")
+  comment   String?      @db.Text
+  photoPath String?      @map("photo_path")
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  finding Finding @relation(fields: [findingId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@map("finding_updates")
+}
+
+enum UpdateAction {
+  status_change
+  comment
+  photo_added
+}
+
+// ============================================================
+// ACTIVITY LOG (AUDIT TRAIL)
+// ============================================================
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
+}
+
+// ============================================================
+// CHECKLIST TEMPLATE
+// ============================================================
+
+model ChecklistTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  items     Json
+  isDefault Boolean  @default(false) @map("is_default")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("checklist_templates")
+}
+
+// ============================================================
+// SYSTEM SETTINGS
+// ============================================================
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}

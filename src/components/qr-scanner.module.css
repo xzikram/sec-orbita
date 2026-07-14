@@ -1,0 +1,38 @@
+.container { width: 100%; }
+
+.header { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.backBtn { width: 36px; height: 36px; border-radius: var(--radius-full); background: var(--bg-card); border: 1px solid var(--border-light); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.headerText {}
+.title { font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); }
+.sub { font-size: var(--font-size-sm); color: var(--text-muted); }
+
+.scannerWrap { position: relative; width: 100%; max-width: 400px; margin: 0 auto; aspect-ratio: 1; border-radius: var(--radius-xl); overflow: hidden; background: #000; }
+.scannerEl { width: 100%; height: 100%; }
+.scannerEl video { border-radius: var(--radius-xl); }
+.hidden { display: none; }
+
+/* Scan line animation */
+.scanOverlay { position: absolute; inset: 0; pointer-events: none; }
+.scanLine { position: absolute; left: 15%; right: 15%; top: 15%; height: 3px; background: linear-gradient(90deg, transparent, var(--color-primary-400), transparent); box-shadow: 0 0 12px var(--color-primary-400); animation: scanMove 2s ease-in-out infinite; border-radius: 2px; }
+
+@keyframes scanMove {
+  0%, 100% { top: 15%; }
+  50% { top: 80%; }
+}
+
+/* States */
+.loadingState, .successState, .errorState { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); color: white; z-index: 5; }
+.spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.2); border-top-color: white; border-radius: 50%; animation: spin 800ms linear infinite; }
+.successState { background: rgba(0,0,0,0.85); animation: fadeIn 300ms ease; }
+.successCircle { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, var(--color-success-500), #66BB6A); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 30px rgba(76,175,80,0.5); animation: scaleIn 400ms ease; }
+.successTitle { font-size: var(--font-size-xl); font-weight: var(--font-weight-extrabold); color: var(--color-success-400); }
+.successSub { font-size: var(--font-size-sm); color: rgba(255,255,255,0.7); }
+.errorState { background: rgba(0,0,0,0.85); color: var(--text-muted); text-align: center; padding: var(--space-4); }
+.errorState p { font-size: var(--font-size-sm); margin-bottom: var(--space-3); max-width: 240px; }
+
+.instructions { text-align: center; padding: var(--space-4); }
+.instructions p { font-size: var(--font-size-sm); color: var(--text-secondary); line-height: var(--line-height-relaxed); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn { from { transform: scale(0); } to { transform: scale(1); } }

@@ -1,0 +1,37 @@
+.container { width: 100%; border-radius: var(--radius-xl); overflow: hidden; background: #000; }
+
+.cameraArea { position: relative; width: 100%; aspect-ratio: 4/3; }
+.video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hiddenCanvas { display: none; }
+
+/* Viewfinder corners */
+.viewfinder { position: absolute; inset: 16px; pointer-events: none; }
+.cornerTL, .cornerTR, .cornerBL, .cornerBR { position: absolute; width: 28px; height: 28px; border-color: rgba(255,255,255,0.7); }
+.cornerTL { top: 0; left: 0; border-top: 3px solid; border-left: 3px solid; border-radius: 4px 0 0 0; }
+.cornerTR { top: 0; right: 0; border-top: 3px solid; border-right: 3px solid; border-radius: 0 4px 0 0; }
+.cornerBL { bottom: 0; left: 0; border-bottom: 3px solid; border-left: 3px solid; border-radius: 0 0 0 4px; }
+.cornerBR { bottom: 0; right: 0; border-bottom: 3px solid; border-right: 3px solid; border-radius: 0 0 4px 0; }
+
+/* Controls */
+.controls { position: absolute; bottom: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: var(--space-8); padding: var(--space-5); background: linear-gradient(transparent, rgba(0,0,0,0.6)); }
+.captureBtn { width: 72px; height: 72px; border-radius: 50%; background: rgba(255,255,255,0.25); border: 4px solid white; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 100ms, background 150ms; }
+.captureBtn:active { transform: scale(0.9); background: rgba(255,255,255,0.5); }
+.captureBtnInner { width: 52px; height: 52px; border-radius: 50%; background: white; }
+.ctrlBtn { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.15); border: none; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(4px); transition: background 150ms; }
+.ctrlBtn:hover { background: rgba(255,255,255,0.3); }
+
+/* Loading */
+.loadingOverlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); color: white; font-size: var(--font-size-sm); z-index: 5; }
+.spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.2); border-top-color: white; border-radius: 50%; animation: spin 800ms linear infinite; }
+
+/* Preview */
+.previewArea { position: relative; }
+.preview { width: 100%; display: block; }
+.previewActions { position: absolute; bottom: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: var(--space-4); background: linear-gradient(transparent, rgba(0,0,0,0.7)); }
+.checkMark { color: var(--color-success-400); font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); }
+
+/* Error */
+.errorState { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-8); gap: var(--space-4); color: var(--text-muted); text-align: center; min-height: 260px; }
+.errorText { font-size: var(--font-size-sm); line-height: var(--line-height-relaxed); max-width: 280px; }
+
+@keyframes spin { to { transform: rotate(360deg); } }

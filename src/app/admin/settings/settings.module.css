@@ -1,0 +1,14 @@
+.settingsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: var(--space-5); }
+.settingCard { padding: var(--space-5); }
+.settingTitle { font-size: var(--font-size-md); font-weight: var(--font-weight-bold); margin-bottom: var(--space-4); padding-bottom: var(--space-3); border-bottom: 1px solid var(--border-light); }
+.settingGroup { display: flex; flex-direction: column; gap: var(--space-1); }
+.settingRow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-light); }
+.settingRow:last-child { border-bottom: none; }
+.settingInfo { flex: 1; min-width: 0; }
+.settingLabel { display: block; font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }
+.settingDesc { display: block; font-size: var(--font-size-xs); color: var(--text-muted); margin-top: 1px; }
+.settingUnit { font-size: var(--font-size-sm); color: var(--text-muted); font-weight: var(--font-weight-medium); }
+
+.saveBar { margin-top: var(--space-6); display: flex; justify-content: flex-end; }
+
+@media (max-width: 640px) { .settingsGrid { grid-template-columns: 1fr; } .settingRow { flex-direction: column; align-items: flex-start; gap: var(--space-2); } }

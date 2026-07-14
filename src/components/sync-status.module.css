@@ -1,0 +1,14 @@
+.bar { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); border-radius: var(--radius-lg); margin-bottom: var(--space-4); animation: slideDown 300ms ease; }
+.barOffline { background: var(--color-danger-50); border: 1px solid var(--color-danger-100); color: var(--color-danger-700); }
+.barPending { background: var(--color-warning-50); border: 1px solid var(--color-warning-100); color: var(--color-warning-700); }
+.info { display: flex; align-items: center; gap: var(--space-2); }
+.statusDot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.5s infinite; }
+.syncBtn { background: white; border: 1px solid currentColor; color: inherit; padding: 2px var(--space-3); border-radius: var(--radius-sm); font-size: 10px; font-weight: var(--font-weight-bold); cursor: pointer; transition: background 150ms; }
+.syncBtn:hover { background: rgba(0,0,0,0.05); }
+.syncBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@keyframes pulse {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.6; }
+}

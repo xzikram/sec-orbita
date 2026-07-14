@@ -1,0 +1,206 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.headerInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.headerFloor {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-500);
+}
+
+.headerProgress {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* Room Header */
+.roomHeader {
+  text-align: center;
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) 0;
+}
+
+.roomLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.roomName {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-extrabold);
+  color: var(--text-primary);
+  margin-top: var(--space-1);
+}
+
+.roomCode {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* Sections */
+.section {
+  margin-bottom: var(--space-5);
+  opacity: 0;
+}
+
+.photoGuide {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-primary-600);
+  background: var(--color-primary-50);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--color-primary-100);
+}
+
+.retakeBtn {
+  margin-top: var(--space-2);
+  width: 100%;
+  justify-content: center;
+}
+
+/* Checklist */
+.checklistItem {
+  margin-bottom: var(--space-4);
+}
+
+.checklistLabel {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.remarksField {
+  margin-top: var(--space-2);
+}
+
+/* Finding Section */
+.findingSection {
+  background: var(--color-danger-50);
+  border: 1px solid var(--color-danger-100);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.findingSection .form-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-danger-700);
+  margin-bottom: var(--space-4);
+}
+
+.categoryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+}
+
+.categoryBtn {
+  padding: var(--space-2) var(--space-3);
+  border: 1.5px solid var(--color-neutral-200);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.categoryBtn:active {
+  transform: scale(0.96);
+}
+
+.categoryActive {
+  border-color: var(--color-danger-500);
+  background: var(--color-danger-50);
+  color: var(--color-danger-700);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 0 0 1px var(--color-danger-500);
+}
+
+/* Submit */
+.submitSection {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-4);
+  opacity: 0;
+}
+
+.submitHint {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-2);
+}
+
+.btnDisabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none !important;
+}
+
+.btnDisabled:hover {
+  transform: none;
+}
+
+/* Success Screen */
+.successScreen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100dvh - var(--header-height) - var(--bottom-nav-height) - 100px);
+  text-align: center;
+  animation: scaleIn 400ms ease;
+}
+
+.successIcon {
+  width: 88px;
+  height: 88px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-success-500), var(--color-success-400));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+  box-shadow: 0 8px 24px rgba(76, 175, 80, 0.35);
+  animation: checkmark 600ms ease 200ms;
+}
+
+.successTitle {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-extrabold);
+  color: var(--color-success-700);
+  margin-bottom: var(--space-1);
+}
+
+.successText {
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+
+.successMeta {
+  margin-top: var(--space-4);
+}

@@ -1,0 +1,14 @@
+.header { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5); }
+.title { flex: 1; font-size: var(--font-size-2xl); font-weight: var(--font-weight-extrabold); }
+.infoCard { padding: var(--space-5); margin-bottom: var(--space-5); }
+.infoGrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.infoLabel { display: block; font-size: var(--font-size-xs); color: var(--text-muted); font-weight: var(--font-weight-semibold); text-transform: uppercase; letter-spacing: 0.05em; }
+.infoValue { display: block; font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); margin-top: 2px; }
+.pctText { font-size: var(--font-size-sm); color: var(--text-secondary); text-align: center; }
+.sectionTitle { font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); margin-bottom: var(--space-4); }
+.floorList { display: flex; flex-direction: column; gap: var(--space-3); }
+.floorCard { padding: var(--space-4); }
+.floorHead { display: flex; align-items: center; justify-content: space-between; }
+.floorName { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+.floorMeta { display: flex; justify-content: space-between; font-size: var(--font-size-xs); color: var(--text-muted); }
+.qrTag { color: var(--color-success-700); font-weight: var(--font-weight-bold); }

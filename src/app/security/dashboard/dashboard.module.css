@@ -1,0 +1,219 @@
+.dateText {
+  opacity: 0;
+  animation: fadeIn 300ms ease 100ms forwards;
+}
+
+/* Patrol Card */
+.patrolCard {
+  position: relative;
+  overflow: hidden;
+}
+
+.patrolCard::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(66, 165, 245, 0.1);
+  pointer-events: none;
+}
+
+.patrolHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.patrolLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-300);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.patrolTitle {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-extrabold);
+  color: var(--color-white);
+  margin-top: var(--space-1);
+  line-height: 1.2;
+}
+
+.patrolPeriod {
+  font-size: var(--font-size-sm);
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: var(--space-1);
+}
+
+.patrolBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+}
+
+/* Progress */
+.progressSection {
+  padding-top: var(--space-2);
+}
+
+.progressHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.progressLabel {
+  font-size: var(--font-size-sm);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.progressValue {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-primary-300);
+}
+
+.progressDetail {
+  font-size: var(--font-size-xs);
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: var(--space-2);
+}
+
+/* Stats Grid */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.statCard {
+  text-align: center;
+}
+
+.statCard .card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.statIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-1);
+}
+
+.statIconSuccess {
+  background: var(--color-success-50);
+  color: var(--color-success-600);
+}
+
+.statIconDanger {
+  background: var(--color-danger-50);
+  color: var(--color-danger-600);
+}
+
+.statIconPrimary {
+  background: var(--color-primary-50);
+  color: var(--color-primary-500);
+}
+
+.statValue {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-extrabold);
+  color: var(--text-primary);
+}
+
+.statLabel {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
+/* Floor List */
+.floorList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.floorCard {
+  opacity: 0;
+}
+
+.floorCardContent {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.floorCardLeft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.floorCardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.floorName {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.floorRoomCount {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.floorCardRight {
+  display: flex;
+  align-items: center;
+}
+
+.floorPercent {
+  display: flex;
+  align-items: baseline;
+}
+
+.floorPercentValue {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-extrabold);
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.floorPercentSign {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-muted);
+  margin-left: 1px;
+}
+
+/* CTA */
+.ctaSection {
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-4);
+}
