@@ -1,19 +1,41 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, getCurrentShift, patrolHistory } from '@/lib/dummy-data';
 import styles from './profile.module.css';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const user = getCurrentUser();
-  const shift = getCurrentShift();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) {
+          setCurrentUser(data.user);
+        }
+      })
+      .catch(err => console.error('Error fetching profile user:', err));
+  }, []);
+
+  const dummyUser = getCurrentUser();
+  const dummyShift = getCurrentShift();
+
+  const user = currentUser || dummyUser;
+  const shift = currentUser?.shift || dummyShift;
 
   const completedPatrols = patrolHistory.filter(p => p.status === 'completed').length;
   const latePatrols = patrolHistory.filter(p => p.status === 'late').length;
   const totalPatrols = patrolHistory.length;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
     router.push('/login');
   };
 

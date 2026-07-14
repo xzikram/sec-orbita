@@ -82,8 +82,24 @@ export default function SecurityLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const user = getCurrentUser();
-  const shift = getCurrentShift();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) {
+          setCurrentUser(data.user);
+        }
+      })
+      .catch(err => console.error('Error fetching auth user:', err));
+  }, []);
+
+  const dummyUser = getCurrentUser();
+  const dummyShift = getCurrentShift();
+
+  const user = currentUser || dummyUser;
+  const shift = currentUser?.shift || dummyShift;
 
   const isNavActive = (path: string) => {
     if (path === '/security/dashboard') return pathname === '/security/dashboard';
