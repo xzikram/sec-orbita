@@ -31,8 +31,11 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Hanya cache request GET untuk halaman static atau assets
-  if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  // Jangan intercept request non-GET atau request ke API (/api/)
+  if (e.request.method !== 'GET' || url.pathname.startsWith('/api/')) {
+    return;
+  }
 
   e.respondWith(
     caches.match(e.request).then((cachedResponse) => {
