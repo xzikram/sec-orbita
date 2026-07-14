@@ -16,7 +16,25 @@ export async function POST(request: NextRequest) {
     const isRoomDummy = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId) || roomId.startsWith('room-');
 
     if (isRoomDummy) {
-      const mockRoom = mockRooms.find(r => r.id === roomId);
+      let mockRoom = mockRooms.find(r => r.id === roomId);
+      if (!mockRoom) {
+        const match = roomId.match(/^room-([a-z0-9]+)-(\d+)$/i);
+        if (match) {
+          const floorPart = match[1].toLowerCase();
+          const numPart = String(match[2]).padStart(2, '0');
+          const normalizedId = `room-${floorPart}-${numPart}`;
+          mockRoom = mockRooms.find(r => r.id === normalizedId);
+        }
+      }
+      if (!mockRoom) {
+        const matchL1 = roomId.match(/^room-(\d+)$/i);
+        if (matchL1) {
+          const numPart = String(matchL1[1]).padStart(2, '0');
+          const normalizedId = `room-l1-${numPart}`;
+          mockRoom = mockRooms.find(r => r.id === normalizedId);
+        }
+      }
+
       if (mockRoom) {
         const dbRoom = await prisma.room.findUnique({ where: { code: mockRoom.code } });
         if (dbRoom) {

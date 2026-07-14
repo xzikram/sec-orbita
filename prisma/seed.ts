@@ -63,8 +63,28 @@ async function main() {
 
   // 2. Users
   const spvPwd = await hash('password123', 12);
-  await prisma.user.create({ data: { employeeId: 'SPV-001', name: 'Dimas Prasetyo', email: 'dimas@jec.co.id', password: spvPwd, role: 'supervisor', shiftId: shiftPagi.id } });
-  await prisma.user.create({ data: { employeeId: 'ADM-001', name: 'Eka Putri', email: 'eka@jec.co.id', password: spvPwd, role: 'admin', shiftId: shiftPagi.id } });
+  await prisma.user.create({
+    data: {
+      id: 'd3b07384-d113-4ec6-a558-4c31bcafdf4a',
+      employeeId: 'SPV-001',
+      name: 'Dimas Prasetyo',
+      email: 'dimas@jec.co.id',
+      password: spvPwd,
+      role: 'supervisor',
+      shiftId: shiftPagi.id
+    }
+  });
+  await prisma.user.create({
+    data: {
+      id: 'a78f3c7b-7bcf-4f9e-a890-bf3843a854d1',
+      employeeId: 'ADM-001',
+      name: 'Eka Putri',
+      email: 'eka@jec.co.id',
+      password: spvPwd,
+      role: 'admin',
+      shiftId: shiftPagi.id
+    }
+  });
 
   const securityNames = [
     'Fitriani Hasan',
@@ -77,15 +97,26 @@ async function main() {
     'Muh iqbal'
   ];
 
+  const securityUUIDs = [
+    'e2b10a2d-3cbf-4e20-bf4d-3b5f07a4a9c8', // SEC-002 (Fitriani Hasan)
+    'f3c21b3e-4dca-5f31-c05e-4c6f18b5b0d9', // SEC-003
+    '0a4d2c4f-5edb-6a42-d16f-5d7e29c6c1ea', // SEC-004
+    '1b5e3d50-6fec-7b53-e270-6e8f3ad7d2fb', // SEC-005
+    '2c6f4e61-70fd-8c64-f381-7f9f4be8e3fc', // SEC-006
+    '3d7f5f72-810e-9d75-0492-80af5cf9f4fd', // SEC-007
+    '4e8f6f83-921f-0e86-15a3-91bf6df0f5fe', // SEC-008
+    '5f9f7f94-a320-1e97-26b4-a2c07e01a6ff'  // SEC-009
+  ];
+
   for (let i = 0; i < securityNames.length; i++) {
     const num = i + 2;
     const employeeId = `SEC-00${num}`;
     const userPwd = await hash(employeeId, 12);
-    // distribute shifts: even indices to Shift Pagi, odd to Shift Malam
     const shiftId = i % 2 === 0 ? shiftPagi.id : shiftMalam.id;
     const email = `${securityNames[i].toLowerCase().replace(/[^a-z0-9]/g, '')}@jec.co.id`;
     await prisma.user.create({
       data: {
+        id: securityUUIDs[i],
         employeeId,
         name: securityNames[i],
         email,
@@ -95,7 +126,7 @@ async function main() {
       }
     });
   }
-  console.log('  ✓ Users created (Security: SEC-002 to SEC-009, password matches employee ID)');
+  console.log('  ✓ Users created (Security: SEC-002 to SEC-009, static UUIDs)');
 
   // 3. Building
   const building = await prisma.building.create({ data: { code: 'JEC-ORB', name: 'RS Mata JEC ORBITA', address: 'Jl. Raya Orbita No. 1, Jakarta' } });
