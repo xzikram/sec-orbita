@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import SyncStatus from '@/components/SyncStatus';
 import PwaInstallBanner from '@/components/PwaInstallBanner';
+import ConnectionStatus from '@/components/ConnectionStatus';
 import styles from './security.module.css';
 
 interface LayoutUser {
@@ -73,6 +74,17 @@ const navItems = [
     ),
   },
   {
+    path: '/security/leaderboard',
+    label: 'Peringkat',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+      </svg>
+    ),
+  },
+  {
     path: '/security/profile',
     label: 'Profil',
     icon: (
@@ -91,16 +103,59 @@ export default function SecurityLayout({
 }) {
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = useState<LayoutUser | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineCount, setOfflineCount] = useState(0);
 
   useEffect(() => {
+    // Load dark mode preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+      setDarkMode(true);
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+
+    // Online/offline listeners
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    setIsOnline(navigator.onLine);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Check offline data count
+    const checkOffline = async () => {
+      try {
+        const { getOfflineCount } = await import('@/lib/db');
+        const counts = await getOfflineCount();
+        setOfflineCount(counts.checks + counts.findings);
+      } catch { /* ignore */ }
+    };
+    checkOffline();
+    const offlineInterval = setInterval(checkOffline, 30000);
+
     fetch('/api/auth/me')
       .then(res => res.json())
       .then(data => {
         if (data.user) {
           setCurrentUser(data.user);
+          // Auto dark mode for night shifts (endTime after 22:00 or startTime before 06:00)
+          if (!savedTheme && data.user.shift) {
+            const endH = parseInt(data.user.shift.endTime?.split(':')[0] || '0');
+            const startH = parseInt(data.user.shift.startTime?.split(':')[0] || '8');
+            if (endH >= 22 || endH <= 5 || startH >= 20) {
+              setDarkMode(true);
+              document.documentElement.setAttribute('data-theme', 'dark');
+            }
+          }
         }
       })
       .catch(err => console.error('Error fetching auth user:', err));
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      clearInterval(offlineInterval);
+    };
   }, []);
 
   const user = currentUser;
@@ -109,6 +164,18 @@ export default function SecurityLayout({
   const isNavActive = (path: string) => {
     if (path === '/security/dashboard') return pathname === '/security/dashboard';
     return pathname.startsWith(path);
+  };
+
+  const toggleDarkMode = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    if (next) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('theme', 'light');
+    }
   };
 
   return (
@@ -128,6 +195,18 @@ export default function SecurityLayout({
             </div>
           </div>
           <LiveClock />
+          {/* Connection Status */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <ConnectionStatus />
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={toggleDarkMode}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '16px', lineHeight: 1 }}
+              title={darkMode ? 'Mode Terang' : 'Mode Gelap'}
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
+          </div>
         </div>
       </header>
 

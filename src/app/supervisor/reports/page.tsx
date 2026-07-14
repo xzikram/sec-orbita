@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { todaySessions, todayStats, allFindings, session6Floors } from '@/lib/supervisor-data';
 import { patrolSchedules, floors } from '@/lib/dummy-data';
 import styles from './reports.module.css';
@@ -67,16 +68,21 @@ export default function ReportsPage() {
           <h1 className={styles.pageTitle}>Laporan</h1>
           <p className={styles.pageSub}>Ringkasan dan analisis kegiatan patroli</p>
         </div>
-        <div className={styles.periodSelector}>
-          {(['today', 'week', 'month'] as const).map(p => (
-            <button
-              key={p}
-              className={`${styles.periodBtn} ${period === p ? styles.periodActive : ''}`}
-              onClick={() => setPeriod(p)}
-            >
-              {p === 'today' ? 'Hari Ini' : p === 'week' ? 'Minggu Ini' : 'Bulan Ini'}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <Link href="/supervisor/reports/export" className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+            📄 Export PDF
+          </Link>
+          <div className={styles.periodSelector}>
+            {(['today', 'week', 'month'] as const).map(p => (
+              <button
+                key={p}
+                className={`${styles.periodBtn} ${period === p ? styles.periodActive : ''}`}
+                onClick={() => setPeriod(p)}
+              >
+                {p === 'today' ? 'Hari Ini' : p === 'week' ? 'Minggu Ini' : 'Bulan Ini'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

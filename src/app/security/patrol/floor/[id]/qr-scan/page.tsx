@@ -41,6 +41,7 @@ export default function QRScanPage({
 
       if (res.ok && data.valid) {
         setScanState('success');
+        try { localStorage.removeItem('lastPatrolState'); } catch {}
         setTimeout(() => {
           router.push('/security/patrol');
         }, 2000);
@@ -52,6 +53,7 @@ export default function QRScanPage({
       // Offline fallback / demo validation fallback
       if (scannedText.includes(id) || scannedText.includes(floor?.code || '')) {
         setScanState('success');
+        try { localStorage.removeItem('lastPatrolState'); } catch {}
         setTimeout(() => {
           router.push('/security/patrol');
         }, 2000);
@@ -64,6 +66,7 @@ export default function QRScanPage({
 
   const handleSimulateScan = () => {
     setScanState('success');
+    try { localStorage.removeItem('lastPatrolState'); } catch {}
     setTimeout(() => {
       router.push('/security/patrol');
     }, 2000);

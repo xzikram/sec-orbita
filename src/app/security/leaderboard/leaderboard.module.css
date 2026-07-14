@@ -1,0 +1,211 @@
+.header {
+  margin-bottom: var(--space-5);
+  text-align: center;
+}
+
+.title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-extrabold);
+  color: var(--text-primary);
+}
+
+.subtitle {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+/* Podium Styling */
+.podiumContainer {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin: var(--space-6) 0;
+  height: 200px;
+}
+
+.podiumCol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.podiumCard {
+  width: 100%;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: var(--font-weight-extrabold);
+  box-shadow: var(--shadow-md);
+  transition: transform 0.2s ease;
+}
+
+.podiumCard:hover {
+  transform: translateY(-2px);
+}
+
+.first {
+  height: 120px;
+  background: linear-gradient(135deg, #FFD700, #FFA500); /* Gold */
+}
+
+.second {
+  height: 95px;
+  background: linear-gradient(135deg, #C0C0C0, #808080); /* Silver */
+}
+
+.third {
+  height: 80px;
+  background: linear-gradient(135deg, #CD7F32, #8B4513); /* Bronze */
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  border: 2px solid white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+  box-shadow: var(--shadow-sm);
+}
+
+.podiumRank {
+  font-size: var(--font-size-2xl);
+  line-height: 1;
+}
+
+.podiumScore {
+  font-size: 10px;
+  opacity: 0.9;
+  font-weight: var(--font-weight-semibold);
+  margin-top: 2px;
+}
+
+.podiumName {
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  text-align: center;
+  margin-top: 6px;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* User Achievements list */
+.myAchievementsCard {
+  margin-bottom: var(--space-5);
+}
+
+.achGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.achBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3) var(--space-2);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+
+.achBadgeActive {
+  background: var(--bg-card);
+  border-color: var(--color-primary-300);
+}
+
+.badgeIcon {
+  font-size: 24px;
+  margin-bottom: 4px;
+  filter: grayscale(100%);
+  opacity: 0.4;
+}
+
+.badgeIconActive {
+  filter: none;
+  opacity: 1;
+}
+
+.badgeLabel {
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+  color: var(--text-muted);
+}
+
+.badgeLabelActive {
+  color: var(--text-primary);
+}
+
+/* Leaderboard List Table */
+.tableContainer {
+  margin-top: var(--space-4);
+}
+
+.leaderboardTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.leaderboardTable th {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1.5px solid var(--border-color);
+  text-align: left;
+}
+
+.leaderboardTable td {
+  padding: var(--space-3);
+  font-size: var(--font-size-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.leaderboardTable tr:last-child td {
+  border-bottom: none;
+}
+
+.rankCell {
+  font-weight: var(--font-weight-bold);
+  width: 40px;
+}
+
+.nameCell {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.scoreCell {
+  font-weight: var(--font-weight-extrabold);
+  color: var(--color-primary-500);
+  text-align: right;
+  width: 80px;
+}
+
+.currentUserRow {
+  background: rgba(21, 101, 192, 0.05);
+}

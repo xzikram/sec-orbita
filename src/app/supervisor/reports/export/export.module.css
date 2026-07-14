@@ -1,0 +1,184 @@
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.controls {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: flex-end;
+  box-shadow: var(--shadow-sm);
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 150px;
+}
+
+.label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.select, .input {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  outline: none;
+}
+
+/* Printable Sheet styles */
+.sheet {
+  background: white;
+  color: black;
+  border: 1px solid #ddd;
+  border-radius: var(--radius-xl);
+  padding: var(--space-10);
+  box-shadow: var(--shadow-md);
+  min-height: 297mm; /* Standard A4 height */
+}
+
+.header {
+  border-bottom: 2.5px double #333;
+  padding-bottom: var(--space-5);
+  margin-bottom: var(--space-6);
+  text-align: center;
+}
+
+.hospitalTitle {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-extrabold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+  color: #0A1628;
+}
+
+.reportTitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  margin: var(--space-2) 0 4px;
+}
+
+.reportMeta {
+  font-size: var(--font-size-sm);
+  color: #555;
+  font-weight: var(--font-weight-medium);
+}
+
+/* Summary Grid */
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.summaryBox {
+  border: 1px solid #ccc;
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  text-align: center;
+  background: #f9f9f9;
+}
+
+.summaryNum {
+  display: block;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.summaryLabel {
+  display: block;
+  font-size: 10px;
+  color: #666;
+  text-transform: uppercase;
+  margin-top: 4px;
+  font-weight: var(--font-weight-bold);
+}
+
+/* Section */
+.section {
+  margin-bottom: var(--space-6);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-3);
+  border-bottom: 1.5px solid #333;
+  padding-bottom: 4px;
+  text-transform: uppercase;
+}
+
+/* Print tables */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--space-4);
+}
+
+.table th {
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.table td {
+  border: 1px solid #ccc;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+/* Signatures */
+.signatureSection {
+  margin-top: var(--space-12);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+}
+
+.signatureBox {
+  text-align: center;
+  width: 200px;
+}
+
+.signatureLine {
+  margin-top: 60px;
+  border-top: 1.5px solid #333;
+  padding-top: 4px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Print Media Query */
+@media print {
+  .controls {
+    display: none !important;
+  }
+  .sheet {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

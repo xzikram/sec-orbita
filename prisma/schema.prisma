@@ -30,6 +30,9 @@ model User {
   findingUpdates  FindingUpdate[]
   activityLogs    ActivityLog[]
   patrolPhotos    PatrolPhoto[]
+  handoversFrom   ShiftHandover[]   @relation("HandoverFrom")
+  handoversTo     ShiftHandover[]   @relation("HandoverTo")
+  achievements    UserAchievement[]
 
   @@map("users")
 }
@@ -56,8 +59,48 @@ model Shift {
 
   users           User[]
   patrolSessions  PatrolSession[]
+  handovers       ShiftHandover[]
 
   @@map("shifts")
+}
+
+// ============================================================
+// SHIFT HANDOVER
+// ============================================================
+
+model ShiftHandover {
+  id            String   @id @default(uuid())
+  fromUserId    String   @map("from_user_id")
+  toUserId      String?  @map("to_user_id")
+  shiftId       String   @map("shift_id")
+  handoverDate  DateTime @map("handover_date") @db.Date
+  notes         String?  @db.Text
+  openFindings  Int      @default(0) @map("open_findings")
+  status        String   @default("pending") // pending, acknowledged
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  fromUser User  @relation("HandoverFrom", fields: [fromUserId], references: [id])
+  toUser   User? @relation("HandoverTo", fields: [toUserId], references: [id])
+  shift    Shift @relation(fields: [shiftId], references: [id])
+
+  @@map("shift_handovers")
+}
+
+// ============================================================
+// USER ACHIEVEMENT
+// ============================================================
+
+model UserAchievement {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  badge       String   // "eagle_eye", "night_owl", "on_time_streak"
+  earnedAt    DateTime @default(now()) @map("earned_at")
+  metadata    Json?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, badge])
+  @@map("user_achievements")
 }
 
 // ============================================================

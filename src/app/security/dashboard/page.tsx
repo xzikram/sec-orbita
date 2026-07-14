@@ -34,10 +34,78 @@ export default function SecurityDashboard() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [resumeState, setResumeState] = useState<{ floorId: string; floorName: string; roomName: string; sessionId: string } | null>(null);
+  const [pendingHandover, setPendingHandover] = useState<any | null>(null);
+  const [showHandoverForm, setShowHandoverForm] = useState(false);
+  const [handoverNotes, setHandoverNotes] = useState('');
+  const [handoverSuccess, setHandoverSuccess] = useState(false);
+
+  const fetchHandover = async () => {
+    try {
+      const res = await fetch('/api/handover');
+      if (res.ok) {
+        const data = await res.json();
+        setPendingHandover(data.handover || null);
+      }
+    } catch (err) {
+      console.error('Error fetching handover:', err);
+    }
+  };
+
+  const handleAcknowledgeHandover = async () => {
+    if (!pendingHandover) return;
+    try {
+      const res = await fetch('/api/handover', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: pendingHandover.id }),
+      });
+      if (res.ok) {
+        setPendingHandover(null);
+      }
+    } catch (err) {
+      console.error('Error acknowledging handover:', err);
+    }
+  };
+
+  const handleSubmitHandover = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/handover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: handoverNotes }),
+      });
+      if (res.ok) {
+        setHandoverSuccess(true);
+        setHandoverNotes('');
+        setTimeout(() => {
+          setHandoverSuccess(false);
+          setShowHandoverForm(false);
+        }, 2000);
+      }
+    } catch (err) {
+      console.error('Error submitting handover:', err);
+    }
+  };
 
   useEffect(() => {
     setCurrentTime(new Date());
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
+
+    // Check resume state
+    try {
+      const saved = localStorage.getItem('lastPatrolState');
+      if (saved) {
+        const state = JSON.parse(saved);
+        // Only show if less than 8 hours old
+        if (Date.now() - new Date(state.timestamp).getTime() < 8 * 3600000) {
+          setResumeState(state);
+        } else {
+          localStorage.removeItem('lastPatrolState');
+        }
+      }
+    } catch { /* ignore */ }
 
     // Fetch real data from APIs
     async function loadDashboard() {
@@ -88,6 +156,7 @@ export default function SecurityDashboard() {
     }
 
     loadDashboard();
+    fetchHandover();
     return () => clearInterval(interval);
   }, []);
 
@@ -122,6 +191,57 @@ export default function SecurityDashboard() {
 
   return (
     <div className="page-content">
+      {/* Pending Handover Banner */}
+      {pendingHandover && (
+        <div className="card animate-slide-up" style={{ marginBottom: '12px', borderLeft: '4px solid var(--color-warning-500)', background: 'var(--color-warning-50)', color: 'var(--color-neutral-900)' }}>
+          <div className="card-body" style={{ padding: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '18px' }}>⚠️</span>
+              <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0, color: 'var(--color-warning-700)' }}>Serah Terima Shift Pending</h3>
+            </div>
+            <p style={{ fontSize: '13px', margin: '0 0 8px', lineHeight: '1.4' }}>
+              Diterima dari <strong>{pendingHandover.fromUser?.name}</strong> ({pendingHandover.fromUser?.employeeId}):
+            </p>
+            <div style={{ background: 'white', border: '1px solid var(--color-neutral-200)', borderRadius: '6px', padding: '10px', fontSize: '12px', color: 'var(--color-neutral-700)', marginBottom: '12px', fontStyle: 'italic' }}>
+              "{pendingHandover.notes || 'Tidak ada catatan khusus.'}"
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-neutral-500)' }}>
+                🚨 <strong>{pendingHandover.openFindings} temuan open</strong> belum selesai
+              </span>
+              <button 
+                onClick={handleAcknowledgeHandover} 
+                className="btn btn-warning btn-sm"
+                style={{ height: '32px', minHeight: 'auto', padding: '0 12px', fontSize: '12px' }}
+              >
+                Saya Sudah Baca ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resume Patrol Banner */}
+      {resumeState && (
+        <div className={`card animate-slide-up`} style={{ marginBottom: '12px', borderLeft: '3px solid var(--color-primary-500)' }}>
+          <div className="card-body" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <p style={{ fontSize: '12px', color: 'var(--color-primary-500)', fontWeight: 600, margin: 0 }}>Lanjutkan Patroli</p>
+              <p style={{ fontSize: '13px', margin: '2px 0 0', color: 'var(--text-secondary)' }}>
+                {resumeState.roomName} — {resumeState.floorName}
+              </p>
+            </div>
+            <Link
+              href={`/security/patrol/floor/${resumeState.floorId}`}
+              className="btn btn-primary btn-sm"
+              onClick={() => localStorage.removeItem('lastPatrolState')}
+            >
+              Lanjutkan →
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Date */}
       <p className={`text-sm text-secondary mb-3 ${styles.dateText}`}>
         {currentTime ? formatDate(currentTime) : ''}
@@ -218,8 +338,54 @@ export default function SecurityDashboard() {
         </div>
       </div>
 
+      {/* Handover Submission Form */}
+      <div className="card animate-slide-up" style={{ marginTop: '16px' }}>
+        <div className="card-body">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              🤝 Serah Terima Akhir Shift
+            </h3>
+            <button 
+              className="btn btn-outline btn-sm" 
+              onClick={() => setShowHandoverForm(!showHandoverForm)}
+              style={{ height: '28px', padding: '0 10px', minHeight: 'auto', fontSize: '11px' }}
+            >
+              {showHandoverForm ? 'Batal' : 'Buat Serah Terima'}
+            </button>
+          </div>
+          
+          {showHandoverForm && (
+            <form onSubmit={handleSubmitHandover} style={{ marginTop: '12px' }}>
+              {handoverSuccess ? (
+                <div style={{ background: 'var(--color-success-50)', color: 'var(--color-success-700)', border: '1px solid var(--color-success-200)', padding: '10px', borderRadius: '6px', fontSize: '12px', textAlign: 'center' }}>
+                  ✓ Catatan serah terima berhasil dikirim!
+                </div>
+              ) : (
+                <>
+                  <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                    Tuliskan catatan penting mengenai kondisi area atau temuan yang perlu dipantau oleh shift berikutnya.
+                  </p>
+                  <textarea
+                    className="form-input form-textarea"
+                    placeholder="Contoh: Kunci pintu parkir timur rusak, tolong dipantau..."
+                    value={handoverNotes}
+                    onChange={(e) => setHandoverNotes(e.target.value)}
+                    required
+                    rows={3}
+                    style={{ marginBottom: '10px', fontSize: '13px' }}
+                  />
+                  <button type="submit" className="btn btn-primary btn-sm w-full">
+                    Kirim ke Shift Berikutnya →
+                  </button>
+                </>
+              )}
+            </form>
+          )}
+        </div>
+      </div>
+
       {/* Start Patrol CTA */}
-      <div className={`${styles.ctaSection} animate-slide-up`}>
+      <div className={`${styles.ctaSection} animate-slide-up`} style={{ marginTop: '16px' }}>
         <Link href="/security/patrol" className="btn btn-primary btn-xl" id="btn-start-patrol">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />

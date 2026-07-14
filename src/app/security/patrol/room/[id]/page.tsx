@@ -50,6 +50,55 @@ export default function RoomCheckPage({
   const [showSuccess, setShowSuccess] = useState(false);
   const [syncMode, setSyncMode] = useState<'online' | 'offline'>('online');
 
+  const [isRecordingRemarks, setIsRecordingRemarks] = useState(false);
+  const [isRecordingFinding, setIsRecordingFinding] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+
+  const startSpeechRecognition = (target: 'remarks' | 'finding') => {
+    setSpeechError(null);
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSpeechError('Perekaman suara tidak didukung di browser ini.');
+      setTimeout(() => setSpeechError(null), 3000);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'id-ID';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    if (target === 'remarks') {
+      setIsRecordingRemarks(true);
+    } else {
+      setIsRecordingFinding(true);
+    }
+
+    recognition.onresult = (event: any) => {
+      const text = event.results[0][0].transcript;
+      if (target === 'remarks') {
+        setRemarks(prev => prev ? `${prev} ${text}` : text);
+      } else {
+        setFindingDescription(prev => prev ? `${prev} ${text}` : text);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      setSpeechError(`Gagal merekam: ${event.error}`);
+      setTimeout(() => setSpeechError(null), 3000);
+      setIsRecordingRemarks(false);
+      setIsRecordingFinding(false);
+    };
+
+    recognition.onend = () => {
+      setIsRecordingRemarks(false);
+      setIsRecordingFinding(false);
+    };
+
+    recognition.start();
+  };
+
   const canSubmit = () => {
     if (!photo) return false;
     if (room.hasAc && !acStatus) return false;
@@ -85,6 +134,21 @@ export default function RoomCheckPage({
         category: findingCategory,
         description: findingDescription,
       });
+    }
+
+    // Save patrol checkpoint state
+    try {
+      const lastPatrolState = {
+        sessionId: sessionFloor.sessionId,
+        floorId: room.floorId,
+        floorName: floor?.name || 'Lantai',
+        roomId: room.id,
+        roomName: room.name,
+        timestamp: new Date().toISOString(),
+      };
+      localStorage.setItem('lastPatrolState', JSON.stringify(lastPatrolState));
+    } catch (e) {
+      console.error('Failed to save lastPatrolState:', e);
     }
 
     setSyncMode(result.mode);
@@ -313,7 +377,18 @@ export default function RoomCheckPage({
         {/* Optional remarks for normal */}
         {condition === 'normal' && (
           <div className={`${styles.remarksField} animate-slide-up`}>
-            <span className={styles.checklistLabel}>KETERANGAN (Opsional)</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span className={styles.checklistLabel} style={{ margin: 0 }}>KETERANGAN (Opsional)</span>
+              <button
+                type="button"
+                onClick={() => startSpeechRecognition('remarks')}
+                className={`btn btn-sm ${isRecordingRemarks ? 'btn-danger' : 'btn-outline'}`}
+                style={{ height: '28px', padding: '0 8px', minHeight: 'auto', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
+              >
+                🎙️ {isRecordingRemarks ? 'Merekam...' : 'Voice Note'}
+              </button>
+            </div>
+            {speechError && <p style={{ fontSize: '11px', color: 'var(--color-danger-500)', margin: '0 0 6px' }}>{speechError}</p>}
             <textarea
               className="form-input form-textarea"
               placeholder="Tambahkan keterangan jika diperlukan..."
@@ -355,7 +430,18 @@ export default function RoomCheckPage({
           </div>
 
           <div className={styles.checklistItem}>
-            <span className={styles.checklistLabel}>DESKRIPSI TEMUAN *</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span className={styles.checklistLabel} style={{ margin: 0 }}>DESKRIPSI TEMUAN *</span>
+              <button
+                type="button"
+                onClick={() => startSpeechRecognition('finding')}
+                className={`btn btn-sm ${isRecordingFinding ? 'btn-danger' : 'btn-outline'}`}
+                style={{ height: '28px', padding: '0 8px', minHeight: 'auto', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
+              >
+                🎙️ {isRecordingFinding ? 'Merekam...' : 'Voice Note'}
+              </button>
+            </div>
+            {speechError && <p style={{ fontSize: '11px', color: 'var(--color-danger-500)', margin: '0 0 6px' }}>{speechError}</p>}
             <textarea
               className="form-input form-textarea"
               placeholder="Jelaskan temuan secara detail..."
