@@ -18,7 +18,29 @@ export default function PatrolPage() {
 
   useEffect(() => {
     setMounted(true);
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        const empId = data.user?.employeeId || 'guest';
+        const saved = localStorage.getItem(`patrol-reversed-${empId}`);
+        if (saved === 'true') {
+          setIsReversed(true);
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const handleToggleReversed = () => {
+    const newValue = !isReversed;
+    setIsReversed(newValue);
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        const empId = data.user?.employeeId || 'guest';
+        localStorage.setItem(`patrol-reversed-${empId}`, String(newValue));
+      })
+      .catch(() => {});
+  };
 
   const schedule = patrolSchedules.find(s => s.id === activeSession.scheduleId);
 
@@ -107,7 +129,7 @@ export default function PatrolPage() {
         <h3 className="section-title" style={{ margin: 0, fontSize: '16px' }}>Rute Patroli</h3>
         <button
           className="btn btn-ghost btn-sm"
-          onClick={() => setIsReversed(prev => !prev)}
+          onClick={handleToggleReversed}
           style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '4px 8px', height: 'auto', background: 'var(--color-neutral-100)', color: 'var(--color-primary-600)', fontWeight: 'bold' }}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

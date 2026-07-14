@@ -23,9 +23,42 @@ export default function FloorDetailPage({
   const floor = floors.find(f => f.id === id);
   const [floorRooms, setFloorRooms] = useState<Room[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    setFloorRooms(getRoomsByFloor(id));
+    const defaultRooms = getRoomsByFloor(id);
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) {
+          setCurrentUser(data.user);
+          const empId = data.user.employeeId;
+          const savedOrder = localStorage.getItem(`patrol-order-${empId}-${id}`);
+          if (savedOrder) {
+            try {
+              const orderIds = JSON.parse(savedOrder) as string[];
+              const sorted = [...defaultRooms].sort((a, b) => {
+                const idxA = orderIds.indexOf(a.id);
+                const idxB = orderIds.indexOf(b.id);
+                if (idxA === -1 && idxB === -1) return 0;
+                if (idxA === -1) return 1;
+                if (idxB === -1) return -1;
+                return idxA - idxB;
+              });
+              setFloorRooms(sorted);
+            } catch (e) {
+              setFloorRooms(defaultRooms);
+            }
+          } else {
+            setFloorRooms(defaultRooms);
+          }
+        } else {
+          setFloorRooms(defaultRooms);
+        }
+      })
+      .catch(() => {
+        setFloorRooms(defaultRooms);
+      });
     setMounted(true);
   }, [id]);
 
@@ -50,8 +83,16 @@ export default function FloorDetailPage({
     return 'progress-fill-primary';
   };
 
+  const saveCustomOrder = (newList: Room[]) => {
+    const empId = currentUser?.employeeId || 'guest';
+    const orderIds = newList.map(r => r.id);
+    localStorage.setItem(`patrol-order-${empId}-${id}`, JSON.stringify(orderIds));
+  };
+
   const reverseOrder = () => {
-    setFloorRooms(prev => [...prev].reverse());
+    const newList = [...floorRooms].reverse();
+    setFloorRooms(newList);
+    saveCustomOrder(newList);
   };
 
   const moveRoom = (index: number, direction: 'up' | 'down') => {
@@ -62,6 +103,7 @@ export default function FloorDetailPage({
     newList[index] = newList[newIndex];
     newList[newIndex] = temp;
     setFloorRooms(newList);
+    saveCustomOrder(newList);
   };
 
   return (

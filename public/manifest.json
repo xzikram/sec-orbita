@@ -1,0 +1,24 @@
+{
+  "name": "JEC ORBITA Security Patrol",
+  "short_name": "SecPatrol",
+  "description": "Aplikasi Patroli Security RS Mata JEC ORBITA",
+  "start_url": "/login",
+  "display": "standalone",
+  "background_color": "#1565c0",
+  "theme_color": "#1565c0",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

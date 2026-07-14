@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentUser, getCurrentShift } from '@/lib/dummy-data';
 import SyncStatus from '@/components/SyncStatus';
+import PwaInstallBanner from '@/components/PwaInstallBanner';
 import styles from './security.module.css';
 
 function LiveClock() {
@@ -129,6 +130,7 @@ export default function SecurityLayout({
       {/* Page Content */}
       <div className="page-container" style={{ paddingTop: '80px', paddingBottom: '90px' }}>
         <SyncStatus />
+        <PwaInstallBanner />
         {children}
       </div>
 

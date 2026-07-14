@@ -1,0 +1,126 @@
+.bannerContainer {
+  position: fixed;
+  bottom: 84px; /* Just above the bottom navigation bar */
+  left: var(--space-4);
+  right: var(--space-4);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(21, 101, 192, 0.15);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: 0 8px 32px rgba(10, 22, 40, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  z-index: 1000;
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.bannerContent {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.appIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.2);
+  flex-shrink: 0;
+}
+
+.iconImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bannerText {
+  flex: 1;
+}
+
+.bannerTitle {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-extrabold);
+  color: var(--text-primary);
+  margin: 0 0 2px 0;
+}
+
+.bannerDesc {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.dismissBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background 0.2s;
+}
+
+.dismissBtn:hover {
+  background: var(--color-neutral-100);
+  color: var(--text-primary);
+}
+
+.installBtn {
+  background: linear-gradient(135deg, var(--color-primary-600), var(--color-primary-500));
+  border: none;
+  color: white;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  padding: 8px 18px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(21, 101, 192, 0.25);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.installBtn:active {
+  transform: scale(0.97);
+}
+
+/* Dark mode overrides if needed */
+@media (prefers-color-scheme: dark) {
+  .bannerContainer {
+    background: rgba(18, 30, 49, 0.95);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  }
+  .bannerTitle {
+    color: white;
+  }
+  .bannerDesc {
+    color: var(--color-neutral-300);
+  }
+  .dismissBtn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+  }
+}
