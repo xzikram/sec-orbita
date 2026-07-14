@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
+import { rooms as mockRooms, floors as mockFloors } from '@/lib/dummy-data';
 
 // GET /api/findings - List findings
 export async function GET(request: NextRequest) {
@@ -45,13 +46,33 @@ export async function POST(request: NextRequest) {
     const isCheckDummy = realCheckId && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(realCheckId) || realCheckId.startsWith('check-'));
     const isSessionDummy = realSessionId && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(realSessionId) || realSessionId.startsWith('session-'));
 
+    let realRoomId = body.roomId || null;
+    const isRoomDummy = realRoomId && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(realRoomId) || realRoomId.startsWith('room-'));
+    if (isRoomDummy) {
+      const mockRoom = mockRooms.find(r => r.id === realRoomId);
+      if (mockRoom) {
+        const dbRoom = await prisma.room.findUnique({ where: { code: mockRoom.code } });
+        if (dbRoom) realRoomId = dbRoom.id;
+      }
+    }
+
+    let realFloorId = body.floorId || null;
+    const isFloorDummy = realFloorId && (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(realFloorId) || realFloorId.startsWith('floor-'));
+    if (isFloorDummy) {
+      const mockFloor = mockFloors.find(f => f.id === realFloorId);
+      if (mockFloor) {
+        const dbFloor = await prisma.floor.findUnique({ where: { code: mockFloor.code } });
+        if (dbFloor) realFloorId = dbFloor.id;
+      }
+    }
+
     if (isCheckDummy) {
       const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
       const patrolDate = new Date(todayStr);
 
       const recentCheck = await prisma.patrolCheck.findFirst({
         where: {
-          roomId: body.roomId,
+          roomId: realRoomId || undefined,
           userId: auth.id,
           checkedAt: {
             gte: patrolDate
@@ -82,8 +103,8 @@ export async function POST(request: NextRequest) {
         checkId: realCheckId,
         sessionId: realSessionId,
         userId: auth.id,
-        floorId: body.floorId || null,
-        roomId: body.roomId || null,
+        floorId: realFloorId,
+        roomId: realRoomId,
         floorNameSnapshot: body.floorNameSnapshot || '',
         roomNameSnapshot: body.roomNameSnapshot || '',
         category: body.category || 'lainnya',

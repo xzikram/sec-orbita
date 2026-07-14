@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
+import { rooms as mockRooms } from '@/lib/dummy-data';
 
 // POST /api/patrol/checks - Submit a room check
 export async function POST(request: NextRequest) {
@@ -11,8 +12,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { sessionFloorId, roomId, acStatus, lightStatus, condition, remarks } = body;
 
-    const room = await prisma.room.findUnique({ where: { id: roomId }, include: { floor: true } });
-    if (!room) return NextResponse.json({ error: 'Ruangan tidak ditemukan' }, { status: 404 });
+    let realRoomId = roomId;
+    const isRoomDummy = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId) || roomId.startsWith('room-');
+
+    if (isRoomDummy) {
+      const mockRoom = mockRooms.find(r => r.id === roomId);
+      if (mockRoom) {
+        const dbRoom = await prisma.room.findUnique({ where: { code: mockRoom.code } });
+        if (dbRoom) {
+          realRoomId = dbRoom.id;
+        }
+      }
+    }
+
+    const room = await prisma.room.findUnique({ where: { id: realRoomId }, include: { floor: true } });
+    if (!room) return NextResponse.json({ error: `Ruangan '${roomId}' tidak ditemukan` }, { status: 404 });
 
     let realSessionFloorId = sessionFloorId;
     const isDummy = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionFloorId) || sessionFloorId.startsWith('sf-');
