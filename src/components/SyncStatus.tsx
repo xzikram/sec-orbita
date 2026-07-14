@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getOfflineCount } from '@/lib/db';
+import { getOfflineCount, clearOfflineData } from '@/lib/db';
 import { syncOfflineData } from '@/lib/sync';
 import styles from './sync-status.module.css';
 
@@ -64,6 +64,22 @@ export default function SyncStatus() {
     updateCounts();
   };
 
+  const handleClearOffline = async () => {
+    if (confirm('Hapus semua data pending yang belum disinkronkan?')) {
+      setSyncing(true);
+      try {
+        await clearOfflineData();
+        setMessage('Data lokal berhasil dibersihkan.');
+        setTimeout(() => setMessage(''), 3000);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setSyncing(false);
+        updateCounts();
+      }
+    }
+  };
+
   const totalOffline = counts.checks + counts.findings;
 
   if (totalOffline === 0 && isOnline && !message) return null;
@@ -79,9 +95,19 @@ export default function SyncStatus() {
         </span>
       </div>
       {isOnline && totalOffline > 0 && (
-        <button className={styles.syncBtn} onClick={handleSync} disabled={syncing}>
-          {syncing ? 'Proses...' : 'Sinkronkan'}
-        </button>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button className={styles.syncBtn} onClick={handleSync} disabled={syncing}>
+            {syncing ? 'Proses...' : 'Sinkronkan'}
+          </button>
+          <button 
+            className={styles.syncBtn} 
+            onClick={handleClearOffline} 
+            disabled={syncing}
+            style={{ color: 'var(--color-danger-600)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+          >
+            Hapus
+          </button>
+        </div>
       )}
     </div>
   );

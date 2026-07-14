@@ -132,3 +132,14 @@ export async function getOfflineCount(): Promise<{ checks: number; findings: num
     return { checks: 0, findings: 0 };
   }
 }
+
+export async function clearOfflineData(): Promise<void> {
+  const db = await openDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([STORE_CHECKS, STORE_FINDINGS], 'readwrite');
+    tx.objectStore(STORE_CHECKS).clear();
+    tx.objectStore(STORE_FINDINGS).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
