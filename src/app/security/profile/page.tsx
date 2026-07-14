@@ -9,6 +9,14 @@ export default function ProfilePage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
 
+  // States for change password
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
   useEffect(() => {
     fetch('/api/auth/me')
       .then(res => res.json())
@@ -39,13 +47,57 @@ export default function ProfilePage() {
     router.push('/login');
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setErrorMsg('Semua kolom wajib diisi.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setErrorMsg('Password baru dan konfirmasi tidak cocok.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setErrorMsg('Password baru minimal harus 6 karakter.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal mengubah password.');
+      }
+
+      setSuccessMsg('Password berhasil diubah!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Terjadi kesalahan.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="page-content">
       {/* Profile Header */}
       <div className={`${styles.profileHeader} animate-slide-up`}>
         <div className={styles.avatar}>
           <span className={styles.avatarText}>
-            {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+            {user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
           </span>
         </div>
         <h1 className={styles.userName}>{user.name}</h1>
@@ -109,6 +161,56 @@ export default function ProfilePage() {
               <span className="badge badge-success">Aktif</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Ubah Password */}
+      <div className="card animate-slide-up stagger-2" style={{ marginTop: '1rem' }}>
+        <div className="card-body">
+          <h3 className={styles.sectionTitle}>Ubah Password</h3>
+          <form onSubmit={handleChangePassword}>
+            {errorMsg && <p className={`${styles.messageText} ${styles.errorText}`}>{errorMsg}</p>}
+            {successMsg && <p className={`${styles.messageText} ${styles.successText}`}>{successMsg}</p>}
+            
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Password Saat Ini</label>
+              <input
+                type="password"
+                className={styles.formInput}
+                value={currentPassword}
+                onChange={e => setCurrentPassword(e.target.value)}
+                placeholder="Masukkan password saat ini"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Password Baru</label>
+              <input
+                type="password"
+                className={styles.formInput}
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                placeholder="Minimal 6 karakter"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Konfirmasi Password Baru</label>
+              <input
+                type="password"
+                className={styles.formInput}
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Ulangi password baru"
+              />
+            </div>
+            <button
+              type="submit"
+              className="btn btn-primary btn-md mt-2"
+              disabled={loading}
+              style={{ width: '100%' }}
+            >
+              {loading ? 'Memproses...' : 'Simpan Password Baru'}
+            </button>
+          </form>
         </div>
       </div>
 
