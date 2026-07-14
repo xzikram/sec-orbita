@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { sessionFloorId, roomId, acStatus, lightStatus, condition, remarks } = body;
+    const { sessionFloorId, roomId, acStatus, lightStatus, condition, remarks, photoBase64 } = body;
 
     let realRoomId = roomId;
     const isRoomDummy = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId) || roomId.startsWith('room-');
@@ -124,12 +124,24 @@ export async function POST(request: NextRequest) {
       }
 
       realSessionFloorId = sessionFloor.id;
+    } else {
+      // IDOR protection: verify session belongs to current user
+      const sessionFloor = await prisma.patrolSessionFloor.findUnique({
+        where: { id: realSessionFloorId },
+        include: { session: { select: { userId: true } } },
+      });
+      if (!sessionFloor) {
+        return NextResponse.json({ error: 'Session floor tidak ditemukan' }, { status: 404 });
+      }
+      if (sessionFloor.session.userId !== auth.id) {
+        return NextResponse.json({ error: 'Anda tidak memiliki akses ke sesi ini' }, { status: 403 });
+      }
     }
 
     const check = await prisma.patrolCheck.create({
       data: {
         sessionFloorId: realSessionFloorId,
-        roomId,
+        roomId: realRoomId,
         userId: auth.id,
         roomNameSnapshot: room.name,
         roomCodeSnapshot: room.code,
@@ -142,6 +154,44 @@ export async function POST(request: NextRequest) {
         checkedAt: new Date(),
       },
     });
+
+    // Save photo if provided
+    if (photoBase64 && typeof photoBase64 === 'string' && photoBase64.length > 100) {
+      try {
+        const fs = await import('fs/promises');
+        const path = await import('path');
+
+        // Extract base64 data
+        const base64Data = photoBase64.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        const fileName = `patrol-${check.id}-${Date.now()}.jpg`;
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'patrol');
+
+        // Create directory if not exists
+        await fs.mkdir(uploadDir, { recursive: true });
+
+        const filePath = path.join(uploadDir, fileName);
+        await fs.writeFile(filePath, buffer);
+
+        // Create PatrolPhoto record
+        await prisma.patrolPhoto.create({
+          data: {
+            checkId: check.id,
+            userId: auth.id,
+            filePath: `/uploads/patrol/${fileName}`,
+            originalFilename: fileName,
+            fileSize: buffer.length,
+            mimeType: 'image/jpeg',
+            isPrimary: true,
+            hasWatermark: true,
+            takenAt: new Date(),
+          },
+        });
+      } catch (photoErr) {
+        console.error('Photo save error (non-fatal):', photoErr);
+        // Non-fatal: check is still saved even if photo fails
+      }
+    }
 
     // Update session floor status to in_progress
     await prisma.patrolSessionFloor.update({

@@ -21,7 +21,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const schedule = await prisma.patrolSchedule.create({ data: body });
+    const { name, patrolNumber, startTime, endTime } = body;
+
+    if (!name || patrolNumber == null || !startTime || !endTime) {
+      return NextResponse.json({ error: 'Nama, nomor patroli, waktu mulai, dan waktu selesai wajib diisi' }, { status: 400 });
+    }
+
+    const schedule = await prisma.patrolSchedule.create({
+      data: { name, patrolNumber: Number(patrolNumber), startTime, endTime },
+    });
     return NextResponse.json(schedule, { status: 201 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Server error';

@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Lightweight JWT decode (header.payload.signature) — we only read the payload
+function decodeTokenPayload(token: string): { role?: string } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('patrol-auth-token')?.value;
@@ -7,7 +19,6 @@ export function proxy(request: NextRequest) {
   // Public routes — no auth required
   const publicPaths = ['/login', '/api/auth/login'];
   if (publicPaths.some(p => pathname.startsWith(p))) {
-    // If already logged in and visiting login page, could redirect (optional)
     return NextResponse.next();
   }
 
@@ -25,6 +36,25 @@ export function proxy(request: NextRequest) {
   if (!token) {
     const loginUrl = new URL('/login', request.url);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Role-based route protection
+  const payload = decodeTokenPayload(token);
+  const role = payload?.role;
+
+  if (pathname.startsWith('/admin') && role !== 'admin') {
+    const redirectUrl = new URL(role === 'supervisor' ? '/supervisor/dashboard' : '/security/dashboard', request.url);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (pathname.startsWith('/supervisor') && role !== 'supervisor' && role !== 'admin') {
+    const redirectUrl = new URL(role === 'admin' ? '/admin/dashboard' : '/security/dashboard', request.url);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (pathname.startsWith('/security') && role !== 'security') {
+    const redirectUrl = new URL(role === 'admin' ? '/admin/dashboard' : '/supervisor/dashboard', request.url);
+    return NextResponse.redirect(redirectUrl);
   }
 
   return NextResponse.next();

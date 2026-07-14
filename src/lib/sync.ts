@@ -9,19 +9,6 @@ import {
   type OfflineFinding,
 } from './db';
 
-// Convert base64 dataURL to a File object for API upload
-function dataURLtoFile(dataurl: string, filename: string): File {
-  const arr = dataurl.split(',');
-  const mime = arr[0].match(/:(.*?);/)![1];
-  const bstr = atob(arr[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
-  }
-  return new File([u8arr], filename, { type: mime });
-}
-
 export interface SyncResult {
   success: boolean;
   checksSynced: number;
@@ -43,17 +30,6 @@ export async function syncOfflineData(): Promise<SyncResult> {
 
     // 1. Sync checks
     for (const check of checks) {
-      // Re-create file from base64 photo
-      const file = dataURLtoFile(check.photoBase64, `offline-${check.roomId}.jpg`);
-      const formData = new FormData();
-      formData.append('photo', file);
-      formData.append('sessionFloorId', check.sessionFloorId);
-      formData.append('roomId', check.roomId);
-      formData.append('acStatus', check.acStatus);
-      formData.append('lightStatus', check.lightStatus);
-      formData.append('condition', check.condition);
-      if (check.remarks) formData.append('remarks', check.remarks);
-
       const res = await fetch('/api/patrol/checks', {
         method: 'POST',
         body: JSON.stringify({

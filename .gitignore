@@ -20,6 +20,9 @@
 # production
 /build
 
+# uploads (user-generated patrol photos)
+/public/uploads
+
 # misc
 .DS_Store
 *.pem

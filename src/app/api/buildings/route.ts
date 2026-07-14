@@ -11,7 +11,7 @@ export async function GET() {
     include: {
       floors: {
         where: { isActive: true },
-        include: { rooms: { where: { isActive: true }, select: { id: true } } },
+        include: { _count: { select: { rooms: { where: { isActive: true } } } } },
         orderBy: { sortOrder: 'asc' },
       },
     },
@@ -20,7 +20,7 @@ export async function GET() {
   return NextResponse.json(buildings.map(b => ({
     ...b,
     totalFloors: b.floors.length,
-    totalRooms: b.floors.reduce((s, f) => s + f.rooms.length, 0),
-    floors: b.floors.map(f => ({ ...f, totalRooms: f.rooms.length, rooms: undefined })),
+    totalRooms: b.floors.reduce((s, f) => s + f._count.rooms, 0),
+    floors: b.floors.map(f => ({ ...f, totalRooms: f._count.rooms, _count: undefined })),
   })));
 }

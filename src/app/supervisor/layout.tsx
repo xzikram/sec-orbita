@@ -61,8 +61,9 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [findingCount, setFindingCount] = useState(0);
 
   useEffect(() => {
     async function checkAuth() {
@@ -70,7 +71,19 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
         const res = await fetch('/api/auth/me');
         if (res.ok) {
           const data = await res.json();
+          if (data.user.role !== 'supervisor' && data.user.role !== 'admin') {
+            router.push(`/${data.user.role}/dashboard`);
+            return;
+          }
           setUser(data.user);
+          // Fetch finding count
+          try {
+            const fRes = await fetch('/api/findings?status=new&limit=1');
+            if (fRes.ok) {
+              const fData = await fRes.json();
+              setFindingCount(fData.total || 0);
+            }
+          } catch { /* ignore */ }
         } else {
           router.push('/login');
         }
@@ -151,8 +164,8 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
             >
               <span className={styles.navIcon}>{item.icon}</span>
               <span>{item.label}</span>
-              {item.path === '/supervisor/findings' && (
-                <span className={styles.navBadge}>2</span>
+              {item.path === '/supervisor/findings' && findingCount > 0 && (
+                <span className={styles.navBadge}>{findingCount}</span>
               )}
             </Link>
           ))}

@@ -3,7 +3,11 @@ import { compare, hash } from 'bcryptjs';
 import { cookies } from 'next/headers';
 import prisma from './prisma';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'jec-orbita-default-secret';
+const _jwtSecret = process.env.JWT_SECRET;
+if (!_jwtSecret) {
+  throw new Error('FATAL: JWT_SECRET environment variable is not set. Server cannot start.');
+}
+const JWT_SECRET: string = _jwtSecret;
 const TOKEN_EXPIRY = '30d';
 const COOKIE_NAME = 'patrol-auth-token';
 

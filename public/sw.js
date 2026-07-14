@@ -1,6 +1,5 @@
-const CACHE_NAME = 'sec-patrol-v1';
-const ASSETS = [
-  '/login',
+const CACHE_NAME = 'sec-patrol-v2';
+const STATIC_ASSETS = [
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
@@ -10,7 +9,7 @@ self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
+      return cache.addAll(STATIC_ASSETS);
     })
   );
 });
@@ -32,17 +31,43 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  // Jangan intercept request non-GET atau request ke API (/api/)
-  if (e.request.method !== 'GET' || url.pathname.startsWith('/api/')) {
+
+  // Don't intercept non-GET, API requests, or Next.js internals
+  if (
+    e.request.method !== 'GET' ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/_next/')
+  ) {
     return;
   }
 
+  // Static assets (icons, manifest) — cache-first
+  if (STATIC_ASSETS.some(asset => url.pathname === asset)) {
+    e.respondWith(
+      caches.match(e.request).then((cached) => {
+        return cached || fetch(e.request).then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+          return response;
+        });
+      })
+    );
+    return;
+  }
+
+  // HTML pages — network-first with cache fallback
   e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      return cachedResponse || fetch(e.request).catch(() => {
-        // Fallback jika offline dan asset tidak ada di cache
-        return caches.match('/login');
-      });
-    })
+    fetch(e.request)
+      .then((response) => {
+        // Cache a copy for offline use
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        return response;
+      })
+      .catch(() => {
+        return caches.match(e.request).then((cached) => {
+          return cached || caches.match('/login');
+        });
+      })
   );
 });

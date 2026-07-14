@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ name: string; role: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,6 +57,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const res = await fetch('/api/auth/me');
         if (res.ok) {
           const data = await res.json();
+          if (data.user.role !== 'admin') {
+            router.push(`/${data.user.role}/dashboard`);
+            return;
+          }
           setUser(data.user);
         } else {
           router.push('/login');

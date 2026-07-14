@@ -2,74 +2,101 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import {
-  floors,
-  rooms,
-  activeSession,
-  activeSessionFloors,
-  activeChecks,
-  activeFindings,
-  patrolSchedules,
-  getRoomsByFloor,
-} from '@/lib/dummy-data';
 import styles from './dashboard.module.css';
+
+interface SessionFloor {
+  id: string;
+  floorId: string;
+  floorNameSnapshot: string;
+  floorCodeSnapshot: string;
+  status: string;
+  patrolChecks: { id: string; condition: string }[];
+}
+
+interface PatrolSession {
+  id: string;
+  patrolNumber: number;
+  status: string;
+  scheduleId: string;
+  schedule?: { name: string; startTime: string; endTime: string };
+  sessionFloors: SessionFloor[];
+}
+
+interface DashboardData {
+  session: PatrolSession | null;
+  totalRooms: number;
+  checkedRooms: number;
+  findingsCount: number;
+  floorsCompleted: number;
+}
 
 export default function SecurityDashboard() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setCurrentTime(new Date());
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
+
+    // Fetch real data from APIs
+    async function loadDashboard() {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const [sessionsRes, findingsRes, floorsRes] = await Promise.all([
+          fetch(`/api/patrol/sessions?date=${today}`),
+          fetch('/api/findings?status=new&limit=100'),
+          fetch('/api/floors'),
+        ]);
+
+        const sessions: PatrolSession[] = sessionsRes.ok ? await sessionsRes.json() : [];
+        const findingsData = findingsRes.ok ? await findingsRes.json() : { data: [], total: 0 };
+        const floors = floorsRes.ok ? await floorsRes.json() : [];
+
+        // Find active or latest session
+        const activeSession = sessions.find(s => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+
+        // Count total rooms from floors
+        const totalRooms = floors.reduce((sum: number, f: any) => sum + (f.rooms?.length || 0), 0);
+
+        // Count checked rooms from session
+        let checkedRooms = 0;
+        let floorsCompleted = 0;
+        if (activeSession) {
+          for (const sf of activeSession.sessionFloors) {
+            checkedRooms += sf.patrolChecks.length;
+            if (sf.status === 'completed') floorsCompleted++;
+          }
+        }
+
+        const findingsCount = typeof findingsData === 'object' && 'total' in findingsData
+          ? findingsData.total
+          : Array.isArray(findingsData) ? findingsData.length : 0;
+
+        setData({
+          session: activeSession,
+          totalRooms,
+          checkedRooms,
+          findingsCount,
+          floorsCompleted,
+        });
+      } catch (err) {
+        console.error('Dashboard load error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDashboard();
     return () => clearInterval(interval);
   }, []);
 
-  // Get current schedule
-  const schedule = patrolSchedules.find(s => s.id === activeSession.scheduleId);
-
-  // Calculate overall progress
-  const totalRooms = floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0);
-  const checkedRooms = activeChecks.length;
-  const overallProgress = Math.round((checkedRooms / totalRooms) * 100);
-
-  // Floor progress
-  const floorProgress = activeSessionFloors.map(sf => {
-    const floor = floors.find(f => f.id === sf.floorId)!;
-    const floorRooms = getRoomsByFloor(sf.floorId);
-    const checked = activeChecks.filter(c => c.sessionFloorId === sf.id).length;
-    return {
-      ...sf,
-      floor,
-      total: floorRooms.length,
-      checked,
-      percent: Math.round((checked / floorRooms.length) * 100),
-    };
-  });
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <span className="badge badge-success">Selesai</span>;
-      case 'in_progress':
-        return <span className="badge badge-info">Sedang Diperiksa</span>;
-      case 'pending':
-        return <span className="badge badge-neutral">Belum Dimulai</span>;
-      default:
-        return null;
-    }
-  };
-
-  const getStatusDot = (status: string) => {
-    switch (status) {
-      case 'completed': return 'status-dot-success';
-      case 'in_progress': return 'status-dot-info';
-      case 'pending': return 'status-dot-neutral';
-      default: return 'status-dot-neutral';
-    }
-  };
+  const overallProgress = data && data.totalRooms > 0
+    ? Math.round((data.checkedRooms / data.totalRooms) * 100)
+    : 0;
 
   const getProgressColor = (percent: number) => {
     if (percent === 100) return 'progress-fill-success';
-    if (percent > 0) return 'progress-fill-primary';
     return 'progress-fill-primary';
   };
 
@@ -82,6 +109,17 @@ export default function SecurityDashboard() {
     });
   };
 
+  if (loading) {
+    return (
+      <div className="page-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="spinner" style={{ width: 32, height: 32, border: '3px solid var(--color-neutral-200)', borderTop: '3px solid var(--color-primary-500)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+          <p className="text-sm text-muted">Memuat dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-content">
       {/* Date */}
@@ -90,41 +128,53 @@ export default function SecurityDashboard() {
       </p>
 
       {/* Active Patrol Card */}
-      <div className={`card card-dark ${styles.patrolCard} animate-slide-up`}>
-        <div className="card-body">
-          <div className={styles.patrolHeader}>
-            <div>
-              <span className={styles.patrolLabel}>PATROLI AKTIF</span>
-              <h2 className={styles.patrolTitle}>
-                Patroli #{activeSession.patrolNumber}
-              </h2>
-              <p className={styles.patrolPeriod}>
-                Periode {schedule?.startTime} - {schedule?.endTime}
+      {data?.session ? (
+        <div className={`card card-dark ${styles.patrolCard} animate-slide-up`}>
+          <div className="card-body">
+            <div className={styles.patrolHeader}>
+              <div>
+                <span className={styles.patrolLabel}>PATROLI AKTIF</span>
+                <h2 className={styles.patrolTitle}>
+                  Patroli #{data.session.patrolNumber}
+                </h2>
+                <p className={styles.patrolPeriod}>
+                  Periode {data.session.schedule?.startTime} - {data.session.schedule?.endTime}
+                </p>
+              </div>
+              <div className={styles.patrolBadge}>
+                <span className="status-dot status-dot-info" />
+                <span>{data.session.status === 'completed' ? 'Selesai' : 'Berjalan'}</span>
+              </div>
+            </div>
+
+            <div className={styles.progressSection}>
+              <div className={styles.progressHeader}>
+                <span className={styles.progressLabel}>Progress Keseluruhan</span>
+                <span className={styles.progressValue}>{overallProgress}%</span>
+              </div>
+              <div className="progress-bar progress-bar-lg">
+                <div
+                  className={`progress-bar-fill ${getProgressColor(overallProgress)}`}
+                  style={{ width: `${overallProgress}%` }}
+                />
+              </div>
+              <p className={styles.progressDetail}>
+                {data.checkedRooms} dari {data.totalRooms} ruangan diperiksa
               </p>
             </div>
-            <div className={styles.patrolBadge}>
-              <span className="status-dot status-dot-info" />
-              <span>Berjalan</span>
-            </div>
-          </div>
-
-          <div className={styles.progressSection}>
-            <div className={styles.progressHeader}>
-              <span className={styles.progressLabel}>Progress Keseluruhan</span>
-              <span className={styles.progressValue}>{overallProgress}%</span>
-            </div>
-            <div className="progress-bar progress-bar-lg">
-              <div
-                className={`progress-bar-fill ${getProgressColor(overallProgress)}`}
-                style={{ width: `${overallProgress}%` }}
-              />
-            </div>
-            <p className={styles.progressDetail}>
-              {checkedRooms} dari {totalRooms} ruangan diperiksa
-            </p>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="card animate-slide-up">
+          <div className="card-body" style={{ textAlign: 'center', padding: '2rem' }}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="1.5" style={{ margin: '0 auto 8px' }}>
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            <h3 style={{ fontSize: '16px', color: 'var(--color-neutral-700)', margin: '0 0 4px' }}>Belum Ada Patroli</h3>
+            <p className="text-sm text-muted">Tidak ada sesi patroli aktif hari ini</p>
+          </div>
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className={`${styles.statsGrid} animate-slide-up stagger-1`}>
@@ -135,7 +185,7 @@ export default function SecurityDashboard() {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </span>
-            <span className={styles.statValue}>{floorProgress.filter(f => f.status === 'completed').length}</span>
+            <span className={styles.statValue}>{data?.floorsCompleted || 0}</span>
             <span className={styles.statLabel}>Lantai Selesai</span>
           </div>
         </div>
@@ -148,7 +198,7 @@ export default function SecurityDashboard() {
                 <line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
             </span>
-            <span className={styles.statValue}>{activeFindings.length}</span>
+            <span className={styles.statValue}>{data?.findingsCount || 0}</span>
             <span className={styles.statLabel}>Temuan</span>
           </div>
         </div>
@@ -162,12 +212,11 @@ export default function SecurityDashboard() {
                 <rect x="3" y="14" width="7" height="7" />
               </svg>
             </span>
-            <span className={styles.statValue}>{totalRooms}</span>
+            <span className={styles.statValue}>{data?.totalRooms || 0}</span>
             <span className={styles.statLabel}>Total Ruangan</span>
           </div>
         </div>
       </div>
-
 
       {/* Start Patrol CTA */}
       <div className={`${styles.ctaSection} animate-slide-up`}>
@@ -175,7 +224,7 @@ export default function SecurityDashboard() {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
-          Lanjutkan Patroli
+          {data?.session ? 'Lanjutkan Patroli' : 'Mulai Patroli'}
         </Link>
       </div>
     </div>

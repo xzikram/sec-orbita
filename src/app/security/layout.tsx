@@ -3,10 +3,17 @@
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { getCurrentUser, getCurrentShift } from '@/lib/dummy-data';
 import SyncStatus from '@/components/SyncStatus';
 import PwaInstallBanner from '@/components/PwaInstallBanner';
 import styles from './security.module.css';
+
+interface LayoutUser {
+  id: string;
+  employeeId: string;
+  name: string;
+  role: string;
+  shift?: { name: string; startTime: string; endTime: string } | null;
+}
 
 function LiveClock() {
   const [time, setTime] = useState('');
@@ -83,7 +90,7 @@ export default function SecurityLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<LayoutUser | null>(null);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -96,11 +103,8 @@ export default function SecurityLayout({
       .catch(err => console.error('Error fetching auth user:', err));
   }, []);
 
-  const dummyUser = getCurrentUser();
-  const dummyShift = getCurrentShift();
-
-  const user = currentUser || dummyUser;
-  const shift = currentUser?.shift || dummyShift;
+  const user = currentUser;
+  const shift = currentUser?.shift;
 
   const isNavActive = (path: string) => {
     if (path === '/security/dashboard') return pathname === '/security/dashboard';
@@ -119,8 +123,8 @@ export default function SecurityLayout({
               </svg>
             </div>
             <div className={styles.headerInfo}>
-              <span className={styles.headerName}>{user.name}</span>
-              <span className={styles.headerShift}>{shift.name} • {shift.startTime} - {shift.endTime}</span>
+              <span className={styles.headerName}>{user?.name || 'Loading...'}</span>
+              <span className={styles.headerShift}>{shift ? `${shift.name} • ${shift.startTime} - ${shift.endTime}` : ''}</span>
             </div>
           </div>
           <LiveClock />

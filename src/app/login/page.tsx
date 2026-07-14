@@ -194,9 +194,11 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className={styles.demoHint}>
-          Demo: gunakan <strong>SEC-001</strong>, <strong>SPV-001</strong>, atau <strong>ADM-001</strong> dengan password <strong>password123</strong>
-        </p>
+        {process.env.NODE_ENV === 'development' && (
+          <p className={styles.demoHint}>
+            Demo: gunakan <strong>SEC-002</strong> atau <strong>SPV-001</strong>
+          </p>
+        )}
       </div>
 
       <div className={styles.footer}>

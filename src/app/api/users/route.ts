@@ -21,20 +21,47 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    const { employeeId, name, email, password, role, shiftId } = body;
+
+    // Validate required fields
+    if (!employeeId || !name || !email) {
+      return NextResponse.json({ error: 'ID Karyawan, nama, dan email wajib diisi' }, { status: 400 });
+    }
+
+    // Validate role
+    const validRoles = ['security', 'supervisor', 'admin'];
+    if (role && !validRoles.includes(role)) {
+      return NextResponse.json({ error: 'Role tidak valid. Pilih: security, supervisor, atau admin' }, { status: 400 });
+    }
+
+    // Validate password
+    const userPassword = password || '';
+    if (!userPassword || userPassword.length < 6) {
+      return NextResponse.json({ error: 'Password wajib diisi dan minimal 6 karakter' }, { status: 400 });
+    }
+
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'Format email tidak valid' }, { status: 400 });
+    }
+
     const { hashPassword } = await import('@/lib/auth');
-    const hashed = await hashPassword(body.password || 'password123');
+    const hashed = await hashPassword(userPassword);
 
     const user = await prisma.user.create({
       data: {
-        employeeId: body.employeeId,
-        name: body.name,
-        email: body.email,
+        employeeId,
+        name,
+        email,
         password: hashed,
-        role: body.role || 'security',
-        shiftId: body.shiftId || null,
+        role: role || 'security',
+        shiftId: shiftId || null,
       },
     });
-    return NextResponse.json(user, { status: 201 });
+
+    // Don't return password hash
+    const { password: _, ...safeUser } = user as any;
+    return NextResponse.json(safeUser, { status: 201 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Server error';
     return NextResponse.json({ error: msg }, { status: 400 });

@@ -20,7 +20,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const shift = await prisma.shift.create({ data: body });
+    const { name, code, startTime, endTime } = body;
+
+    if (!name || !code || !startTime || !endTime) {
+      return NextResponse.json({ error: 'Nama, kode, waktu mulai, dan waktu selesai wajib diisi' }, { status: 400 });
+    }
+
+    const shift = await prisma.shift.create({
+      data: { name, code, startTime, endTime },
+    });
     return NextResponse.json(shift, { status: 201 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Server error';

@@ -2,18 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, getCurrentShift, patrolHistory } from '@/lib/dummy-data';
 import styles from './profile.module.css';
+
+interface ProfileUser {
+  id: string;
+  employeeId: string;
+  name: string;
+  email: string;
+  role: string;
+  shiftId: string | null;
+  shift?: { name: string; startTime: string; endTime: string } | null;
+}
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<ProfileUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // States for change password
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [pwLoading, setPwLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -25,18 +35,20 @@ export default function ProfilePage() {
           setCurrentUser(data.user);
         }
       })
-      .catch(err => console.error('Error fetching profile user:', err));
+      .catch(err => console.error('Error fetching profile user:', err))
+      .finally(() => setLoading(false));
   }, []);
 
-  const dummyUser = getCurrentUser();
-  const dummyShift = getCurrentShift();
+  const user = currentUser;
+  const shift = currentUser?.shift;
 
-  const user = currentUser || dummyUser;
-  const shift = currentUser?.shift || dummyShift;
-
-  const completedPatrols = patrolHistory.filter(p => p.status === 'completed').length;
-  const latePatrols = patrolHistory.filter(p => p.status === 'late').length;
-  const totalPatrols = patrolHistory.length;
+  if (loading || !user) {
+    return (
+      <div className="page-content" style={{ textAlign: 'center', padding: '3rem' }}>
+        <p className="text-sm text-muted">Memuat profil...</p>
+      </div>
+    );
+  }
 
   const handleLogout = async () => {
     try {
@@ -67,7 +79,7 @@ export default function ProfilePage() {
       return;
     }
 
-    setLoading(true);
+    setPwLoading(true);
     try {
       const res = await fetch('/api/auth/change-password', {
         method: 'POST',
@@ -87,7 +99,7 @@ export default function ProfilePage() {
     } catch (err: any) {
       setErrorMsg(err.message || 'Terjadi kesalahan.');
     } finally {
-      setLoading(false);
+      setPwLoading(false);
     }
   };
 
@@ -104,34 +116,7 @@ export default function ProfilePage() {
         <p className={styles.userRole}>Security Officer</p>
         <div className={styles.userMeta}>
           <span className="badge badge-info badge-lg">{user.employeeId}</span>
-          <span className="badge badge-neutral badge-lg">{shift.name}</span>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className={`${styles.statsCard} card animate-slide-up stagger-1`}>
-        <div className="card-body">
-          <h3 className={styles.statsTitle}>Statistik Patroli</h3>
-          <div className={styles.statsGrid}>
-            <div className={styles.statItem}>
-              <span className={styles.statValue}>{totalPatrols}</span>
-              <span className={styles.statLabel}>Total Patroli</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={`${styles.statValue} text-success`}>{completedPatrols}</span>
-              <span className={styles.statLabel}>Selesai</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={`${styles.statValue} text-warning`}>{latePatrols}</span>
-              <span className={styles.statLabel}>Terlambat</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={`${styles.statValue} text-primary`}>
-                {totalPatrols > 0 ? Math.round((completedPatrols / totalPatrols) * 100) : 0}%
-              </span>
-              <span className={styles.statLabel}>On-Time Rate</span>
-            </div>
-          </div>
+          {shift && <span className="badge badge-neutral badge-lg">{shift.name}</span>}
         </div>
       </div>
 
@@ -154,7 +139,7 @@ export default function ProfilePage() {
             </div>
             <div className={styles.infoItem}>
               <span className={styles.infoLabel}>Shift</span>
-              <span className={styles.infoValue}>{shift.name} ({shift.startTime} - {shift.endTime})</span>
+              <span className={styles.infoValue}>{shift ? `${shift.name} (${shift.startTime} - ${shift.endTime})` : '-'}</span>
             </div>
             <div className={styles.infoItem}>
               <span className={styles.infoLabel}>Status</span>
@@ -205,10 +190,10 @@ export default function ProfilePage() {
             <button
               type="submit"
               className="btn btn-primary btn-md mt-2"
-              disabled={loading}
+              disabled={pwLoading}
               style={{ width: '100%' }}
             >
-              {loading ? 'Memproses...' : 'Simpan Password Baru'}
+              {pwLoading ? 'Memproses...' : 'Simpan Password Baru'}
             </button>
           </form>
         </div>
