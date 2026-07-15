@@ -38,6 +38,8 @@ async function main() {
   console.log('🌱 Seeding database...');
 
   // Clear existing data
+  await prisma.shiftHandover.deleteMany();
+  await prisma.userAchievement.deleteMany();
   await prisma.activityLog.deleteMany();
   await prisma.findingUpdate.deleteMany();
   await prisma.finding.deleteMany();
