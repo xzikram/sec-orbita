@@ -93,15 +93,18 @@ export default function RoomCheckPage({
   const floor = getFloorById(room.floorId);
   const floorRooms = getRoomsByFloor(room.floorId);
   const currentSession = session || { sessionFloors: [] };
-  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => sf.floorId === room.floorId);
+  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => sf.floorCodeSnapshot === floor?.code);
   
-  // Combine online (DB) checks and offline checks for this floor
-  const dbCheckedRoomIds = sessionFloor?.patrolChecks?.map((c: any) => c.roomId) || [];
-  const offCheckedRoomIds = offlineChecks.filter((c: any) => c.sessionFloorId === sessionFloor?.id).map((c: any) => c.roomId);
-  const combinedCheckedSet = new Set([...dbCheckedRoomIds, ...offCheckedRoomIds]);
-  const checkedRoomIds = Array.from(combinedCheckedSet);
-
-  const checked = checkedRoomIds.length;
+  // Combine online (DB) checks and offline checks for this floor (by code snapshot)
+  const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
+  const offCheckedRoomCodes = offlineChecks
+    .filter((c: any) => c.sessionFloorId === sessionFloor?.id)
+    .map((c: any) => {
+      const r = getRoomById(c.roomId);
+      return r ? r.code : c.roomId;
+    });
+  const combinedCheckedSet = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
+  const checked = combinedCheckedSet.size;
 
   const startSpeechRecognition = (target: 'remarks' | 'finding') => {
     setSpeechError(null);
@@ -206,7 +209,7 @@ export default function RoomCheckPage({
     // Find next unchecked room
     setTimeout(() => {
       const currentIndex = floorRooms.findIndex(r => r.id === id);
-      const nextRoom = floorRooms.slice(currentIndex + 1).find(r => !checkedRoomIds.includes(r.id));
+      const nextRoom = floorRooms.slice(currentIndex + 1).find(r => !combinedCheckedSet.has(r.code) && r.id !== id);
 
       if (nextRoom) {
         router.push(`/security/patrol/room/${nextRoom.id}`);

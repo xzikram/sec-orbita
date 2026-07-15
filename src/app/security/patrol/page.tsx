@@ -9,6 +9,7 @@ import {
   activeChecks,
   patrolSchedules,
   getRoomsByFloor,
+  rooms,
 } from '@/lib/dummy-data';
 import styles from './patrol.module.css';
 
@@ -78,31 +79,37 @@ export default function PatrolPage() {
 
   const totalRooms = floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0);
 
-  // Combine online (DB) and offline (IndexedDB) check room IDs
-  const onlineCheckRoomIds = new Set<string>();
+  // Combine online (DB) and offline (IndexedDB) check room codes
+  const onlineCheckRoomCodes = new Set<string>();
   currentSession.sessionFloors?.forEach((sf: any) => {
-    sf.patrolChecks?.forEach((c: any) => onlineCheckRoomIds.add(c.roomId));
+    sf.patrolChecks?.forEach((c: any) => onlineCheckRoomCodes.add(c.roomCodeSnapshot));
   });
 
-  const offlineCheckRoomIds = new Set<string>();
+  const offlineCheckRoomCodes = new Set<string>();
   offlineChecks.forEach((c: any) => {
     const isMatchingFloor = currentSession.sessionFloors?.some((sf: any) => sf.id === c.sessionFloorId);
     if (isMatchingFloor) {
-      offlineCheckRoomIds.add(c.roomId);
+      const r = rooms.find(rm => rm.id === c.roomId);
+      if (r) offlineCheckRoomCodes.add(r.code);
     }
   });
 
-  const checkedRoomIdsSet = new Set([...onlineCheckRoomIds, ...offlineCheckRoomIds]);
-  const checkedRooms = checkedRoomIdsSet.size;
+  const checkedRoomCodesSet = new Set([...onlineCheckRoomCodes, ...offlineCheckRoomCodes]);
+  const checkedRooms = checkedRoomCodesSet.size;
   const overallProgress = totalRooms > 0 ? Math.round((checkedRooms / totalRooms) * 100) : 0;
 
   const rawFloorProgress = (currentSession.sessionFloors || activeSessionFloors).map((sf: any) => {
-    const floor = floors.find(f => f.id === sf.floorId)!;
-    const floorRooms = getRoomsByFloor(sf.floorId);
+    const floor = floors.find(f => f.id === sf.floorId || f.code === sf.floorCodeSnapshot)!;
+    const floorRooms = getRoomsByFloor(floor.id);
     
-    const dbChecked = sf.patrolChecks?.map((c: any) => c.roomId) || [];
-    const offChecked = offlineChecks.filter((c: any) => c.sessionFloorId === sf.id).map((c: any) => c.roomId);
-    const combinedFloorChecked = new Set([...dbChecked, ...offChecked]);
+    const dbCheckedCodes = sf.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
+    const offCheckedCodes = offlineChecks
+      .filter((c: any) => c.sessionFloorId === sf.id)
+      .map((c: any) => {
+        const r = rooms.find(rm => rm.id === c.roomId);
+        return r ? r.code : c.roomId;
+      });
+    const combinedFloorChecked = new Set([...dbCheckedCodes, ...offCheckedCodes]);
     
     const checked = combinedFloorChecked.size;
     return {

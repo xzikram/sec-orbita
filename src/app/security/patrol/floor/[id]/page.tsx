@@ -99,20 +99,25 @@ export default function FloorDetailPage({
   }
 
   const currentSession = session || { sessionFloors: [] };
-  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => sf.floorId === id);
+  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => sf.floorCodeSnapshot === floor.code);
   
-  // Combine online (DB) checks and offline checks for this floor
-  const dbCheckedRoomIds = sessionFloor?.patrolChecks?.map((c: any) => c.roomId) || [];
-  const offCheckedRoomIds = offlineChecks.filter((c: any) => c.sessionFloorId === sessionFloor?.id).map((c: any) => c.roomId);
-  const combinedCheckedSet = new Set([...dbCheckedRoomIds, ...offCheckedRoomIds]);
-  const checkedRoomIds = Array.from(combinedCheckedSet);
+  // Combine online (DB) checks and offline checks for this floor by code snapshot
+  const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
+  const offCheckedRoomCodes = offlineChecks
+    .filter((c: any) => c.sessionFloorId === sessionFloor?.id)
+    .map((c: any) => {
+      // Look up room code in any floor rooms list
+      const r = floors.reduce((found: any, f) => found || getRoomsByFloor(f.id).find(rm => rm.id === c.roomId), null as any);
+      return r ? r.code : c.roomId;
+    });
+  const combinedCheckedSet = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
 
-  const checked = checkedRoomIds.length;
+  const checked = combinedCheckedSet.size;
   const total = floorRooms.length;
   const percent = total > 0 ? Math.round((checked / total) * 100) : 0;
 
-  // Find next unchecked room
-  const nextRoom = floorRooms.find(r => !checkedRoomIds.includes(r.id));
+  // Find next unchecked room by code snapshot
+  const nextRoom = floorRooms.find(r => !combinedCheckedSet.has(r.code));
 
   const getProgressColor = () => {
     if (percent === 100) return 'progress-fill-success';
@@ -277,9 +282,9 @@ export default function FloorDetailPage({
           {/* Room List */}
           <div className={styles.roomList}>
             {floorRooms.map((room, index) => {
-              const isChecked = checkedRoomIds.includes(room.id);
+              const isChecked = combinedCheckedSet.has(room.code);
               const isNext = nextRoom?.id === room.id;
-              const check = sessionFloor?.patrolChecks?.find((c: any) => c.roomId === room.id) ||
+              const check = sessionFloor?.patrolChecks?.find((c: any) => c.roomCodeSnapshot === room.code) ||
                             offlineChecks.find((c: any) => c.roomId === room.id && c.sessionFloorId === sessionFloor?.id);
 
               return (
