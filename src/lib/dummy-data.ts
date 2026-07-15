@@ -453,106 +453,12 @@ export const activeSessionFloors: PatrolSessionFloor[] = [
 ];
 
 // Some rooms on floor-1 already checked
-export const activeChecks: PatrolCheck[] = [
-  // All SB rooms done
-  ...getRoomsByFloor('floor-sb').map((room, i) => ({
-    id: `chk-sb-${i}`,
-    sessionFloorId: 'sf-1',
-    roomId: room.id,
-    userId: 'user-1',
-    roomNameSnapshot: room.name,
-    roomCodeSnapshot: room.code,
-    floorNameSnapshot: 'Semi Basement',
-    roomOrderSnapshot: room.patrolOrder,
-    acStatus: (room.hasAc ? 'on' : 'not_available') as ACStatus,
-    lightStatus: 'on' as LightStatus,
-    condition: (room.code === 'SB-03' ? 'finding' : 'normal') as CheckCondition,
-    remarks: room.code === 'SB-03' ? 'Suara genset tidak normal' : undefined,
-    checkedAt: `2026-07-08T15:${12 + i * 2}:00`,
-    photoUrl: `/dummy/room-${room.code.toLowerCase()}.jpg`,
-  })),
-  // First 8 rooms of LT1
-  ...getRoomsByFloor('floor-1').slice(0, 8).map((room, i) => ({
-    id: `chk-l1-${i}`,
-    sessionFloorId: 'sf-2',
-    roomId: room.id,
-    userId: 'user-1',
-    roomNameSnapshot: room.name,
-    roomCodeSnapshot: room.code,
-    floorNameSnapshot: 'Lantai 1',
-    roomOrderSnapshot: room.patrolOrder,
-    acStatus: (room.hasAc ? 'on' : 'not_available') as ACStatus,
-    lightStatus: 'on' as LightStatus,
-    condition: (room.code === 'L1-04' ? 'finding' : 'normal') as CheckCondition,
-    remarks: room.code === 'L1-04' ? 'AC apotek mati, suhu ruangan panas' : undefined,
-    checkedAt: `2026-07-08T15:${45 + i * 3}:00`,
-    photoUrl: `/dummy/room-${room.code.toLowerCase()}.jpg`,
-  })),
-];
+export const activeChecks: PatrolCheck[] = [];
 
-export const activeFindings: Finding[] = [
-  {
-    id: 'fnd-1',
-    findingNumber: 'FND-20260708-001',
-    checkId: 'chk-sb-2',
-    sessionId: 'session-today-3',
-    userId: 'user-1',
-    floorId: 'floor-sb',
-    roomId: 'room-sb-03',
-    floorNameSnapshot: 'Semi Basement',
-    roomNameSnapshot: 'Ruang Genset',
-    category: 'fasilitas',
-    description: 'Suara genset tidak normal, terdengar getaran berlebih pada bagian kiri mesin.',
-    status: 'new',
-    photoUrl: '/dummy/finding-genset.jpg',
-    createdAt: '2026-07-08T15:16:00',
-  },
-  {
-    id: 'fnd-2',
-    findingNumber: 'FND-20260708-002',
-    checkId: 'chk-l1-3',
-    sessionId: 'session-today-3',
-    userId: 'user-1',
-    floorId: 'floor-1',
-    roomId: 'room-l1-04',
-    floorNameSnapshot: 'Lantai 1',
-    roomNameSnapshot: 'Apotek',
-    category: 'ac',
-    description: 'AC apotek mati total, suhu ruangan terasa panas. Obat-obatan memerlukan suhu terkontrol.',
-    status: 'in_progress',
-    photoUrl: '/dummy/finding-ac.jpg',
-    createdAt: '2026-07-08T15:54:00',
-  },
-];
+export const activeFindings: Finding[] = [];
 
 // Previous patrol history
-export const patrolHistory: PatrolSession[] = [
-  {
-    id: 'session-hist-1', userId: 'user-1', scheduleId: 'sched-3',
-    shiftId: 'shift-1', patrolDate: '2026-07-08', patrolNumber: 3,
-    status: 'completed', startedAt: '2026-07-08T06:05:00', completedAt: '2026-07-08T08:32:00',
-  },
-  {
-    id: 'session-hist-2', userId: 'user-1', scheduleId: 'sched-4',
-    shiftId: 'shift-1', patrolDate: '2026-07-08', patrolNumber: 4,
-    status: 'completed', startedAt: '2026-07-08T09:10:00', completedAt: '2026-07-08T11:45:00',
-  },
-  {
-    id: 'session-hist-3', userId: 'user-1', scheduleId: 'sched-5',
-    shiftId: 'shift-1', patrolDate: '2026-07-08', patrolNumber: 5,
-    status: 'completed', startedAt: '2026-07-08T12:08:00', completedAt: '2026-07-08T14:22:00',
-  },
-  {
-    id: 'session-hist-4', userId: 'user-1', scheduleId: 'sched-3',
-    shiftId: 'shift-1', patrolDate: '2026-07-07', patrolNumber: 3,
-    status: 'completed', startedAt: '2026-07-07T06:02:00', completedAt: '2026-07-07T08:18:00',
-  },
-  {
-    id: 'session-hist-5', userId: 'user-1', scheduleId: 'sched-4',
-    shiftId: 'shift-1', patrolDate: '2026-07-07', patrolNumber: 4,
-    status: 'late', startedAt: '2026-07-07T09:35:00', completedAt: '2026-07-07T11:55:00',
-  },
-];
+export const patrolHistory: PatrolSession[] = [];
 
 // Finding categories display
 export const findingCategoryLabels: Record<FindingCategory, string> = {
