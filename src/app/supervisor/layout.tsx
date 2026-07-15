@@ -154,11 +154,11 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
       {/* Sidebar */}
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarHeader}>
-          <div className={styles.logo} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className={styles.logo}>
             <img 
               src="/Logo RS JEC ORBITA.png" 
-              alt="Logo" 
-              style={{ height: '28px', width: 'auto', objectFit: 'contain' }}
+              alt="Logo JEC ORBITA" 
+              style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
             />
           </div>
           <div className={styles.logoText}>

@@ -12,15 +12,10 @@
 }
 
 .headerLogo {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-300));
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.4);
 }
 
 .headerInfo {
