@@ -1,9 +1,9 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import QRScanner from '@/components/QRScanner';
-import { getFloorById, activeSessionFloors } from '@/lib/dummy-data';
+import { getFloorById } from '@/lib/dummy-data';
 import styles from './qrscan.module.css';
 
 export default function QRScanPage({
@@ -17,11 +17,37 @@ export default function QRScanPage({
 
   const [scanState, setScanState] = useState<'scanning' | 'success' | 'error'>('scanning');
   const [errorMsg, setErrorMsg] = useState('Titik validasi tidak sesuai dengan lantai yang sedang diperiksa.');
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const res = await fetch('/api/patrol/sessions');
+        if (res.ok) {
+          const sessions = await res.json();
+          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+          setSession(active);
+        }
+      } catch (err) {
+        console.error('QR Scan load error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const currentSession = session || { sessionFloors: [] };
+  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => sf.floorCodeSnapshot === floor?.code);
+
+  if (loading) {
+    return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat data scanner...</p></div>;
+  }
 
   const handleScanSuccess = async (scannedText: string) => {
     // Attempt validation via API
     try {
-      const sessionFloor = activeSessionFloors.find(sf => sf.floorId === id);
       if (!sessionFloor) {
         setScanState('error');
         setErrorMsg('Sesi patroli lantai tidak aktif.');

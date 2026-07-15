@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { rooms } from '@/lib/dummy-data';
 import styles from './dashboard.module.css';
 
 interface SessionFloor {
@@ -127,12 +128,26 @@ export default function SecurityDashboard() {
         // Count total rooms from floors
         const totalRooms = floors.reduce((sum: number, f: any) => sum + (f.rooms?.length || 0), 0);
 
-        // Count checked rooms from session
+        // Count checked rooms from session combining online and offline checks
         let checkedRooms = 0;
         let floorsCompleted = 0;
         if (activeSession) {
+          let offlineChecks: any[] = [];
+          try {
+            const { getOfflineChecks } = await import('@/lib/db');
+            offlineChecks = await getOfflineChecks();
+          } catch {}
+
           for (const sf of activeSession.sessionFloors) {
-            checkedRooms += sf.patrolChecks.length;
+            const dbCheckedRoomCodes = sf.patrolChecks.map((c: any) => c.roomCodeSnapshot);
+            const offCheckedRoomCodes = offlineChecks
+              .filter((c: any) => c.sessionFloorId === sf.id)
+              .map((c: any) => {
+                const r = rooms.find(rm => rm.id === c.roomId);
+                return r ? r.code : c.roomId;
+              });
+            const combinedFloorChecked = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
+            checkedRooms += combinedFloorChecked.size;
             if (sf.status === 'completed') floorsCompleted++;
           }
         }

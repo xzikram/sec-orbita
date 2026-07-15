@@ -1,14 +1,41 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { activeFindings, findingCategoryLabels } from '@/lib/dummy-data';
+import { findingCategoryLabels } from '@/lib/dummy-data';
 import styles from './finding-detail.module.css';
 
 export default function SecurityFindingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const finding = activeFindings.find(f => f.id === id);
+  const [finding, setFinding] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadFinding() {
+      try {
+        const res = await fetch(`/api/findings?id=${id}`);
+        if (res.ok) {
+          const resData = await res.json();
+          const items = resData.data || resData;
+          if (Array.isArray(items) && items.length > 0) {
+            setFinding(items[0]);
+          } else if (items && !Array.isArray(items)) {
+            setFinding(items);
+          }
+        }
+      } catch (err) {
+        console.error('Finding detail load error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadFinding();
+  }, [id]);
+
+  if (loading) {
+    return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat detail temuan...</p></div>;
+  }
 
   if (!finding) {
     return <div className="page-container" style={{ textAlign: 'center', padding: 48 }}>Temuan tidak ditemukan</div>;
@@ -28,6 +55,8 @@ export default function SecurityFindingDetailPage({ params }: { params: Promise<
     }
   };
 
+  const photoUrl = finding.check?.photos?.[0]?.filePath || null;
+
   return (
     <div className="page-container" style={{ paddingBottom: 100 }}>
       {/* Back */}
@@ -44,16 +73,25 @@ export default function SecurityFindingDetailPage({ params }: { params: Promise<
 
       {/* Photo */}
       <div className={`card ${styles.photoCard}`}>
-        <div className={styles.photoArea}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-          <span>Foto bukti temuan</span>
-        </div>
+        {photoUrl ? (
+          <img 
+            src={photoUrl} 
+            alt="Bukti Temuan" 
+            className={styles.photoImg} 
+            style={{ width: '100%', height: '220px', objectFit: 'cover', borderRadius: '12px' }} 
+          />
+        ) : (
+          <div className={styles.photoArea}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+            <span>Tidak ada foto bukti</span>
+          </div>
+        )}
       </div>
 
       {/* Category + Description */}
       <div className={`card ${styles.descCard}`}>
         <span className={styles.catBadge}>
-          {getCategoryEmoji(finding.category)} {findingCategoryLabels[finding.category]}
+          {getCategoryEmoji(finding.category)} {(findingCategoryLabels as any)[finding.category] || finding.category}
         </span>
         <p className={styles.descText}>{finding.description}</p>
       </div>

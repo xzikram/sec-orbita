@@ -8,10 +8,17 @@ export async function GET(request: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+  const id = searchParams.get('id');
   const userId = searchParams.get('userId');
 
-  const where: Record<string, unknown> = { patrolDate: new Date(date) };
+  const where: Record<string, unknown> = {};
+  if (id) {
+    where.id = id;
+  } else {
+    const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+    where.patrolDate = new Date(date);
+  }
+
   if (userId) where.userId = userId;
   if (auth.role === 'security') where.userId = auth.id;
 
@@ -23,7 +30,11 @@ export async function GET(request: NextRequest) {
       shift: { select: { name: true } },
       sessionFloors: {
         include: {
-          patrolChecks: { select: { id: true, condition: true, roomId: true, checkedAt: true } },
+          patrolChecks: {
+            include: {
+              findings: true
+            }
+          },
         },
       },
     },

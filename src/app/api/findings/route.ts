@@ -9,13 +9,18 @@ export async function GET(request: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
   const status = searchParams.get('status');
   const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')));
   const skip = (page - 1) * limit;
 
   const where: Record<string, unknown> = {};
-  if (status && status !== 'all') where.status = status;
+  if (id) {
+    where.id = id;
+  } else if (status && status !== 'all') {
+    where.status = status;
+  }
   if (auth.role === 'security') where.userId = auth.id;
 
   const [findings, total] = await Promise.all([
@@ -24,6 +29,15 @@ export async function GET(request: NextRequest) {
       include: {
         user: { select: { name: true, employeeId: true } },
         updates: { include: { user: { select: { name: true } } }, orderBy: { createdAt: 'desc' } },
+        check: {
+          include: {
+            photos: {
+              select: {
+                filePath: true
+              }
+            }
+          }
+        }
       },
       orderBy: { createdAt: 'desc' },
       skip,
