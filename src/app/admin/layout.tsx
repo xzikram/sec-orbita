@@ -42,6 +42,12 @@ const navGroups = [
       { path: '/admin/audit-logs', label: 'Log Aktivitas', icon: '📜' },
     ],
   },
+  {
+    label: 'AKSES ROLE',
+    items: [
+      { path: '/supervisor/dashboard', label: 'Supervisor Panel', icon: '📈' },
+    ],
+  },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

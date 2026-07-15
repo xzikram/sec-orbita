@@ -86,6 +86,18 @@ async function main() {
     }
   });
 
+  await prisma.user.create({
+    data: {
+      id: 'f98a2c7b-1bcf-4a9e-b890-cf3843a854d2',
+      employeeId: 'SAD-001',
+      name: 'Super Admin',
+      email: 'superadmin@jec.co.id',
+      password: spvPwd,
+      role: 'admin',
+      shiftId: shiftPagi.id
+    }
+  });
+
   const securityNames = [
     'Fitriani Hasan',
     'Sakir',
@@ -383,6 +395,7 @@ async function main() {
   console.log('   Security  : SEC-002 through SEC-009 (password matches employee ID)');
   console.log('   Supervisor: SPV-001 / password123');
   console.log('   Admin     : ADM-001 / password123');
+  console.log('   Super Admin: SAD-001 / password123');
 }
 
 main()
