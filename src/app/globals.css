@@ -633,8 +633,10 @@ ul, ol {
   background: linear-gradient(135deg, var(--color-primary-900) 0%, var(--color-primary-800) 100%);
   color: var(--text-on-dark);
   display: flex;
-  align-items: center;
-  padding: 0 var(--space-4);
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0;
   z-index: var(--z-header);
   box-shadow: var(--shadow-header);
 }

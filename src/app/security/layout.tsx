@@ -182,25 +182,17 @@ export default function SecurityLayout({
     <div className="mobile-shell">
       {/* Header */}
       <header className="app-header">
-        <div className={styles.headerContent}>
-          <div className={styles.headerLeft}>
-            <div className={styles.headerLogo} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <img 
-                src="/Logo RS JEC ORBITA.png" 
-                alt="Logo JEC ORBITA" 
-                style={{ height: '22px', width: 'auto', objectFit: 'contain' }}
-              />
-            </div>
-            <div className={styles.headerInfo}>
-              <span className={styles.headerName}>{user?.name || 'Loading...'}</span>
-              <span className={styles.headerShift}>{shift ? `${shift.name} • ${shift.startTime} - ${shift.endTime}` : ''}</span>
-            </div>
+        <div className={styles.headerTop}>
+          <div className={styles.headerLogo}>
+            <img 
+              src="/Logo RS JEC ORBITA.png" 
+              alt="Logo JEC ORBITA" 
+              style={{ height: '22px', width: 'auto', objectFit: 'contain' }}
+            />
           </div>
-          <LiveClock />
-          {/* Connection Status */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className={styles.headerRight}>
+            <LiveClock />
             <ConnectionStatus />
-            {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '16px', lineHeight: 1 }}
@@ -208,6 +200,14 @@ export default function SecurityLayout({
             >
               {darkMode ? '☀️' : '🌙'}
             </button>
+          </div>
+        </div>
+        <div className={styles.headerSub}>
+          <div className={styles.headerSubUser}>
+            <span>👤</span> {user?.name || 'Loading...'}
+          </div>
+          <div className={styles.headerSubShift}>
+            <span>⏱️</span> {shift ? `${shift.name} • ${shift.startTime}-${shift.endTime}` : ''}
           </div>
         </div>
       </header>
