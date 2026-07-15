@@ -29,6 +29,22 @@ export default function RoomCheckPage({
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [acStatus, setAcStatus] = useState<ACStatus | null>(null);
+  const [lightStatus, setLightStatus] = useState<LightStatus | null>(null);
+  const [condition, setCondition] = useState<'normal' | 'finding' | null>(null);
+  const [remarks, setRemarks] = useState('');
+  const [findingCategory, setFindingCategory] = useState<FindingCategory | null>(null);
+  const [findingDescription, setFindingDescription] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [syncMode, setSyncMode] = useState<'online' | 'offline'>('online');
+
+  const [isRecordingRemarks, setIsRecordingRemarks] = useState(false);
+  const [isRecordingFinding, setIsRecordingFinding] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -86,22 +102,6 @@ export default function RoomCheckPage({
   const checkedRoomIds = Array.from(combinedCheckedSet);
 
   const checked = checkedRoomIds.length;
-
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [acStatus, setAcStatus] = useState<ACStatus | null>(null);
-  const [lightStatus, setLightStatus] = useState<LightStatus | null>(null);
-  const [condition, setCondition] = useState<'normal' | 'finding' | null>(null);
-  const [remarks, setRemarks] = useState('');
-  const [findingCategory, setFindingCategory] = useState<FindingCategory | null>(null);
-  const [findingDescription, setFindingDescription] = useState('');
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [syncMode, setSyncMode] = useState<'online' | 'offline'>('online');
-
-  const [isRecordingRemarks, setIsRecordingRemarks] = useState(false);
-  const [isRecordingFinding, setIsRecordingFinding] = useState(false);
-  const [speechError, setSpeechError] = useState<string | null>(null);
 
   const startSpeechRecognition = (target: 'remarks' | 'finding') => {
     setSpeechError(null);
