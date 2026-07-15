@@ -28,6 +28,50 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                if (typeof window !== 'undefined') {
+                  var CLEAN_KEY = 'sw_cleaned_v3';
+                  if (!localStorage.getItem(CLEAN_KEY)) {
+                    if ('serviceWorker' in navigator) {
+                      navigator.serviceWorker.getRegistrations().then(function(regs) {
+                        var hasRegs = regs && regs.length > 0;
+                        if (hasRegs) {
+                          for (var i = 0; i < regs.length; i++) {
+                            regs[i].unregister();
+                          }
+                          localStorage.setItem(CLEAN_KEY, 'true');
+                          setTimeout(function() {
+                            window.location.reload();
+                          }, 200);
+                        } else {
+                          localStorage.setItem(CLEAN_KEY, 'true');
+                        }
+                      }).catch(function() {
+                        localStorage.setItem(CLEAN_KEY, 'true');
+                      });
+                    } else {
+                      localStorage.setItem(CLEAN_KEY, 'true');
+                    }
+                    if ('caches' in window) {
+                      caches.keys().then(function(keys) {
+                        if (keys) {
+                          keys.forEach(function(key) {
+                            caches.delete(key);
+                          });
+                        }
+                      });
+                    }
+                  }
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
