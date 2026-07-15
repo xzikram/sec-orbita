@@ -15,19 +15,50 @@ import styles from './patrol.module.css';
 export default function PatrolPage() {
   const [isReversed, setIsReversed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [session, setSession] = useState<any>(null);
+  const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
-    fetch('/api/auth/me')
-      .then(res => res.json())
-      .then(data => {
-        const empId = data.user?.employeeId || 'guest';
-        const saved = localStorage.getItem(`patrol-reversed-${empId}`);
-        if (saved === 'true') {
-          setIsReversed(true);
+    async function loadData() {
+      try {
+        const [meRes, sessionsRes] = await Promise.all([
+          fetch('/api/auth/me'),
+          fetch('/api/patrol/sessions'),
+        ]);
+
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          const empId = meData.user?.employeeId || 'guest';
+          const saved = localStorage.getItem(`patrol-reversed-${empId}`);
+          if (saved === 'true') {
+            setIsReversed(true);
+          }
         }
-      })
-      .catch(() => {});
+
+        if (sessionsRes.ok) {
+          const sessions = await sessionsRes.json();
+          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+          setSession(active);
+        }
+
+        // Get offline checks
+        try {
+          const { getOfflineChecks } = await import('@/lib/db');
+          const offline = await getOfflineChecks();
+          setOfflineChecks(offline);
+        } catch (e) {
+          console.error('IndexedDB load error:', e);
+        }
+
+      } catch (err) {
+        console.error('Patrol load error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
   }, []);
 
   const handleToggleReversed = () => {
@@ -42,26 +73,52 @@ export default function PatrolPage() {
       .catch(() => {});
   };
 
-  const schedule = patrolSchedules.find(s => s.id === activeSession.scheduleId);
+  const currentSession = session || activeSession;
+  const schedule = patrolSchedules.find(s => s.id === currentSession.scheduleId);
 
   const totalRooms = floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0);
-  const checkedRooms = activeChecks.length;
-  const overallProgress = Math.round((checkedRooms / totalRooms) * 100);
 
-  const rawFloorProgress = activeSessionFloors.map(sf => {
+  // Combine online (DB) and offline (IndexedDB) check room IDs
+  const onlineCheckRoomIds = new Set<string>();
+  currentSession.sessionFloors?.forEach((sf: any) => {
+    sf.patrolChecks?.forEach((c: any) => onlineCheckRoomIds.add(c.roomId));
+  });
+
+  const offlineCheckRoomIds = new Set<string>();
+  offlineChecks.forEach((c: any) => {
+    const isMatchingFloor = currentSession.sessionFloors?.some((sf: any) => sf.id === c.sessionFloorId);
+    if (isMatchingFloor) {
+      offlineCheckRoomIds.add(c.roomId);
+    }
+  });
+
+  const checkedRoomIdsSet = new Set([...onlineCheckRoomIds, ...offlineCheckRoomIds]);
+  const checkedRooms = checkedRoomIdsSet.size;
+  const overallProgress = totalRooms > 0 ? Math.round((checkedRooms / totalRooms) * 100) : 0;
+
+  const rawFloorProgress = (currentSession.sessionFloors || activeSessionFloors).map((sf: any) => {
     const floor = floors.find(f => f.id === sf.floorId)!;
     const floorRooms = getRoomsByFloor(sf.floorId);
-    const checked = activeChecks.filter(c => c.sessionFloorId === sf.id).length;
+    
+    const dbChecked = sf.patrolChecks?.map((c: any) => c.roomId) || [];
+    const offChecked = offlineChecks.filter((c: any) => c.sessionFloorId === sf.id).map((c: any) => c.roomId);
+    const combinedFloorChecked = new Set([...dbChecked, ...offChecked]);
+    
+    const checked = combinedFloorChecked.size;
     return {
       ...sf,
       floor,
       total: floorRooms.length,
       checked,
-      percent: Math.round((checked / floorRooms.length) * 100),
+      percent: floorRooms.length > 0 ? Math.round((checked / floorRooms.length) * 100) : 0,
     };
   });
 
   const floorProgress = isReversed ? [...rawFloorProgress].reverse() : rawFloorProgress;
+
+  if (loading) {
+    return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat progress patroli...</p></div>;
+  }
 
   const getStatusIcon = (status: string, percent: number) => {
     if (status === 'completed' || percent === 100) {
@@ -82,7 +139,7 @@ export default function PatrolPage() {
     }
     return (
       <div className={`${styles.statusCircle} ${styles.statusPending}`}>
-        <span className={styles.statusNumber}>{floorProgress.findIndex(f => f.floorId === status) + 1}</span>
+        <span className={styles.statusNumber}>{floorProgress.findIndex((f: any) => f.floorId === status) + 1}</span>
       </div>
     );
   };
@@ -119,7 +176,7 @@ export default function PatrolPage() {
             />
           </div>
           <p className="text-xs text-muted mt-1">
-            {checkedRooms} dari {totalRooms} ruangan • {floorProgress.filter(f => f.status === 'completed').length} dari {floors.length} lantai
+            {checkedRooms} dari {totalRooms} ruangan • {floorProgress.filter((f: any) => f.status === 'completed').length} dari {floors.length} lantai
           </p>
         </div>
       </div>
@@ -143,7 +200,7 @@ export default function PatrolPage() {
       </div>
 
       <div className={styles.timeline}>
-        {floorProgress.map((fp, index) => (
+        {floorProgress.map((fp: any, index: number) => (
           <Link
             key={fp.id}
             href={`/security/patrol/floor/${fp.floorId}`}

@@ -6,8 +6,6 @@ import { useRouter } from 'next/navigation';
 import { Room } from '@/lib/dummy-data';
 import {
   floors,
-  activeSessionFloors,
-  activeChecks,
   getRoomsByFloor,
 } from '@/lib/dummy-data';
 import { submitRoomCheck } from '@/lib/data-client';
@@ -27,15 +25,23 @@ export default function FloorDetailPage({
   const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isQuickMode, setIsQuickMode] = useState(false);
+  const [session, setSession] = useState<any>(null);
+  const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const defaultRooms = getRoomsByFloor(id);
-    fetch('/api/auth/me')
-      .then(res => res.json())
-      .then(data => {
-        if (data.user) {
-          setCurrentUser(data.user);
-          const empId = data.user.employeeId;
+    async function loadData() {
+      try {
+        const [meRes, sessionsRes] = await Promise.all([
+          fetch('/api/auth/me'),
+          fetch('/api/patrol/sessions'),
+        ]);
+
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          setCurrentUser(meData.user);
+          const empId = meData.user.employeeId;
           const savedOrder = localStorage.getItem(`patrol-order-${empId}-${id}`);
           if (savedOrder) {
             try {
@@ -58,10 +64,29 @@ export default function FloorDetailPage({
         } else {
           setFloorRooms(defaultRooms);
         }
-      })
-      .catch(() => {
-        setFloorRooms(defaultRooms);
-      });
+
+        if (sessionsRes.ok) {
+          const sessions = await sessionsRes.json();
+          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+          setSession(active);
+        }
+
+        // Get offline checks
+        try {
+          const { getOfflineChecks } = await import('@/lib/db');
+          const offline = await getOfflineChecks();
+          setOfflineChecks(offline);
+        } catch (e) {
+          console.error('IndexedDB load error:', e);
+        }
+
+      } catch (err) {
+        console.error('Floor load error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
     setMounted(true);
   }, [id]);
 
@@ -69,10 +94,18 @@ export default function FloorDetailPage({
     return <div className="page-content"><p>Lantai tidak ditemukan</p></div>;
   }
 
-  const sessionFloor = activeSessionFloors.find(sf => sf.floorId === id);
-  const checkedRoomIds = activeChecks
-    .filter(c => c.sessionFloorId === sessionFloor?.id)
-    .map(c => c.roomId);
+  if (loading) {
+    return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat progress lantai...</p></div>;
+  }
+
+  const currentSession = session || { sessionFloors: [] };
+  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => sf.floorId === id);
+  
+  // Combine online (DB) checks and offline checks for this floor
+  const dbCheckedRoomIds = sessionFloor?.patrolChecks?.map((c: any) => c.roomId) || [];
+  const offCheckedRoomIds = offlineChecks.filter((c: any) => c.sessionFloorId === sessionFloor?.id).map((c: any) => c.roomId);
+  const combinedCheckedSet = new Set([...dbCheckedRoomIds, ...offCheckedRoomIds]);
+  const checkedRoomIds = Array.from(combinedCheckedSet);
 
   const checked = checkedRoomIds.length;
   const total = floorRooms.length;
@@ -126,8 +159,8 @@ export default function FloorDetailPage({
         photoBase64: 'DUMMY_SWIPE',
       });
 
-      // Update local mock array
-      activeChecks.push({
+      // Update local state so UI updates immediately
+      const newCheck = {
         id: `check-${Date.now()}`,
         sessionFloorId: sessionFloor.id,
         roomId: room.id,
@@ -136,12 +169,13 @@ export default function FloorDetailPage({
         roomCodeSnapshot: room.code,
         floorNameSnapshot: floor?.name || '',
         roomOrderSnapshot: room.patrolOrder,
-        acStatus: room.hasAc ? 'on' : 'not_available',
-        lightStatus: room.hasLight ? 'on' : 'off',
-        condition: 'normal',
+        acStatus: room.hasAc ? 'on' : 'not_available' as any,
+        lightStatus: room.hasLight ? 'on' : 'off' as any,
+        condition: 'normal' as any,
         remarks: 'Pemeriksaan Cepat (Swipe)',
         checkedAt: new Date().toISOString(),
-      });
+      };
+      setOfflineChecks(prev => [...prev, newCheck]);
 
       // Save resume state
       const lastPatrolState = {
@@ -245,7 +279,8 @@ export default function FloorDetailPage({
             {floorRooms.map((room, index) => {
               const isChecked = checkedRoomIds.includes(room.id);
               const isNext = nextRoom?.id === room.id;
-              const check = activeChecks.find(c => c.roomId === room.id);
+              const check = sessionFloor?.patrolChecks?.find((c: any) => c.roomId === room.id) ||
+                            offlineChecks.find((c: any) => c.roomId === room.id && c.sessionFloorId === sessionFloor?.id);
 
               return (
                 <div

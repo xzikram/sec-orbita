@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CameraCapture from '@/components/CameraCapture';
 import { submitRoomCheck, submitFinding } from '@/lib/data-client';
@@ -8,8 +8,6 @@ import {
   getRoomById,
   getFloorById,
   getRoomsByFloor,
-  activeChecks,
-  activeSessionFloors,
   findingCategoryLabels,
   type FindingCategory,
   type ACStatus,
@@ -26,16 +24,67 @@ export default function RoomCheckPage({
   const router = useRouter();
 
   const room = getRoomById(id);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
+  const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [meRes, sessionsRes] = await Promise.all([
+          fetch('/api/auth/me'),
+          fetch('/api/patrol/sessions'),
+        ]);
+
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          setCurrentUser(meData.user);
+        }
+
+        if (sessionsRes.ok) {
+          const sessions = await sessionsRes.json();
+          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+          setSession(active);
+        }
+
+        // Get offline checks
+        try {
+          const { getOfflineChecks } = await import('@/lib/db');
+          const offline = await getOfflineChecks();
+          setOfflineChecks(offline);
+        } catch (e) {
+          console.error('IndexedDB load error:', e);
+        }
+
+      } catch (err) {
+        console.error('Room load error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
   if (!room) {
     return <div className="page-content"><p>Ruangan tidak ditemukan</p></div>;
   }
 
+  if (loading) {
+    return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat data pemeriksaan...</p></div>;
+  }
+
   const floor = getFloorById(room.floorId);
   const floorRooms = getRoomsByFloor(room.floorId);
-  const sessionFloor = activeSessionFloors.find(sf => sf.floorId === room.floorId);
-  const checkedRoomIds = activeChecks
-    .filter(c => c.sessionFloorId === sessionFloor?.id)
-    .map(c => c.roomId);
+  const currentSession = session || { sessionFloors: [] };
+  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => sf.floorId === room.floorId);
+  
+  // Combine online (DB) checks and offline checks for this floor
+  const dbCheckedRoomIds = sessionFloor?.patrolChecks?.map((c: any) => c.roomId) || [];
+  const offCheckedRoomIds = offlineChecks.filter((c: any) => c.sessionFloorId === sessionFloor?.id).map((c: any) => c.roomId);
+  const combinedCheckedSet = new Set([...dbCheckedRoomIds, ...offCheckedRoomIds]);
+  const checkedRoomIds = Array.from(combinedCheckedSet);
+
   const checked = checkedRoomIds.length;
 
   const [isCapturing, setIsCapturing] = useState(false);
@@ -204,7 +253,7 @@ export default function RoomCheckPage({
       <div className={styles.header}>
         <button
           className="btn btn-ghost btn-icon"
-          onClick={() => router.back()}
+          onClick={() => router.push(`/security/patrol/floor/${room.floorId}`)}
           aria-label="Kembali"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

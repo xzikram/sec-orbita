@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       shift: { select: { name: true } },
       sessionFloors: {
         include: {
-          patrolChecks: { select: { id: true, condition: true } },
+          patrolChecks: { select: { id: true, condition: true, roomId: true, checkedAt: true } },
         },
       },
     },
