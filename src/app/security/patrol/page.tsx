@@ -87,7 +87,11 @@ export default function PatrolPage() {
 
   const offlineCheckRoomCodes = new Set<string>();
   offlineChecks.forEach((c: any) => {
-    const isMatchingFloor = currentSession.sessionFloors?.some((sf: any) => sf.id === c.sessionFloorId);
+    const isMatchingFloor = currentSession.sessionFloors?.some((sf: any) => {
+      const floor = floors.find(f => f.id === sf.floorId || f.code === sf.floorCodeSnapshot);
+      const dummySfId = floor ? `sf-${floor.code.toLowerCase()}` : '';
+      return sf.id === c.sessionFloorId || (dummySfId && dummySfId === c.sessionFloorId);
+    });
     if (isMatchingFloor) {
       const r = rooms.find(rm => rm.id === c.roomId);
       if (r) offlineCheckRoomCodes.add(r.code);
@@ -104,7 +108,7 @@ export default function PatrolPage() {
     
     const dbCheckedCodes = sf.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
     const offCheckedCodes = offlineChecks
-      .filter((c: any) => c.sessionFloorId === sf.id)
+      .filter((c: any) => c.sessionFloorId === sf.id || c.sessionFloorId === `sf-${floor.code.toLowerCase()}`)
       .map((c: any) => {
         const r = rooms.find(rm => rm.id === c.roomId);
         return r ? r.code : c.roomId;

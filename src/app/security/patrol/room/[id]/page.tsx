@@ -98,7 +98,7 @@ export default function RoomCheckPage({
   // Combine online (DB) checks and offline checks for this floor (by code snapshot)
   const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
   const offCheckedRoomCodes = offlineChecks
-    .filter((c: any) => c.sessionFloorId === sessionFloor?.id)
+    .filter((c: any) => c.sessionFloorId === sessionFloor?.id || c.sessionFloorId === `sf-${floor?.code.toLowerCase() || 'dummy'}`)
     .map((c: any) => {
       const r = getRoomById(c.roomId);
       return r ? r.code : c.roomId;

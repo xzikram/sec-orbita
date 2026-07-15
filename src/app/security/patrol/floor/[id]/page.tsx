@@ -104,7 +104,7 @@ export default function FloorDetailPage({
   // Combine online (DB) checks and offline checks for this floor by code snapshot
   const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
   const offCheckedRoomCodes = offlineChecks
-    .filter((c: any) => c.sessionFloorId === sessionFloor?.id)
+    .filter((c: any) => c.sessionFloorId === sessionFloor?.id || c.sessionFloorId === `sf-${floor.code.toLowerCase()}`)
     .map((c: any) => {
       // Look up room code in any floor rooms list
       const r = floors.reduce((found: any, f) => found || getRoomsByFloor(f.id).find(rm => rm.id === c.roomId), null as any);
