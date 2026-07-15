@@ -161,11 +161,13 @@ export default function RoomCheckPage({
   };
 
   const handleSubmit = async () => {
-    if (!canSubmit() || !sessionFloor) return;
+    if (!canSubmit()) return;
+
+    const sessionFloorId = sessionFloor?.id || `sf-${floor?.code.toLowerCase() || 'dummy'}`;
 
     // Call submitRoomCheck helper
     const result = await submitRoomCheck({
-      sessionFloorId: sessionFloor.id,
+      sessionFloorId,
       roomId: room.id,
       acStatus: acStatus || 'not_available',
       lightStatus: lightStatus === 'not_available' ? 'off' : (lightStatus || 'off'),
@@ -178,7 +180,7 @@ export default function RoomCheckPage({
     if (condition === 'finding' && findingCategory && findingDescription) {
       await submitFinding({
         checkId: undefined, // Will link on backend/during sync
-        sessionId: sessionFloor.sessionId,
+        sessionId: sessionFloor?.sessionId || 'session-dummy',
         floorId: room.floorId,
         roomId: room.id,
         floorNameSnapshot: floor?.name || 'Unknown',
@@ -191,7 +193,7 @@ export default function RoomCheckPage({
     // Save patrol checkpoint state
     try {
       const lastPatrolState = {
-        sessionId: sessionFloor.sessionId,
+        sessionId: sessionFloor?.sessionId || 'session-dummy',
         floorId: room.floorId,
         floorName: floor?.name || 'Lantai',
         roomId: room.id,

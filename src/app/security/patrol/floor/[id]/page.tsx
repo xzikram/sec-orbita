@@ -152,10 +152,10 @@ export default function FloorDetailPage({
   };
 
   const handleSwipeRight = async (room: Room) => {
-    if (!sessionFloor) return;
+    const sessionFloorId = sessionFloor?.id || `sf-${floor.code.toLowerCase()}`;
     try {
       await submitRoomCheck({
-        sessionFloorId: sessionFloor.id,
+        sessionFloorId,
         roomId: room.id,
         acStatus: room.hasAc ? 'on' : 'not_available',
         lightStatus: room.hasLight ? 'on' : 'off',
@@ -167,7 +167,7 @@ export default function FloorDetailPage({
       // Update local state so UI updates immediately
       const newCheck = {
         id: `check-${Date.now()}`,
-        sessionFloorId: sessionFloor.id,
+        sessionFloorId,
         roomId: room.id,
         userId: currentUser?.id || 'guest',
         roomNameSnapshot: room.name,
@@ -184,7 +184,7 @@ export default function FloorDetailPage({
 
       // Save resume state
       const lastPatrolState = {
-        sessionId: sessionFloor.sessionId,
+        sessionId: sessionFloor?.sessionId || 'session-dummy',
         floorId: room.floorId,
         floorName: floor?.name || 'Lantai',
         roomId: room.id,

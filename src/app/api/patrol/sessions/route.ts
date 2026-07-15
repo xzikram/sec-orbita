@@ -11,12 +11,20 @@ export async function GET(request: NextRequest) {
   const id = searchParams.get('id');
   const userId = searchParams.get('userId');
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, any> = {};
   if (id) {
     where.id = id;
   } else {
-    const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
-    where.patrolDate = new Date(date);
+    const date = searchParams.get('date');
+    if (date) {
+      where.patrolDate = new Date(date);
+    } else {
+      const today = new Date().toISOString().split('T')[0];
+      where.OR = [
+        { status: 'in_progress' },
+        { patrolDate: new Date(today) }
+      ];
+    }
   }
 
   if (userId) where.userId = userId;
