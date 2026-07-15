@@ -122,7 +122,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <img 
               src="/Logo RS JEC ORBITA.png" 
               alt="Logo JEC ORBITA" 
-              style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
+              style={{ height: '32px', width: 'auto', objectFit: 'contain' }}
             />
           </div>
           <div className={styles.logoText}>

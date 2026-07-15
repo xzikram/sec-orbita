@@ -188,7 +188,7 @@ export default function SecurityLayout({
               <img 
                 src="/Logo RS JEC ORBITA.png" 
                 alt="Logo JEC ORBITA" 
-                style={{ height: '28px', width: 'auto', objectFit: 'contain' }}
+                style={{ height: '22px', width: 'auto', objectFit: 'contain' }}
               />
             </div>
             <div className={styles.headerInfo}>
