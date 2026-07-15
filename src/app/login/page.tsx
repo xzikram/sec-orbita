@@ -78,14 +78,14 @@ export default function LoginPage() {
       <div className={styles.decorOrb2} />
 
       <div className="login-card">
-        <div className="login-logo">
-          <div className="login-logo-icon">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          </div>
-          <h1 className="login-title">Security Patrol</h1>
-          <p className="login-subtitle">RS Mata JEC ORBITA</p>
+        <div className="login-logo" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px' }}>
+          <img 
+            src="/Logo RS JEC ORBITA.png" 
+            alt="Logo RS Mata JEC ORBITA" 
+            style={{ height: '70px', objectFit: 'contain', marginBottom: '12px' }}
+          />
+          <h1 className="login-title" style={{ fontSize: '20px', fontWeight: '700', color: 'var(--color-neutral-900, #111827)', margin: '0' }}>Security Patrol</h1>
+          <p className="login-subtitle" style={{ fontSize: '13px', color: 'var(--color-neutral-500, #6b7280)', margin: '4px 0 0 0' }}>RS Mata JEC ORBITA</p>
         </div>
 
         <form onSubmit={handleSubmit}>

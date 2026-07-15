@@ -184,10 +184,12 @@ export default function SecurityLayout({
       <header className="app-header">
         <div className={styles.headerContent}>
           <div className={styles.headerLeft}>
-            <div className={styles.headerLogo}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
+            <div className={styles.headerLogo} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img 
+                src="/Logo RS JEC ORBITA.png" 
+                alt="Logo JEC ORBITA" 
+                style={{ height: '28px', width: 'auto', objectFit: 'contain' }}
+              />
             </div>
             <div className={styles.headerInfo}>
               <span className={styles.headerName}>{user?.name || 'Loading...'}</span>

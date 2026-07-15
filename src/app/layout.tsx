@@ -29,6 +29,7 @@ export default function RootLayout({
   return (
     <html lang="id">
       <head>
+        <link rel="icon" href="/Logo RS JEC ORBITA.png" type="image/png" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
