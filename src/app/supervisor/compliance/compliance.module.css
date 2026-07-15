@@ -165,7 +165,7 @@
 
 /* Print styles for export */
 @media print {
-  body {
+  :global(body) {
     background: white;
     color: black;
   }
@@ -177,7 +177,7 @@
     box-shadow: none !important;
     background: white !important;
   }
-  svg circle {
+  .visualRing :global(circle) {
     stroke-opacity: 1 !important;
   }
 }
