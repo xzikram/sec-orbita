@@ -55,6 +55,14 @@
 
 .findingCard {
   opacity: 0;
+  cursor: pointer;
+  text-decoration: none;
+  display: block;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.findingCard:active {
+  transform: scale(0.985);
 }
 
 .findingHeader {

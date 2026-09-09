@@ -34,41 +34,59 @@ export default function FloorDetailPage({
     async function loadData() {
       try {
         const [meRes, sessionsRes] = await Promise.all([
-          fetch('/api/auth/me'),
-          fetch('/api/patrol/sessions'),
+          fetch('/api/auth/me').catch(() => null),
+          fetch('/api/patrol/sessions').catch(() => null),
         ]);
 
-        if (meRes.ok) {
+        let empId = 'guest';
+        if (meRes && meRes.ok) {
           const meData = await meRes.json();
           setCurrentUser(meData.user);
-          const empId = meData.user.employeeId;
-          const savedOrder = localStorage.getItem(`patrol-order-${empId}-${id}`);
-          if (savedOrder) {
+          empId = meData.user.employeeId;
+          try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
+        } else {
+          const cachedUser = localStorage.getItem('cached-user');
+          if (cachedUser) {
             try {
-              const orderIds = JSON.parse(savedOrder) as string[];
-              const sorted = [...defaultRooms].sort((a, b) => {
-                const idxA = orderIds.indexOf(a.id);
-                const idxB = orderIds.indexOf(b.id);
-                if (idxA === -1 && idxB === -1) return 0;
-                if (idxA === -1) return 1;
-                if (idxB === -1) return -1;
-                return idxA - idxB;
-              });
-              setFloorRooms(sorted);
-            } catch (e) {
-              setFloorRooms(defaultRooms);
-            }
-          } else {
+              const u = JSON.parse(cachedUser);
+              setCurrentUser(u);
+              empId = u.employeeId || 'guest';
+            } catch {}
+          }
+        }
+
+        const savedOrder = localStorage.getItem(`patrol-order-${empId}-${id}`);
+        if (savedOrder) {
+          try {
+            const orderIds = JSON.parse(savedOrder) as string[];
+            const sorted = [...defaultRooms].sort((a, b) => {
+              const idxA = orderIds.indexOf(a.id);
+              const idxB = orderIds.indexOf(b.id);
+              if (idxA === -1 && idxB === -1) return 0;
+              if (idxA === -1) return 1;
+              if (idxB === -1) return -1;
+              return idxA - idxB;
+            });
+            setFloorRooms(sorted);
+          } catch {
             setFloorRooms(defaultRooms);
           }
         } else {
           setFloorRooms(defaultRooms);
         }
 
-        if (sessionsRes.ok) {
+        if (sessionsRes && sessionsRes.ok) {
           const sessions = await sessionsRes.json();
           const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
           setSession(active);
+          if (active) {
+            try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
+          }
+        } else {
+          const cachedSess = localStorage.getItem('cached-active-session');
+          if (cachedSess) {
+            try { setSession(JSON.parse(cachedSess)); } catch {}
+          }
         }
 
         // Get offline checks
@@ -82,12 +100,14 @@ export default function FloorDetailPage({
 
       } catch (err) {
         console.error('Floor load error:', err);
+        const cachedSess = localStorage.getItem('cached-active-session');
+        if (cachedSess) try { setSession(JSON.parse(cachedSess)); } catch {}
       } finally {
         setLoading(false);
+        setMounted(true);
       }
     }
     loadData();
-    setMounted(true);
   }, [id]);
 
   if (!floor) {

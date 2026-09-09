@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     } else if (type === 'weekly') {
       // Get start of week (Sunday)
       startDate.setDate(targetDate.getDate() - targetDate.getDay());
+      endDate = new Date(startDate);
       endDate.setDate(startDate.getDate() + 7);
     } else if (type === 'monthly') {
       startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);

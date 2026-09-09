@@ -16,10 +16,31 @@ export default function SyncStatus() {
     setCounts(c);
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    setMessage('Menyinkronkan data...');
+    const result = await syncOfflineData();
+    setSyncing(false);
+
+    if (result.success) {
+      setMessage(`Sukses menyinkronkan ${result.checksSynced} data.`);
+      setTimeout(() => setMessage(''), 3000);
+    } else {
+      setMessage(result.error || 'Gagal menyinkronkan data.');
+      setTimeout(() => setMessage(''), 4000);
+    }
+    updateCounts();
+  };
+
+  const autoSync = async () => {
+    const c = await getOfflineCount();
+    if (c.checks > 0 || c.findings > 0) {
+      handleSync();
+    }
+  };
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    setIsOnline(navigator.onLine);
 
     const handleOnline = () => {
       setIsOnline(true);
@@ -41,45 +62,6 @@ export default function SyncStatus() {
     };
   }, []);
 
-  const autoSync = async () => {
-    const c = await getOfflineCount();
-    if (c.checks > 0 || c.findings > 0) {
-      handleSync();
-    }
-  };
-
-  const handleSync = async () => {
-    setSyncing(true);
-    setMessage('Menyinkronkan data...');
-    const result = await syncOfflineData();
-    setSyncing(false);
-
-    if (result.success) {
-      setMessage(`Sukses menyinkronkan ${result.checksSynced} data.`);
-      setTimeout(() => setMessage(''), 3000);
-    } else {
-      setMessage(result.error || 'Gagal menyinkronkan data.');
-      setTimeout(() => setMessage(''), 4000);
-    }
-    updateCounts();
-  };
-
-  const handleClearOffline = async () => {
-    if (confirm('Hapus semua data pending yang belum disinkronkan?')) {
-      setSyncing(true);
-      try {
-        await clearOfflineData();
-        setMessage('Data lokal berhasil dibersihkan.');
-        setTimeout(() => setMessage(''), 3000);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setSyncing(false);
-        updateCounts();
-      }
-    }
-  };
-
   const totalOffline = counts.checks + counts.findings;
 
   if (totalOffline === 0 && isOnline && !message) return null;
@@ -97,15 +79,7 @@ export default function SyncStatus() {
       {isOnline && totalOffline > 0 && (
         <div style={{ display: 'flex', gap: '6px' }}>
           <button className={styles.syncBtn} onClick={handleSync} disabled={syncing}>
-            {syncing ? 'Proses...' : 'Sinkronkan'}
-          </button>
-          <button 
-            className={styles.syncBtn} 
-            onClick={handleClearOffline} 
-            disabled={syncing}
-            style={{ color: 'var(--color-danger-600)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-          >
-            Hapus
+            {syncing ? 'Menyinkronkan...' : 'Sinkronkan Sekarang'}
           </button>
         </div>
       )}

@@ -1,5 +1,5 @@
 .topBar { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
-.backBtn { width: 36px; height: 36px; border-radius: var(--radius-full); background: var(--bg-card); border: 1px solid var(--border-light); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.backBtn { width: 36px; height: 36px; border-radius: var(--radius-full); background: var(--bg-card); border: 1px solid var(--border-light); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); cursor: pointer; }
 .topTitle { flex: 1; font-size: var(--font-size-lg); font-weight: var(--font-weight-bold); }
 
 .findingNo { font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); color: var(--color-primary-500); font-family: 'SF Mono', 'Fira Code', monospace; margin-bottom: var(--space-3); letter-spacing: 0.05em; }
@@ -16,6 +16,17 @@
 .metaRow:last-child { border-bottom: none; }
 .metaLabel { font-size: var(--font-size-sm); color: var(--text-secondary); }
 .metaValue { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }
+
+.timelineCard { padding: var(--space-4); margin-bottom: var(--space-3); }
+.timelineTitle { font-size: var(--font-size-md); font-weight: var(--font-weight-bold); margin-bottom: var(--space-3); display: flex; align-items: center; gap: var(--space-2); }
+.timelineList { display: flex; flex-direction: column; gap: var(--space-3); position: relative; padding-left: 20px; }
+.timelineList::before { content: ''; position: absolute; left: 7px; top: 8px; bottom: 8px; width: 2px; background: var(--border-light); }
+.timelineItem { position: relative; }
+.timelineDot { position: absolute; left: -20px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--color-primary-500); border: 2px solid var(--bg-card); }
+.timelineHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.timelineUser { font-size: var(--font-size-xs); font-weight: var(--font-weight-bold); color: var(--text-primary); }
+.timelineTime { font-size: 10px; color: var(--text-muted); }
+.timelineContent { font-size: var(--font-size-xs); color: var(--text-secondary); line-height: 1.4; background: var(--color-neutral-50); padding: 6px 10px; border-radius: var(--radius-md); margin-top: 4px; }
 
 .infoBox { display: flex; gap: var(--space-3); padding: var(--space-4); background: var(--color-primary-50); border: 1px solid var(--color-primary-100); border-radius: var(--radius-xl); font-size: var(--font-size-sm); color: var(--color-primary-700); line-height: var(--line-height-relaxed); }
 .infoBox svg { flex-shrink: 0; margin-top: 2px; }

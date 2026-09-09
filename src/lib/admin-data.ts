@@ -94,27 +94,32 @@ export const adminBuildings: Building[] = [
 ];
 
 // Floors
+// Floors (All 12 Floors of RS Mata JEC ORBITA)
 export const adminFloors: AdminFloor[] = [
-  { id: 'f1', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Semi Basement', code: 'SB', level: -1, totalRooms: 12, qrCode: 'JEC-ORB-SB-2026', isActive: true },
-  { id: 'f2', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 1', code: 'L1', level: 1, totalRooms: 12, qrCode: 'JEC-ORB-L1-2026', isActive: true },
-  { id: 'f3', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 2', code: 'L2', level: 2, totalRooms: 10, qrCode: 'JEC-ORB-L2-2026', isActive: true },
-  { id: 'f4', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 3', code: 'L3', level: 3, totalRooms: 8, qrCode: 'JEC-ORB-L3-2026', isActive: true },
+  { id: 'floor-sb', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Semi Basement', code: 'SB', level: -1, totalRooms: 15, qrCode: 'JEC-ORB-SB-1785290309537-R4ZC', isActive: true },
+  { id: 'floor-1', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 1', code: 'L1', level: 1, totalRooms: 16, qrCode: 'JEC-ORB-L1-1785290309542-8Z4K', isActive: true },
+  { id: 'floor-2', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai P2', code: 'P2', level: 2, totalRooms: 5, qrCode: 'JEC-ORB-P2-1785290309546-TWEO', isActive: true },
+  { id: 'floor-3', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai P3', code: 'P3', level: 3, totalRooms: 5, qrCode: 'JEC-ORB-P3-1785290309549-P2CR', isActive: true },
+  { id: 'floor-4', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai P4', code: 'P4', level: 4, totalRooms: 5, qrCode: 'JEC-ORB-P4-1785290309552-ZUMY', isActive: true },
+  { id: 'floor-5', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 5', code: 'L5', level: 5, totalRooms: 10, qrCode: 'JEC-ORB-L5-1785290309555-6X2J', isActive: true },
+  { id: 'floor-6', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 6', code: 'L6', level: 6, totalRooms: 12, qrCode: 'JEC-ORB-L6-1785290309559-6YRH', isActive: true },
+  { id: 'floor-7', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 7', code: 'L7', level: 7, totalRooms: 10, qrCode: 'JEC-ORB-L7-1785290309562-B2S5', isActive: true },
+  { id: 'floor-8', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 8', code: 'L8', level: 8, totalRooms: 8, qrCode: 'JEC-ORB-L8-1785290309565-QK16', isActive: true },
+  { id: 'floor-9', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 9', code: 'L9', level: 9, totalRooms: 6, qrCode: 'JEC-ORB-L9-1785290309568-XUYC', isActive: true },
+  { id: 'floor-10', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 10', code: 'L10', level: 10, totalRooms: 5, qrCode: 'JEC-ORB-L10-1785290309572-9J8U', isActive: true },
+  { id: 'floor-11', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 11', code: 'L11', level: 11, totalRooms: 4, qrCode: 'JEC-ORB-L11-1785290309575-50K0', isActive: true },
 ];
 
 // Rooms (subset)
 export const adminRooms: AdminRoom[] = [
-  { id: 'r1', floorId: 'f1', floorName: 'Semi Basement', name: 'Ruang Genset', code: 'SB-01', patrolOrder: 1, hasAc: false, hasLight: true, photoGuide: 'Foto panel utama genset', isActive: true },
-  { id: 'r2', floorId: 'f1', floorName: 'Semi Basement', name: 'Ruang Panel Listrik', code: 'SB-02', patrolOrder: 2, hasAc: false, hasLight: true, photoGuide: 'Foto panel listrik utama', isActive: true },
-  { id: 'r3', floorId: 'f1', floorName: 'Semi Basement', name: 'Ruang Server', code: 'SB-03', patrolOrder: 3, hasAc: true, hasLight: true, photoGuide: 'Foto area server dan suhu AC', isActive: true },
-  { id: 'r4', floorId: 'f1', floorName: 'Semi Basement', name: 'Gudang Umum', code: 'SB-04', patrolOrder: 4, hasAc: false, hasLight: true, photoGuide: 'Foto area gudang', isActive: true },
-  { id: 'r5', floorId: 'f2', floorName: 'Lantai 1', name: 'Lobby Utama', code: 'L1-01', patrolOrder: 1, hasAc: true, hasLight: true, photoGuide: 'Foto area lobby', isActive: true },
-  { id: 'r6', floorId: 'f2', floorName: 'Lantai 1', name: 'Pendaftaran', code: 'L1-02', patrolOrder: 2, hasAc: true, hasLight: true, photoGuide: 'Foto area pendaftaran', isActive: true },
-  { id: 'r7', floorId: 'f2', floorName: 'Lantai 1', name: 'Kasir', code: 'L1-03', patrolOrder: 3, hasAc: true, hasLight: true, photoGuide: 'Foto area kasir', isActive: true },
-  { id: 'r8', floorId: 'f2', floorName: 'Lantai 1', name: 'Apotek', code: 'L1-04', patrolOrder: 4, hasAc: true, hasLight: true, photoGuide: 'Foto area apotek', isActive: true },
-  { id: 'r9', floorId: 'f3', floorName: 'Lantai 2', name: 'Ruang Konsultasi 1', code: 'L2-01', patrolOrder: 1, hasAc: true, hasLight: true, photoGuide: 'Foto ruang konsultasi', isActive: true },
-  { id: 'r10', floorId: 'f3', floorName: 'Lantai 2', name: 'Ruang Konsultasi 2', code: 'L2-02', patrolOrder: 2, hasAc: true, hasLight: true, photoGuide: 'Foto ruang konsultasi', isActive: true },
-  { id: 'r11', floorId: 'f4', floorName: 'Lantai 3', name: 'Ruang Operasi 1', code: 'L3-01', patrolOrder: 1, hasAc: true, hasLight: true, photoGuide: 'Foto pintu ruang operasi', isActive: true },
-  { id: 'r12', floorId: 'f4', floorName: 'Lantai 3', name: 'Ruang Operasi 2', code: 'L3-02', patrolOrder: 2, hasAc: true, hasLight: true, photoGuide: 'Foto pintu ruang operasi', isActive: true },
+  { id: 'r1', floorId: 'floor-sb', floorName: 'Semi Basement', name: 'Ruang Genset', code: 'SB-01', patrolOrder: 1, hasAc: false, hasLight: true, photoGuide: 'Foto panel utama genset', isActive: true },
+  { id: 'r2', floorId: 'floor-sb', floorName: 'Semi Basement', name: 'Ruang Panel Listrik', code: 'SB-02', patrolOrder: 2, hasAc: false, hasLight: true, photoGuide: 'Foto panel listrik utama', isActive: true },
+  { id: 'r3', floorId: 'floor-sb', floorName: 'Semi Basement', name: 'Ruang Server', code: 'SB-03', patrolOrder: 3, hasAc: true, hasLight: true, photoGuide: 'Foto area server dan suhu AC', isActive: true },
+  { id: 'r4', floorId: 'floor-sb', floorName: 'Semi Basement', name: 'Gudang Umum', code: 'SB-04', patrolOrder: 4, hasAc: false, hasLight: true, photoGuide: 'Foto area gudang', isActive: true },
+  { id: 'r5', floorId: 'floor-1', floorName: 'Lantai 1', name: 'Lobby Utama', code: 'L1-01', patrolOrder: 1, hasAc: true, hasLight: true, photoGuide: 'Foto area lobby', isActive: true },
+  { id: 'r6', floorId: 'floor-1', floorName: 'Lantai 1', name: 'Pendaftaran', code: 'L1-02', patrolOrder: 2, hasAc: true, hasLight: true, photoGuide: 'Foto area pendaftaran', isActive: true },
+  { id: 'r7', floorId: 'floor-1', floorName: 'Lantai 1', name: 'Kasir', code: 'L1-03', patrolOrder: 3, hasAc: true, hasLight: true, photoGuide: 'Foto area kasir', isActive: true },
+  { id: 'r8', floorId: 'floor-1', floorName: 'Lantai 1', name: 'Apotek', code: 'L1-04', patrolOrder: 4, hasAc: true, hasLight: true, photoGuide: 'Foto area apotek', isActive: true },
 ];
 
 // Schedules
@@ -136,10 +141,18 @@ export const adminShifts: AdminShift[] = [
   { id: 's3', name: 'Shift Malam', code: 'MALAM', startTime: '22:00', endTime: '06:00', isActive: true },
 ];
 
-// QR Configs
+// QR Configs - 100% Locked to Physical Stickers on Walls
 export const qrConfigs: QRConfig[] = [
-  { id: 'qr1', floorId: 'f1', floorName: 'Semi Basement', floorCode: 'SB', qrValue: 'JEC-ORB-SB-2026-A7B3', generatedAt: '2026-01-15T08:00:00', lastPrinted: '2026-06-01T09:30:00' },
-  { id: 'qr2', floorId: 'f2', floorName: 'Lantai 1', floorCode: 'L1', qrValue: 'JEC-ORB-L1-2026-C4D8', generatedAt: '2026-01-15T08:00:00', lastPrinted: '2026-06-01T09:30:00' },
-  { id: 'qr3', floorId: 'f3', floorName: 'Lantai 2', floorCode: 'L2', qrValue: 'JEC-ORB-L2-2026-E5F2', generatedAt: '2026-01-15T08:00:00', lastPrinted: '2026-06-01T09:30:00' },
-  { id: 'qr4', floorId: 'f4', floorName: 'Lantai 3', floorCode: 'L3', qrValue: 'JEC-ORB-L3-2026-G9H1', generatedAt: '2026-01-15T08:00:00', lastPrinted: null },
+  { id: 'qr-sb', floorId: 'floor-sb', floorName: 'Semi Basement', floorCode: 'SB', qrValue: 'JEC-ORB-SB-1785290309537-R4ZC', generatedAt: '2026-07-29T01:58:29.537Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-l1', floorId: 'floor-1', floorName: 'Lantai 1', floorCode: 'L1', qrValue: 'JEC-ORB-L1-1785290309542-8Z4K', generatedAt: '2026-07-29T01:58:29.542Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-p2', floorId: 'floor-2', floorName: 'Lantai P2', floorCode: 'P2', qrValue: 'JEC-ORB-P2-1785290309546-TWEO', generatedAt: '2026-07-29T01:58:29.546Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-p3', floorId: 'floor-3', floorName: 'Lantai P3', floorCode: 'P3', qrValue: 'JEC-ORB-P3-1785290309549-P2CR', generatedAt: '2026-07-29T01:58:29.549Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-p4', floorId: 'floor-4', floorName: 'Lantai P4', floorCode: 'P4', qrValue: 'JEC-ORB-P4-1785290309552-ZUMY', generatedAt: '2026-07-29T01:58:29.552Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-l5', floorId: 'floor-5', floorName: 'Lantai 5', floorCode: 'L5', qrValue: 'JEC-ORB-L5-1785290309555-6X2J', generatedAt: '2026-07-29T01:58:29.555Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-l6', floorId: 'floor-6', floorName: 'Lantai 6', floorCode: 'L6', qrValue: 'JEC-ORB-L6-1785290309559-6YRH', generatedAt: '2026-07-29T01:58:29.559Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-l7', floorId: 'floor-7', floorName: 'Lantai 7', floorCode: 'L7', qrValue: 'JEC-ORB-L7-1785290309562-B2S5', generatedAt: '2026-07-29T01:58:29.562Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-l8', floorId: 'floor-8', floorName: 'Lantai 8', floorCode: 'L8', qrValue: 'JEC-ORB-L8-1785290309565-QK16', generatedAt: '2026-07-29T01:58:29.565Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-l9', floorId: 'floor-9', floorName: 'Lantai 9', floorCode: 'L9', qrValue: 'JEC-ORB-L9-1785290309568-XUYC', generatedAt: '2026-07-29T01:58:29.568Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-l10', floorId: 'floor-10', floorName: 'Lantai 10', floorCode: 'L10', qrValue: 'JEC-ORB-L10-1785290309572-9J8U', generatedAt: '2026-07-29T01:58:29.572Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-l11', floorId: 'floor-11', floorName: 'Lantai 11', floorCode: 'L11', qrValue: 'JEC-ORB-L11-1785290309575-50K0', generatedAt: '2026-07-29T01:58:29.575Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
 ];

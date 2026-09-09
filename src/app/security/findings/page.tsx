@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import styles from './findings.module.css';
 
 const categoryLabels: Record<string, string> = {
@@ -109,7 +110,12 @@ export default function FindingsPage() {
           {/* Findings List */}
           <div className={styles.findingsList}>
             {filteredFindings.map((finding, index) => (
-              <div key={finding.id} className={`card ${styles.findingCard} animate-slide-up stagger-${Math.min(index + 1, 6)}`}>
+              <Link
+                key={finding.id}
+                href={`/security/findings/${finding.id}`}
+                className={`card card-interactive ${styles.findingCard} animate-slide-up stagger-${Math.min(index + 1, 6)}`}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
                 <div className="card-body">
                   <div className={styles.findingHeader}>
                     <div className={styles.findingIcon}>
@@ -138,7 +144,7 @@ export default function FindingsPage() {
                     <span>{finding.roomNameSnapshot} — {finding.floorNameSnapshot}</span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
 

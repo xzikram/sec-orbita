@@ -173,6 +173,42 @@ async function main() {
   }
   console.log('  ✓ Floors created');
 
+  // 4b. Floor QR Codes - 100% Locked to Physical Stickers on Walls
+  const OFFICIAL_FLOOR_QRS: Record<string, string> = {
+    SB: 'JEC-ORB-SB-1785290309537-R4ZC',
+    L1: 'JEC-ORB-L1-1785290309542-8Z4K',
+    P2: 'JEC-ORB-P2-1785290309546-TWEO',
+    P3: 'JEC-ORB-P3-1785290309549-P2CR',
+    P4: 'JEC-ORB-P4-1785290309552-ZUMY',
+    L5: 'JEC-ORB-L5-1785290309555-6X2J',
+    L6: 'JEC-ORB-L6-1785290309559-6YRH',
+    L7: 'JEC-ORB-L7-1785290309562-B2S5',
+    L8: 'JEC-ORB-L8-1785290309565-QK16',
+    L9: 'JEC-ORB-L9-1785290309568-XUYC',
+    L10: 'JEC-ORB-L10-1785290309572-9J8U',
+    L11: 'JEC-ORB-L11-1785290309575-50K0',
+  };
+
+  for (const created of createdFloors) {
+    const token = OFFICIAL_FLOOR_QRS[created.code] || `JEC-ORB-${created.code}-PENDING`;
+    await prisma.floorQrCode.create({
+      data: {
+        floorId: created.id,
+        token,
+        qrContent: JSON.stringify({
+          token,
+          floorCode: created.code,
+          floorName: created.name,
+          building: 'RS Mata JEC ORBITA',
+          isOfficialLocked: true,
+        }),
+        isActive: true,
+        generatedAt: new Date(1785290309550),
+      },
+    });
+  }
+  console.log('  ✓ Official Physical QR Codes created and locked');
+
   // 5. Rooms
   const rawRoomData = [
     // Semi Basement (SB)

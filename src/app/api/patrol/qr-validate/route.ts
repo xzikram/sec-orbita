@@ -24,25 +24,32 @@ export async function POST(request: NextRequest) {
     if (!sessionFloor) return NextResponse.json({ error: 'Session floor tidak ditemukan' }, { status: 404 });
 
     // Parse QR content and validate token
-    const qrCode = sessionFloor.floor.qrCode;
-    if (!qrCode) return NextResponse.json({ error: 'QR code belum di-generate untuk lantai ini' }, { status: 404 });
-
-    let qrValid = false;
+    let rawToken = String(qrToken).trim();
     try {
       const qrData = JSON.parse(qrToken);
-      qrValid = qrData.token === qrCode.token;
+      if (qrData.token) rawToken = String(qrData.token).trim();
     } catch {
-      qrValid = qrToken === qrCode.token;
+      // Use raw token directly
     }
+
+    const { isOfficialQrValidForFloor, OFFICIAL_QR_MAP } = await import('@/lib/qr-constants');
+    const floorCode = sessionFloor.floor.code;
+    const dbToken = sessionFloor.floor.qrCode?.token;
+
+    const isOfficial = isOfficialQrValidForFloor(floorCode, rawToken);
+    const isDbMatch = dbToken ? dbToken.toUpperCase() === rawToken.toUpperCase() : false;
+    const qrValid = isOfficial || isDbMatch;
 
     if (!qrValid) {
       return NextResponse.json({ error: 'QR code tidak valid untuk lantai ini', valid: false }, { status: 400 });
     }
 
+    const tokenToSave = OFFICIAL_QR_MAP[floorCode.toUpperCase()] || dbToken || rawToken;
+
     // Update session floor as validated
     await prisma.patrolSessionFloor.update({
       where: { id: sessionFloorId },
-      data: { qrValidated: true, qrScannedAt: new Date(), qrTokenUsed: qrCode.token, status: 'completed', completedAt: new Date() },
+      data: { qrValidated: true, qrScannedAt: new Date(), qrTokenUsed: tokenToSave, status: 'completed', completedAt: new Date() },
     });
 
     // Log activity

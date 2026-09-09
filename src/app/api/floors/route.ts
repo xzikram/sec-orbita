@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
+import { OFFICIAL_QR_MAP } from '@/lib/qr-constants';
 
-// GET /api/floors - List floors with rooms
+// GET /api/floors - List floors with rooms and guaranteed official physical QR tokens
 export async function GET() {
   const auth = await getAuthUser();
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -17,5 +18,16 @@ export async function GET() {
     orderBy: { sortOrder: 'asc' },
   });
 
-  return NextResponse.json(floors);
+  const formattedFloors = floors.map(f => {
+    const officialToken = OFFICIAL_QR_MAP[f.code.toUpperCase()];
+    return {
+      ...f,
+      qrCode: {
+        token: officialToken || f.qrCode?.token || `JEC-ORB-${f.code}-PENDING`,
+        generatedAt: f.qrCode?.generatedAt || new Date(1785290309550).toISOString(),
+      },
+    };
+  });
+
+  return NextResponse.json(formattedFloors);
 }

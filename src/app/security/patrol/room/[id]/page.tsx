@@ -48,23 +48,40 @@ export default function RoomCheckPage({
   useEffect(() => {
     async function loadData() {
       try {
+        // Try network fetch
         const [meRes, sessionsRes] = await Promise.all([
-          fetch('/api/auth/me'),
-          fetch('/api/patrol/sessions'),
+          fetch('/api/auth/me').catch(() => null),
+          fetch('/api/patrol/sessions').catch(() => null),
         ]);
 
-        if (meRes.ok) {
+        if (meRes && meRes.ok) {
           const meData = await meRes.json();
           setCurrentUser(meData.user);
+          try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
+        } else {
+          // Fallback to cached user
+          const cachedUser = localStorage.getItem('cached-user');
+          if (cachedUser) {
+            try { setCurrentUser(JSON.parse(cachedUser)); } catch {}
+          }
         }
 
-        if (sessionsRes.ok) {
+        if (sessionsRes && sessionsRes.ok) {
           const sessions = await sessionsRes.json();
           const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
           setSession(active);
+          if (active) {
+            try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
+          }
+        } else {
+          // Fallback to cached session
+          const cachedSess = localStorage.getItem('cached-active-session');
+          if (cachedSess) {
+            try { setSession(JSON.parse(cachedSess)); } catch {}
+          }
         }
 
-        // Get offline checks
+        // Get offline checks from IndexedDB
         try {
           const { getOfflineChecks } = await import('@/lib/db');
           const offline = await getOfflineChecks();
@@ -75,6 +92,11 @@ export default function RoomCheckPage({
 
       } catch (err) {
         console.error('Room load error:', err);
+        // Ensure cache fallback even on unexpected error
+        const cachedUser = localStorage.getItem('cached-user');
+        if (cachedUser) try { setCurrentUser(JSON.parse(cachedUser)); } catch {}
+        const cachedSess = localStorage.getItem('cached-active-session');
+        if (cachedSess) try { setSession(JSON.parse(cachedSess)); } catch {}
       } finally {
         setLoading(false);
       }

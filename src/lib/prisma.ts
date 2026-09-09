@@ -20,7 +20,7 @@ function createPrismaClient() {
         connectionConfig = {
           user: match[1],
           password: match[2] || '',
-          host: match[3],
+          host: match[3] === 'localhost' ? '127.0.0.1' : match[3],
           port: match[4] ? parseInt(match[4], 10) : 3306,
           database: match[5].split('?')[0],
         };

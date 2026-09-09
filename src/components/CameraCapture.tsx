@@ -151,6 +151,55 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
     onCapture(file, preview);
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileFallback = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = async () => {
+        if (!canvasRef.current) return;
+        const canvas = canvasRef.current;
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+
+        // Add the exact same watermark
+        addWatermark(ctx, canvas.width, canvas.height);
+
+        const blob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.80);
+        });
+
+        let finalBlob = blob;
+        if (blob.size > 700 * 1024) {
+          try {
+            const { default: imageCompression } = await import('browser-image-compression');
+            const compressFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+            finalBlob = await imageCompression(compressFile, {
+              maxSizeMB: 0.5,
+              maxWidthOrHeight: 1280,
+              useWebWorker: true,
+            });
+          } catch (compErr) {
+            console.warn('Compression fallback warning:', compErr);
+          }
+        }
+
+        const preview = canvas.toDataURL('image/jpeg', 0.8);
+        setCaptured(preview);
+        const resultFile = new File([finalBlob], `patrol-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        onCapture(resultFile, preview);
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(selectedFile);
+  };
+
   const retake = () => {
     setCaptured(null);
     startCamera(facingMode);
@@ -162,9 +211,22 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
         <div className={styles.errorState}>
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
           <p className={styles.errorText}>{error}</p>
-          <button className="btn btn-primary" onClick={() => startCamera(facingMode)}>Coba Lagi</button>
-          {onCancel && <button className="btn btn-ghost" onClick={onCancel}>Batal</button>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '280px', margin: '0 auto' }}>
+            <label className="btn btn-primary" style={{ cursor: 'pointer', textAlign: 'center' }}>
+              📷 Buka Kamera HP
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileFallback}
+                style={{ display: 'none' }}
+              />
+            </label>
+            <button className="btn btn-outline" onClick={() => startCamera(facingMode)}>Coba Buka Kamera Web</button>
+            {onCancel && <button className="btn btn-ghost" onClick={onCancel}>Batal</button>}
+          </div>
         </div>
+        <canvas ref={canvasRef} className={styles.hiddenCanvas} />
       </div>
     );
   }
@@ -198,16 +260,29 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
           </div>
           <div className={styles.controls}>
             {onCancel && (
-              <button className={styles.ctrlBtn} onClick={onCancel}>
+              <button className={styles.ctrlBtn} onClick={onCancel} title="Kembali">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             )}
             <button className={styles.captureBtn} onClick={takePhoto} aria-label="Ambil foto">
               <div className={styles.captureBtnInner} />
             </button>
-            <button className={styles.ctrlBtn} onClick={switchCamera}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className={styles.ctrlBtn} onClick={switchCamera} title="Ganti Kamera Depan/Belakang">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+              </button>
+              <label className={styles.ctrlBtn} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Ambil via Kamera HP Bawaan">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleFileFallback}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            </div>
           </div>
         </div>
       )}

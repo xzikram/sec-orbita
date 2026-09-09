@@ -6,12 +6,68 @@ import { floors, getRoomsByFloor, activeFindings } from '@/lib/dummy-data';
 import styles from './summary.module.css';
 
 export default function PatrolSummaryPage() {
-  const totalRooms = floors.reduce((s, f) => s + getRoomsByFloor(f.id).length, 0);
-  const startTime = '15:12';
-  const [endTime, setEndTime] = useState('');
+  const [session, setSession] = useState<any>(null);
+  const [startTime, setStartTime] = useState('-');
+  const [endTime, setEndTime] = useState('-');
+  const [durationStr, setDurationStr] = useState('-');
+  const [patrolNumber, setPatrolNumber] = useState<number | string>(1);
+  const [scheduleName, setScheduleName] = useState('Patroli Rutin');
+  const [findingsCount, setFindingsCount] = useState(0);
+  const [roomsCheckedCount, setRoomsCheckedCount] = useState(0);
 
   useEffect(() => {
-    setEndTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+    async function loadSummary() {
+      try {
+        const res = await fetch('/api/patrol/sessions').catch(() => null);
+        let s = null;
+        if (res && res.ok) {
+          const sessions = await res.json();
+          s = sessions.find((item: any) => item.status === 'completed') || sessions[sessions.length - 1];
+        }
+
+        if (!s) {
+          const cached = localStorage.getItem('cached-active-session');
+          if (cached) try { s = JSON.parse(cached); } catch {}
+        }
+
+        if (s) {
+          setSession(s);
+          setPatrolNumber(s.patrolNumber || 1);
+          if (s.schedule?.name) setScheduleName(s.schedule.name);
+
+          const start = s.startedAt ? new Date(s.startedAt) : new Date();
+          const end = s.completedAt ? new Date(s.completedAt) : new Date();
+
+          setStartTime(start.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }));
+          setEndTime(end.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }));
+
+          const diffMs = Math.max(0, end.getTime() - start.getTime());
+          const diffMins = Math.floor(diffMs / 60000);
+          const hrs = Math.floor(diffMins / 60);
+          const mins = diffMins % 60;
+          setDurationStr(hrs > 0 ? `${hrs}j ${mins}m` : `${mins} menit`);
+
+          let totalChecked = 0;
+          let totalFnd = 0;
+          s.sessionFloors?.forEach((sf: any) => {
+            if (sf.patrolChecks) {
+              totalChecked += sf.patrolChecks.length;
+              sf.patrolChecks.forEach((c: any) => {
+                if (c.findings?.length) totalFnd += c.findings.length;
+              });
+            }
+          });
+          setRoomsCheckedCount(totalChecked || floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0));
+          setFindingsCount(totalFnd);
+        } else {
+          setEndTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }));
+          setRoomsCheckedCount(floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0));
+        }
+      } catch (err) {
+        console.error('Summary load error:', err);
+      }
+    }
+    loadSummary();
   }, []);
 
   return (
@@ -24,13 +80,13 @@ export default function PatrolSummaryPage() {
           </svg>
         </div>
         <h1 className={styles.successTitle}>Patroli Selesai!</h1>
-        <p className={styles.successSub}>Patroli #6 • Periode 15:00 - 18:00</p>
+        <p className={styles.successSub}>Patroli #{patrolNumber} • {scheduleName}</p>
       </div>
 
       {/* Stats */}
       <div className={styles.statsRow}>
         <div className={styles.stat}>
-          <span className={styles.statNum}>{totalRooms}</span>
+          <span className={styles.statNum}>{roomsCheckedCount}</span>
           <span className={styles.statLabel}>Ruangan Diperiksa</span>
         </div>
         <div className={styles.stat}>
@@ -38,7 +94,7 @@ export default function PatrolSummaryPage() {
           <span className={styles.statLabel}>Lantai Selesai</span>
         </div>
         <div className={styles.stat}>
-          <span className={styles.statNum}>{activeFindings.length}</span>
+          <span className={styles.statNum}>{findingsCount}</span>
           <span className={styles.statLabel}>Temuan</span>
         </div>
       </div>
@@ -60,7 +116,7 @@ export default function PatrolSummaryPage() {
           <div className={styles.timeDivider}>≈</div>
           <div className={styles.timeItem}>
             <span className={styles.timeLabel}>Durasi</span>
-            <span className={styles.timeValue}>2j 15m</span>
+            <span className={styles.timeValue}>{durationStr}</span>
           </div>
         </div>
       </div>

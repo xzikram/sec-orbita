@@ -20,7 +20,7 @@ export default function HistoryPage() {
   useEffect(() => {
     async function loadHistory() {
       try {
-        // Fetch last 7 days of patrol sessions
+        // Fetch last 7 days of patrol sessions in parallel
         const dates: string[] = [];
         for (let i = 0; i < 7; i++) {
           const d = new Date();
@@ -28,14 +28,10 @@ export default function HistoryPage() {
           dates.push(d.toISOString().split('T')[0]);
         }
 
-        const allSessions: PatrolSession[] = [];
-        for (const date of dates) {
-          const res = await fetch(`/api/patrol/sessions?date=${date}`);
-          if (res.ok) {
-            const data = await res.json();
-            allSessions.push(...data);
-          }
-        }
+        const responses = await Promise.all(
+          dates.map(date => fetch(`/api/patrol/sessions?date=${date}`).then(r => r.ok ? r.json() : []).catch(() => []))
+        );
+        const allSessions: PatrolSession[] = responses.flat();
         setSessions(allSessions);
       } catch (err) {
         console.error('History load error:', err);

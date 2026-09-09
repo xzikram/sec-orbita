@@ -28,49 +28,71 @@ export async function syncOfflineData(): Promise<SyncResult> {
     const checks: OfflineCheck[] = await getOfflineChecks();
     const findings: OfflineFinding[] = await getOfflineFindings();
 
-    // 1. Sync checks
+    // 1. Sync checks with per-item resilience
+    const checkErrors: string[] = [];
     for (const check of checks) {
-      const res = await fetch('/api/patrol/checks', {
-        method: 'POST',
-        body: JSON.stringify({
-          sessionFloorId: check.sessionFloorId,
-          roomId: check.roomId,
-          acStatus: check.acStatus,
-          lightStatus: check.lightStatus,
-          condition: check.condition,
-          remarks: check.remarks,
-          photoBase64: check.photoBase64, // Endpoint supports base64 directly or standard upload
-        }),
-        headers: { 'Content-Type': 'application/json' },
-      });
+      try {
+        const res = await fetch('/api/patrol/checks', {
+          method: 'POST',
+          body: JSON.stringify({
+            sessionFloorId: check.sessionFloorId,
+            roomId: check.roomId,
+            acStatus: check.acStatus,
+            lightStatus: check.lightStatus,
+            condition: check.condition,
+            remarks: check.remarks,
+            photoBase64: check.photoBase64,
+          }),
+          headers: { 'Content-Type': 'application/json' },
+        });
 
-      if (res.ok) {
-        await deleteOfflineCheck(check.id);
-        checksSynced++;
-      } else {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Gagal menyinkronkan pemeriksaan ruangan');
+        if (res.ok) {
+          await deleteOfflineCheck(check.id);
+          checksSynced++;
+        } else {
+          const errJson = await res.json().catch(() => ({}));
+          checkErrors.push(errJson.error || `Ruangan ${check.roomId} gagal`);
+        }
+      } catch (e) {
+        checkErrors.push(e instanceof Error ? e.message : 'Koneksi terputus saat sync check');
+        break; // Network dropped during loop
       }
     }
 
-    // 2. Sync findings
+    // 2. Sync findings with per-item resilience
+    const findingErrors: string[] = [];
     for (const finding of findings) {
-      const res = await fetch('/api/findings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finding),
-      });
+      try {
+        const res = await fetch('/api/findings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(finding),
+        });
 
-      if (res.ok) {
-        await deleteOfflineFinding(finding.id);
-        findingsSynced++;
-      } else {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Gagal menyinkronkan temuan');
+        if (res.ok) {
+          await deleteOfflineFinding(finding.id);
+          findingsSynced++;
+        } else {
+          const errJson = await res.json().catch(() => ({}));
+          findingErrors.push(errJson.error || 'Temuan gagal');
+        }
+      } catch (e) {
+        findingErrors.push(e instanceof Error ? e.message : 'Koneksi terputus saat sync finding');
+        break;
       }
     }
 
-    return { success: true, checksSynced, findingsSynced };
+    const hasErrors = checkErrors.length > 0 || findingErrors.length > 0;
+    const errorSummary = hasErrors
+      ? [...checkErrors, ...findingErrors].slice(0, 2).join('; ')
+      : undefined;
+
+    return {
+      success: !hasErrors || (checksSynced > 0 || findingsSynced > 0),
+      checksSynced,
+      findingsSynced,
+      error: errorSummary,
+    };
   } catch (err) {
     console.error('Offline Sync Error:', err);
     return {

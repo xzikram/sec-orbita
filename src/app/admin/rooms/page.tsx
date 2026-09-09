@@ -25,28 +25,108 @@ export default function RoomsPage() {
   const [search, setSearch] = useState('');
   const [floorFilter, setFloorFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  // Form State
+  const [formData, setFormData] = useState({
+    floorId: '',
+    name: '',
+    code: '',
+    patrolOrder: 1,
+    photoGuide: '',
+    hasAc: true,
+    hasLight: true,
+  });
+
+  const fetchFloors = async () => {
+    try {
+      const res = await fetch('/api/floors');
+      if (res.ok) {
+        const data = await res.json();
+        setFloors(data);
+        if (data.length > 0 && !formData.floorId) {
+          setFormData(prev => ({ ...prev, floorId: data[0].id }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch floors for rooms:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchFloors() {
-      try {
-        const res = await fetch('/api/floors');
-        if (res.ok) {
-          const data = await res.json();
-          setFloors(data);
-        }
-      } catch (err) {
-        console.error('Failed to fetch floors for rooms:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchFloors();
   }, []);
 
-  const floorsRooms = floors.flatMap(f => f.rooms.map(r => ({
+  const handleOpenModal = () => {
+    setError('');
+    setFormData({
+      floorId: floors[0]?.id || '',
+      name: '',
+      code: '',
+      patrolOrder: (floorsRooms.length || 0) + 1,
+      photoGuide: '',
+      hasAc: true,
+      hasLight: true,
+    });
+    setShowModal(true);
+  };
+
+  const handleSaveRoom = async () => {
+    if (!formData.name.trim() || !formData.code.trim() || !formData.floorId) {
+      setError('Lantai, nama ruangan, dan kode wajib diisi');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal menyimpan ruangan');
+      }
+
+      setShowModal(false);
+      await fetchFloors();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Terjadi kesalahan sistem');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteRoom = async (roomId: string, roomName: string) => {
+    if (!window.confirm(`Yakin ingin menonaktifkan/menghapus ruangan "${roomName}"?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/rooms?id=${roomId}`, { method: 'DELETE' });
+      if (res.ok) {
+        await fetchFloors();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Gagal menghapus ruangan');
+      }
+    } catch (err) {
+      console.error('Delete room error:', err);
+      alert('Gagal menghapus ruangan');
+    }
+  };
+
+  const floorsRooms = floors.flatMap(f => (f.rooms || []).map(r => ({
     id: r.id,
     code: r.code,
     name: r.name,
+    floorId: f.id,
     floorName: f.name,
     floorCode: f.code,
     patrolOrder: r.patrolOrder,
@@ -68,7 +148,7 @@ export default function RoomsPage() {
           <h1 className={s.pageTitle}>Master Ruangan</h1>
           <p className={s.pageSub}>{loading ? 'Memuat...' : `${floorsRooms.length} ruangan terdaftar`}</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={handleOpenModal}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
@@ -136,13 +216,11 @@ export default function RoomsPage() {
                     </td>
                     <td className={s.td}>
                       <div className={s.actionBtns}>
-                        <button className={s.actionBtn} title="Edit">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                          </svg>
-                        </button>
-                        <button className={`${s.actionBtn} ${s.actionBtnDanger}`} title="Hapus">
+                        <button
+                          className={`${s.actionBtn} ${s.actionBtnDanger}`}
+                          title="Hapus"
+                          onClick={() => handleDeleteRoom(r.id, r.name)}
+                        >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -152,7 +230,7 @@ export default function RoomsPage() {
                     </td>
                   </tr>
                 ))}
-                {filtered.length === 0 && <tr><td colSpan={8} className={s.emptyRow}>Tidak ada data</td></tr>}
+                {filtered.length === 0 && <tr><td colSpan={8} className={s.emptyRow}>Tidak ada data ruangan ditemukan</td></tr>}
               </tbody>
             </table>
           </div>
@@ -173,23 +251,96 @@ export default function RoomsPage() {
               </button>
             </div>
             <div className={s.modalBody}>
-              <div className={s.formGroup}><label className={s.formLabel}>Lantai</label><select className={s.formSelect}>{uniqueFloors.map(f => <option key={f}>{f}</option>)}</select></div>
-              <div className={s.formRow}>
-                <div className={s.formGroup}><label className={s.formLabel}>Nama Ruangan</label><input className={s.formInput} placeholder="Ruang Operasi 3" /></div>
-                <div className={s.formGroup}><label className={s.formLabel}>Kode</label><input className={s.formInput} placeholder="L3-03" /></div>
+              {error && (
+                <div style={{ padding: '8px 12px', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', marginBottom: '14px', fontSize: '13px' }}>
+                  {error}
+                </div>
+              )}
+
+              <div className={s.formGroup}>
+                <label className={s.formLabel}>Lantai Target *</label>
+                <select
+                  className={s.formSelect}
+                  value={formData.floorId}
+                  onChange={e => setFormData({ ...formData, floorId: e.target.value })}
+                >
+                  {floors.map(f => (
+                    <option key={f.id} value={f.id}>{f.name} ({f.code})</option>
+                  ))}
+                </select>
               </div>
+
               <div className={s.formRow}>
-                <div className={s.formGroup}><label className={s.formLabel}>Urutan Patroli</label><input className={s.formInput} type="number" placeholder="3" /></div>
-                <div className={s.formGroup}><label className={s.formLabel}>Panduan Foto</label><input className={s.formInput} placeholder="Foto pintu ruangan" /></div>
+                <div className={s.formGroup}>
+                  <label className={s.formLabel}>Nama Ruangan *</label>
+                  <input
+                    className={s.formInput}
+                    placeholder="Contoh: Poli Mata 1"
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+                <div className={s.formGroup}>
+                  <label className={s.formLabel}>Kode Ruangan *</label>
+                  <input
+                    className={s.formInput}
+                    placeholder="Contoh: L1-05"
+                    value={formData.code}
+                    onChange={e => setFormData({ ...formData, code: e.target.value })}
+                  />
+                </div>
               </div>
+
               <div className={s.formRow}>
-                <div className={s.formGroup}><div className={s.formToggle}><div className={`${s.toggleSwitch} ${s.toggleSwitchOn}`} /><span className={s.formLabel} style={{ margin: 0 }}>Ada AC</span></div></div>
-                <div className={s.formGroup}><div className={s.formToggle}><div className={`${s.toggleSwitch} ${s.toggleSwitchOn}`} /><span className={s.formLabel} style={{ margin: 0 }}>Ada Lampu</span></div></div>
+                <div className={s.formGroup}>
+                  <label className={s.formLabel}>Urutan Patroli</label>
+                  <input
+                    className={s.formInput}
+                    type="number"
+                    min="1"
+                    value={formData.patrolOrder}
+                    onChange={e => setFormData({ ...formData, patrolOrder: parseInt(e.target.value) || 1 })}
+                  />
+                </div>
+                <div className={s.formGroup}>
+                  <label className={s.formLabel}>Panduan Foto (Opsional)</label>
+                  <input
+                    className={s.formInput}
+                    placeholder="Contoh: Foto pintu dan saklar"
+                    value={formData.photoGuide}
+                    onChange={e => setFormData({ ...formData, photoGuide: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className={s.formRow}>
+                <div className={s.formGroup}>
+                  <label
+                    className={s.formToggle}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setFormData({ ...formData, hasAc: !formData.hasAc })}
+                  >
+                    <div className={`${s.toggleSwitch} ${formData.hasAc ? s.toggleSwitchOn : ''}`} />
+                    <span className={s.formLabel} style={{ margin: 0 }}>Ada AC</span>
+                  </label>
+                </div>
+                <div className={s.formGroup}>
+                  <label
+                    className={s.formToggle}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setFormData({ ...formData, hasLight: !formData.hasLight })}
+                  >
+                    <div className={`${s.toggleSwitch} ${formData.hasLight ? s.toggleSwitchOn : ''}`} />
+                    <span className={s.formLabel} style={{ margin: 0 }}>Ada Lampu</span>
+                  </label>
+                </div>
               </div>
             </div>
             <div className={s.modalFooter}>
-              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Batal</button>
-              <button className="btn btn-primary" onClick={() => setShowModal(false)}>Simpan</button>
+              <button className="btn btn-ghost" onClick={() => setShowModal(false)} disabled={saving}>Batal</button>
+              <button className="btn btn-primary" onClick={handleSaveRoom} disabled={saving}>
+                {saving ? 'Menyimpan...' : 'Simpan Ruangan'}
+              </button>
             </div>
           </div>
         </div>

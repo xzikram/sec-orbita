@@ -1,21 +1,58 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { allFindings } from '@/lib/supervisor-data';
+import { allFindings as mockFindings } from '@/lib/supervisor-data';
 import { findingCategoryLabels } from '@/lib/dummy-data';
 import styles from './findings.module.css';
 
 export default function SupervisorFindingsPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'new' | 'in_progress' | 'resolved'>('all');
+  const [findingsList, setFindingsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = allFindings.filter(f => statusFilter === 'all' || f.status === statusFilter);
+  useEffect(() => {
+    async function loadFindings() {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/findings?limit=100');
+        if (res.ok) {
+          const json = await res.json();
+          const dbList = (json.data || []).map((f: any) => ({
+            id: f.id,
+            findingNumber: f.findingNumber,
+            category: f.category,
+            roomNameSnapshot: f.roomNameSnapshot || '-',
+            floorNameSnapshot: f.floorNameSnapshot || '-',
+            userName: f.user?.name || 'Petugas',
+            createdAt: f.createdAt,
+            status: f.status,
+          }));
+
+          if (dbList.length > 0) {
+            setFindingsList(dbList);
+          } else {
+            setFindingsList(mockFindings);
+          }
+        } else {
+          setFindingsList(mockFindings);
+        }
+      } catch {
+        setFindingsList(mockFindings);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadFindings();
+  }, []);
+
+  const filtered = findingsList.filter(f => statusFilter === 'all' || f.status === statusFilter);
 
   const counts = {
-    all: allFindings.length,
-    new: allFindings.filter(f => f.status === 'new').length,
-    in_progress: allFindings.filter(f => f.status === 'in_progress').length,
-    resolved: allFindings.filter(f => f.status === 'resolved').length,
+    all: findingsList.length,
+    new: findingsList.filter(f => f.status === 'new').length,
+    in_progress: findingsList.filter(f => f.status === 'in_progress').length,
+    resolved: findingsList.filter(f => f.status === 'resolved').length,
   };
 
   const getStatusBadge = (status: string) => {
@@ -42,7 +79,7 @@ export default function SupervisorFindingsPage() {
       <div className={styles.pageHeader}>
         <div>
           <h1 className={styles.pageTitle}>Daftar Temuan</h1>
-          <p className={styles.pageSub}>{allFindings.length} temuan tercatat</p>
+          <p className={styles.pageSub}>{findingsList.length} temuan tercatat</p>
         </div>
       </div>
 
@@ -75,7 +112,7 @@ export default function SupervisorFindingsPage() {
             <span className={styles.findingNo}>{finding.findingNumber}</span>
             <span className={styles.findingCat}>
               <span className={styles.catEmoji}>{getCategoryEmoji(finding.category)}</span>
-              {findingCategoryLabels[finding.category]}
+              {findingCategoryLabels[finding.category as keyof typeof findingCategoryLabels] || finding.category}
             </span>
             <span className={styles.findingLoc}>
               <span className={styles.locRoom}>{finding.roomNameSnapshot}</span>
