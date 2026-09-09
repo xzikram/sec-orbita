@@ -21,7 +21,7 @@ if (dbUrl) {
       connectionConfig = {
         user: match[1],
         password: match[2] || '',
-        host: match[3],
+        host: match[3] === 'localhost' ? '127.0.0.1' : match[3],
         port: match[4] ? parseInt(match[4], 10) : 3306,
         database: match[5].split('?')[0], // strip any query params
       };
@@ -380,13 +380,6 @@ async function main() {
 
   await prisma.room.createMany({ data: roomData });
   console.log(`  ✓ ${roomData.length} rooms created`);
-
-  // 6. QR Codes
-  for (const f of createdFloors) {
-    const token = `JEC-ORB-${f.code}-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-    await prisma.floorQrCode.create({ data: { floorId: f.id, token, qrContent: JSON.stringify({ floorId: f.id, code: f.code, token }) } });
-  }
-  console.log('  ✓ QR codes generated');
 
   // 7. Patrol Schedules (8 sesi per hari, setiap 3 jam)
   const schedules = [
