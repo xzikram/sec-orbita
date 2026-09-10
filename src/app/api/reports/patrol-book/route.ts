@@ -25,7 +25,12 @@ export async function GET(request: NextRequest) {
         shift: true,
         sessionFloors: {
           include: {
-            patrolChecks: true,
+            patrolChecks: {
+              include: {
+                photos: true,
+                findings: true,
+              },
+            },
           },
         },
       },
@@ -35,9 +40,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Patrol session not found' }, { status: 404 });
     }
 
-    // 2. Map all checks by roomId for fast lookup
+    // 2. Map all checks by roomId and floors for fast lookup
     const checksMap = new Map<string, any>();
+    const sessionFloorMap = new Map<string, any>();
     for (const sf of session.sessionFloors) {
+      sessionFloorMap.set(sf.floorId, sf);
       for (const chk of sf.patrolChecks) {
         checksMap.set(chk.roomId, chk);
       }
@@ -56,29 +63,47 @@ export async function GET(request: NextRequest) {
     });
 
     // 4. Construct the report matrix
-    const floorMatrix = dbFloors.map(floor => ({
-      id: floor.id,
-      code: floor.code,
-      name: floor.name,
-      rooms: floor.rooms.map(room => {
-        const check = checksMap.get(room.id);
-        return {
-          id: room.id,
-          code: room.code,
-          name: room.name,
-          hasAc: room.hasAc,
-          hasLight: room.hasLight,
-          check: check ? {
-            id: check.id,
-            acStatus: check.acStatus, // 'on' | 'off' | 'not_available'
-            lightStatus: check.lightStatus, // 'on' | 'off'
-            condition: check.condition, // 'normal' | 'finding'
-            remarks: check.remarks,
-            checkedAt: check.checkedAt,
-          } : null,
-        };
-      }),
-    }));
+    const floorMatrix = dbFloors.map(floor => {
+      const sf = sessionFloorMap.get(floor.id);
+      return {
+        id: floor.id,
+        code: floor.code,
+        name: floor.name,
+        qrValidated: sf?.qrValidated || false,
+        qrScannedAt: sf?.qrScannedAt || null,
+        floorStatus: sf?.status || 'pending',
+        rooms: floor.rooms.map(room => {
+          const check = checksMap.get(room.id);
+          return {
+            id: room.id,
+            code: room.code,
+            name: room.name,
+            hasAc: room.hasAc,
+            hasLight: room.hasLight,
+            check: check ? {
+              id: check.id,
+              acStatus: check.acStatus, // 'on' | 'off' | 'not_available'
+              lightStatus: check.lightStatus, // 'on' | 'off'
+              condition: check.condition, // 'normal' | 'finding'
+              remarks: check.remarks,
+              checkedAt: check.checkedAt,
+              photos: (check.photos || []).map((p: any) => ({
+                id: p.id,
+                filePath: p.filePath,
+                thumbnailPath: p.thumbnailPath,
+              })),
+              findings: (check.findings || []).map((f: any) => ({
+                id: f.id,
+                findingNumber: f.findingNumber,
+                category: f.category,
+                description: f.description,
+                status: f.status,
+              })),
+            } : null,
+          };
+        }),
+      };
+    });
 
     return NextResponse.json({
       session: {

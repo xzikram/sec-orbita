@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     // Determine redirect based on role
     const redirectMap = {
       security: '/security/dashboard',
-      supervisor: '/supervisor/dashboard',
+      supervisor: '/supervisor/reports',
       admin: '/admin/dashboard',
     };
 

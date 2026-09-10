@@ -42,9 +42,10 @@ export async function GET(request: NextRequest) {
       include: {
         user: { select: { name: true, employeeId: true } },
         schedule: { select: { name: true, startTime: true, endTime: true } },
+        shift: { select: { name: true } },
         sessionFloors: { include: { patrolChecks: true } }
       },
-      orderBy: { patrolDate: 'asc' }
+      orderBy: { patrolNumber: 'asc' }
     });
 
     // Fetch findings in range
@@ -85,17 +86,28 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       summary,
-      sessions: sessions.map(s => ({
-        id: s.id,
-        patrolNumber: s.patrolNumber,
-        date: s.patrolDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-        scheduleName: s.schedule?.name || 'Patroli',
-        startTime: s.schedule?.startTime || '',
-        endTime: s.schedule?.endTime || '',
-        officer: s.user?.name || 'Petugas',
-        status: s.status,
-        checkedRoomsCount: s.sessionFloors.reduce((sum, sf) => sum + sf.patrolChecks.length, 0)
-      })),
+      sessions: sessions.map(s => {
+        const totalChecks = s.sessionFloors.reduce((sum, sf) => sum + sf.patrolChecks.length, 0);
+        const findingChecks = s.sessionFloors.reduce((cnt, sf) => cnt + sf.patrolChecks.filter(c => c.condition === 'finding').length, 0);
+        return {
+          id: s.id,
+          patrolNumber: s.patrolNumber,
+          date: s.patrolDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+          rawDate: s.patrolDate.toISOString().split('T')[0],
+          scheduleName: s.schedule?.name || `Patroli #${s.patrolNumber}`,
+          shiftName: s.shift?.name || 'Shift Pagi',
+          startTime: s.schedule?.startTime || '',
+          endTime: s.schedule?.endTime || '',
+          startedAt: s.startedAt,
+          completedAt: s.completedAt,
+          officer: s.user?.name || 'Petugas',
+          officerEmployeeId: s.user?.employeeId || '-',
+          status: s.status,
+          floorCount: s.sessionFloors.length,
+          checkedRoomsCount: totalChecks,
+          findingCount: findingChecks,
+        };
+      }),
       findings: findings.map(f => ({
         id: f.id,
         number: f.findingNumber,

@@ -45,7 +45,7 @@ const navGroups = [
   {
     label: 'AKSES ROLE',
     items: [
-      { path: '/supervisor/dashboard', label: 'Supervisor Panel', icon: '📈' },
+      { path: '/supervisor/reports', label: 'Supervisor Panel', icon: '📈' },
     ],
   },
 ];
