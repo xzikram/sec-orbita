@@ -329,7 +329,7 @@ export default function RoomCheckPage({
   const handleSubmit = async () => {
     if (!canSubmit()) return;
 
-    const sessionFloorId = sessionFloor?.id || `sf-${floor?.code.toLowerCase() || 'dummy'}`;
+    const sessionFloorId = sessionFloor?.id || `sf-${(floor?.code || 'dummy').toLowerCase()}`;
 
     // Call submitRoomCheck helper
     const result = await submitRoomCheck({
@@ -371,22 +371,22 @@ export default function RoomCheckPage({
       console.error('Failed to save lastPatrolState:', e);
     }
 
-    // Refresh cached session data so next page has fresh state
-    try {
-      const sessRes = await fetch('/api/patrol/sessions').catch(() => null);
-      if (sessRes && sessRes.ok) {
-        const sessions = await sessRes.json();
-        const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
-        if (active) {
-          localStorage.setItem('cached-active-session', JSON.stringify(active));
-        }
-      }
-    } catch {
-      // Non-critical: ignore refresh failure
-    }
-
+    // Show success screen immediately
     setSyncMode(result.mode);
     setShowSuccess(true);
+
+    // Refresh cached session data in background during success animation
+    fetch('/api/patrol/sessions')
+      .then(res => (res && res.ok ? res.json() : null))
+      .then(sessions => {
+        if (sessions) {
+          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+          if (active) {
+            localStorage.setItem('cached-active-session', JSON.stringify(active));
+          }
+        }
+      })
+      .catch(() => {});
 
     // Build an up-to-date checked set that includes the current room
     const updatedCheckedSet = new Set(combinedCheckedSet);

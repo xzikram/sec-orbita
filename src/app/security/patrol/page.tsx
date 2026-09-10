@@ -164,7 +164,7 @@ export default function PatrolPage() {
     
     const dbCheckedCodes = sf.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
     const offCheckedCodes = offlineChecks
-      .filter((c: any) => c.sessionFloorId === sf.id || c.sessionFloorId === `sf-${floor.code.toLowerCase()}`)
+      .filter((c: any) => c.sessionFloorId === sf.id || (floor?.code && c.sessionFloorId === `sf-${floor.code.toLowerCase()}`))
       .map((c: any) => {
         const r = rooms.find(rm => rm.id === c.roomId);
         return r ? r.code : c.roomId;

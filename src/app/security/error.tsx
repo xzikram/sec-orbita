@@ -16,7 +16,9 @@ export default function SecurityErrorPage({
     setIsRetrying(true);
     try {
       sessionStorage.removeItem('chunk_reload_security');
+      sessionStorage.removeItem('security_chunk_retry_count');
       sessionStorage.removeItem('patrol_chunk_retry_count');
+      sessionStorage.removeItem('security_render_retry_count');
     } catch {}
     setTimeout(() => {
       reset();
@@ -47,9 +49,12 @@ export default function SecurityErrorPage({
       sessionStorage.removeItem(retryKey);
     }
 
-    // Auto-retry once for any error
-    if (!autoRetried) {
+    // Auto-retry once for any error (guarded by sessionStorage to prevent loops)
+    const renderRetryKey = 'security_render_retry_count';
+    const renderRetryCount = parseInt(sessionStorage.getItem(renderRetryKey) || '0', 10);
+    if (renderRetryCount < 1 && !autoRetried) {
       setAutoRetried(true);
+      sessionStorage.setItem(renderRetryKey, '1');
       const timer = setTimeout(() => doRetry(), 1000);
       return () => clearTimeout(timer);
     }
@@ -60,6 +65,7 @@ export default function SecurityErrorPage({
       sessionStorage.removeItem('chunk_reload_security');
       sessionStorage.removeItem('security_chunk_retry_count');
       sessionStorage.removeItem('patrol_chunk_retry_count');
+      sessionStorage.removeItem('security_render_retry_count');
       localStorage.removeItem('cached-active-session');
     } catch {}
     window.location.reload();

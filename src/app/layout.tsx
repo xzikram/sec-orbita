@@ -85,6 +85,8 @@ export default function RootLayout({
                     sessionStorage.removeItem('chunk_reload_attempted');
                     sessionStorage.removeItem('patrol_chunk_retry_count');
                     sessionStorage.removeItem('security_chunk_retry_count');
+                    sessionStorage.removeItem('patrol_render_retry_count');
+                    sessionStorage.removeItem('security_render_retry_count');
                   } catch(e) {}
                 }, 5000);
               });

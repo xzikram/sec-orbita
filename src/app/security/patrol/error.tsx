@@ -16,10 +16,11 @@ export default function PatrolErrorPage({
 
   const doRetry = useCallback(() => {
     setIsRetrying(true);
-    // Clear any stale chunk reload flags
+    // Clear any stale chunk reload flags and render retry flags on manual retry
     try {
       sessionStorage.removeItem('chunk_reload_security');
       sessionStorage.removeItem('chunk_reload_patrol');
+      sessionStorage.removeItem('patrol_render_retry_count');
     } catch {}
     // Reset the error boundary
     setTimeout(() => {
@@ -54,9 +55,12 @@ export default function PatrolErrorPage({
       sessionStorage.removeItem(retryKey);
     }
 
-    // For non-chunk errors, auto-retry once after a short delay
-    if (autoRetryCount === 0) {
+    // For non-chunk errors, auto-retry once after a short delay (guarded by sessionStorage to prevent loops)
+    const renderRetryKey = 'patrol_render_retry_count';
+    const renderRetryCount = parseInt(sessionStorage.getItem(renderRetryKey) || '0', 10);
+    if (renderRetryCount < 1 && autoRetryCount === 0) {
       setAutoRetryCount(1);
+      sessionStorage.setItem(renderRetryKey, '1');
       const timer = setTimeout(() => {
         doRetry();
       }, 1000);
@@ -70,6 +74,7 @@ export default function PatrolErrorPage({
       sessionStorage.removeItem('chunk_reload_security');
       sessionStorage.removeItem('chunk_reload_patrol');
       sessionStorage.removeItem('patrol_chunk_retry_count');
+      sessionStorage.removeItem('patrol_render_retry_count');
       localStorage.removeItem('cached-active-session');
     } catch {}
     window.location.reload();
@@ -78,6 +83,7 @@ export default function PatrolErrorPage({
   const handleGoBack = () => {
     try {
       sessionStorage.removeItem('patrol_chunk_retry_count');
+      sessionStorage.removeItem('patrol_render_retry_count');
     } catch {}
     window.location.href = '/security/patrol';
   };

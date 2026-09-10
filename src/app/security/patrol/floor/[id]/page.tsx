@@ -230,7 +230,7 @@ export default function FloorDetailPage({
   };
 
   const handleSwipeRight = async (room: Room) => {
-    const sessionFloorId = sessionFloor?.id || `sf-${floor.code.toLowerCase()}`;
+    const sessionFloorId = sessionFloor?.id || `sf-${(floor?.code || 'dummy').toLowerCase()}`;
     try {
       await submitRoomCheck({
         sessionFloorId,
