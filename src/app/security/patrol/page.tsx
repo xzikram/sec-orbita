@@ -126,7 +126,7 @@ export default function PatrolPage() {
   };
 
   const currentSession = session || activeSession;
-  const schedule = patrolSchedules.find(s => s.id === currentSession.scheduleId);
+  const schedule = currentSession.schedule || patrolSchedules.find(s => s.id === currentSession.scheduleId) || patrolSchedules[0];
 
   const totalRooms = floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0);
 
@@ -227,7 +227,7 @@ export default function PatrolPage() {
       <div className={`${styles.patrolInfo} animate-slide-up`}>
         <div className={styles.patrolInfoHeader}>
           <div>
-            <h1 className={styles.patrolTitle}>Patroli #{activeSession.patrolNumber}</h1>
+            <h1 className={styles.patrolTitle}>Patroli #{currentSession.patrolNumber || activeSession.patrolNumber}</h1>
             <p className={styles.patrolPeriod}>
               {schedule?.startTime} - {schedule?.endTime}
             </p>
@@ -384,7 +384,12 @@ export default function PatrolPage() {
                       <circle cx="12" cy="12" r="10" />
                       <polyline points="12 6 12 12 16 14" />
                     </svg>
-                    Selesai {mounted ? new Date(fp.completedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                    Selesai {mounted && fp.completedAt ? (() => {
+                      try {
+                        const d = new Date(fp.completedAt);
+                        return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                      } catch { return ''; }
+                    })() : ''}
                     {fp.qrValidated && (
                       <span className={styles.qrBadge}>
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

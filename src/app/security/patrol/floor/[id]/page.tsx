@@ -427,7 +427,12 @@ export default function FloorDetailPage({
                             <circle cx="12" cy="12" r="10" />
                             <polyline points="12 6 12 12 16 14" />
                           </svg>
-                          {mounted ? new Date(check.checkedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                          {mounted && check.checkedAt ? (() => {
+                            try {
+                              const d = new Date(check.checkedAt);
+                              return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                            } catch { return ''; }
+                          })() : ''}
                         </span>
                         {room.hasAc && (
                           <span className={`${styles.checkTag} ${check.acStatus === 'on' ? styles.tagOn : styles.tagOff}`}>

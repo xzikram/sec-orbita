@@ -98,23 +98,23 @@ export async function POST(request: NextRequest) {
 
     // Update session floor as validated
     await prisma.patrolSessionFloor.update({
-      where: { id: sessionFloorId },
+      where: { id: sessionFloor.id },
       data: { qrValidated: true, qrScannedAt: new Date(), qrTokenUsed: tokenToSave, status: 'completed', completedAt: new Date() },
     });
 
     // Log activity
     await prisma.activityLog.create({
-      data: { userId: auth.id, action: 'scan_qr', entityType: 'patrol_session_floor', entityId: sessionFloorId },
+      data: { userId: auth.id, action: 'scan_qr', entityType: 'patrol_session_floor', entityId: sessionFloor.id },
     });
 
     // Check if all floors are completed
     const session = await prisma.patrolSession.findFirst({
-      where: { sessionFloors: { some: { id: sessionFloorId } } },
+      where: { sessionFloors: { some: { id: sessionFloor.id } } },
       include: { sessionFloors: true },
     });
 
     if (session) {
-      const allCompleted = session.sessionFloors.every(sf => sf.id === sessionFloorId ? true : sf.status === 'completed');
+      const allCompleted = session.sessionFloors.every(sf => sf.id === sessionFloor.id ? true : sf.status === 'completed');
       if (allCompleted) {
         await prisma.patrolSession.update({
           where: { id: session.id },
