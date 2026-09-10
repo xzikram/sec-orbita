@@ -65,7 +65,11 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
         const res = await fetch('/api/auth/me');
         if (res.ok) {
           const data = await res.json();
-          if (data.user.role !== 'supervisor' && data.user.role !== 'admin') {
+          if (data.user.role === 'admin') {
+            router.replace(pathname.includes('/findings') ? '/admin/findings' : '/admin/reports');
+            return;
+          }
+          if (data.user.role !== 'supervisor') {
             router.push(`/${data.user.role}/dashboard`);
             return;
           }

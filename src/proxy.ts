@@ -47,9 +47,15 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (pathname.startsWith('/supervisor') && role !== 'supervisor' && role !== 'admin') {
-    const redirectUrl = new URL(role === 'admin' ? '/admin/dashboard' : '/security/dashboard', request.url);
-    return NextResponse.redirect(redirectUrl);
+  if (pathname.startsWith('/supervisor')) {
+    if (role === 'admin' && !pathname.includes('/print')) {
+      const target = pathname.includes('/findings') ? '/admin/findings' : '/admin/reports';
+      return NextResponse.redirect(new URL(target, request.url));
+    }
+    if (role !== 'supervisor' && role !== 'admin') {
+      const redirectUrl = new URL(role === 'admin' ? '/admin/dashboard' : '/security/dashboard', request.url);
+      return NextResponse.redirect(redirectUrl);
+    }
   }
 
   if (pathname.startsWith('/security') && role !== 'security') {

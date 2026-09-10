@@ -13,9 +13,14 @@ const navGroups = [
     ],
   },
   {
-    label: 'USER',
+    label: 'PATROLI & LAPORAN',
     items: [
-      { path: '/admin/users', label: 'Manajemen User', icon: '👥' },
+      { path: '/admin/reports', label: 'Laporan Patroli', icon: '📋' },
+      { path: '/admin/findings', label: 'Temuan Kendala', icon: '⚠️' },
+      { path: '/admin/schedules', label: 'Jadwal Patroli', icon: '📅' },
+      { path: '/admin/shifts', label: 'Shift', icon: '⏰' },
+      { path: '/admin/checklists', label: 'Checklist', icon: '☑️' },
+      { path: '/admin/qr-codes', label: 'Generate QR', icon: '📱' },
     ],
   },
   {
@@ -27,12 +32,9 @@ const navGroups = [
     ],
   },
   {
-    label: 'PATROLI',
+    label: 'USER',
     items: [
-      { path: '/admin/schedules', label: 'Jadwal Patroli', icon: '📅' },
-      { path: '/admin/shifts', label: 'Shift', icon: '⏰' },
-      { path: '/admin/checklists', label: 'Checklist', icon: '☑️' },
-      { path: '/admin/qr-codes', label: 'Generate QR', icon: '📱' },
+      { path: '/admin/users', label: 'Manajemen User', icon: '👥' },
     ],
   },
   {
@@ -40,12 +42,6 @@ const navGroups = [
     items: [
       { path: '/admin/settings', label: 'Pengaturan', icon: '⚙️' },
       { path: '/admin/audit-logs', label: 'Log Aktivitas', icon: '📜' },
-    ],
-  },
-  {
-    label: 'AKSES ROLE',
-    items: [
-      { path: '/supervisor/reports', label: 'Supervisor Panel', icon: '📈' },
     ],
   },
 ];
