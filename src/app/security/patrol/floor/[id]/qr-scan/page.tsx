@@ -16,9 +16,16 @@ export default function QRScanPage({
 
   const [session, setSession] = useState<any>(null);
   const floor = getFloorById(id) || 
-    (session?.sessionFloors?.find((sf: any) => sf.floorId === id || sf.id === id)
-      ? getFloorById(session.sessionFloors.find((sf: any) => sf.floorId === id || sf.id === id).floorCodeSnapshot)
-      : undefined);
+    (() => {
+      const match = session?.sessionFloors?.find((sf: any) => 
+        sf.floorId === id || 
+        sf.id === id || 
+        String(sf.floorCodeSnapshot || '').toUpperCase() === String(id).toUpperCase() ||
+        sf.floor?.id === id ||
+        String(sf.floor?.code || '').toUpperCase() === String(id).toUpperCase()
+      );
+      return match ? (getFloorById(match.floorCodeSnapshot) || getFloorById(match.floorId) || getFloorById(match.floor?.code)) : undefined;
+    })();
 
   const [scanState, setScanState] = useState<'scanning' | 'success' | 'error'>('scanning');
   const [errorMsg, setErrorMsg] = useState('Titik validasi tidak sesuai dengan lantai yang sedang diperiksa.');

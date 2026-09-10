@@ -23,7 +23,7 @@ export default function RoomCheckPage({
   const { id } = use(params);
   const router = useRouter();
 
-  const room = getRoomById(id);
+  const [room, setRoom] = useState<any>(() => getRoomById(id));
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
@@ -46,8 +46,55 @@ export default function RoomCheckPage({
   const [speechError, setSpeechError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Read pre-selected condition if passed via query param (e.g. ?condition=finding)
+    if (typeof window !== 'undefined') {
+      try {
+        const queryParams = new URLSearchParams(window.location.search);
+        if (queryParams.get('condition') === 'finding') {
+          setCondition('finding');
+        }
+      } catch {}
+    }
+
     async function loadData() {
       try {
+        // If room not found in static catalog, attempt lookup
+        let resolvedRoom = room;
+        if (!resolvedRoom) {
+          resolvedRoom = getRoomById(id);
+          if (resolvedRoom) {
+            setRoom(resolvedRoom);
+          } else {
+            // Try fetching from rooms API by id or code
+            try {
+              const res = await fetch(`/api/rooms?id=${encodeURIComponent(id)}`).catch(() => null);
+              if (res && res.ok) {
+                const dbRooms = await res.json();
+                const found = Array.isArray(dbRooms) 
+                  ? dbRooms.find((r: any) => r.id === id || r.code.toUpperCase() === id.toUpperCase())
+                  : dbRooms;
+                if (found) {
+                  const mapped: any = {
+                    id: found.id,
+                    floorId: found.floorId || (found.floor ? `floor-${found.floor.code.toLowerCase()}` : 'floor-1'),
+                    code: found.code,
+                    name: found.name,
+                    patrolOrder: found.patrolOrder || 1,
+                    hasAc: found.hasAc ?? true,
+                    hasLight: found.hasLight ?? true,
+                    photoGuide: found.photoGuide || `Foto area ${found.name}`,
+                    isActive: found.isActive ?? true,
+                  };
+                  setRoom(mapped);
+                  resolvedRoom = mapped;
+                }
+              }
+            } catch (err) {
+              console.warn('API room fallback failed:', err);
+            }
+          }
+        }
+
         // Try network fetch
         const [meRes, sessionsRes] = await Promise.all([
           fetch('/api/auth/me').catch(() => null),
@@ -92,7 +139,6 @@ export default function RoomCheckPage({
 
       } catch (err) {
         console.error('Room load error:', err);
-        // Ensure cache fallback even on unexpected error
         const cachedUser = localStorage.getItem('cached-user');
         if (cachedUser) try { setCurrentUser(JSON.parse(cachedUser)); } catch {}
         const cachedSess = localStorage.getItem('cached-active-session');
@@ -102,20 +148,40 @@ export default function RoomCheckPage({
       }
     }
     loadData();
-  }, []);
-
-  if (!room) {
-    return <div className="page-content"><p>Ruangan tidak ditemukan</p></div>;
-  }
+  }, [id]);
 
   if (loading) {
     return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat data pemeriksaan...</p></div>;
   }
 
-  const floor = getFloorById(room.floorId);
-  const floorRooms = getRoomsByFloor(room.floorId);
+  if (!room) {
+    return (
+      <div className="page-content" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>Ruangan tidak ditemukan</p>
+        <button className="btn btn-outline btn-sm" onClick={() => router.push('/security/patrol')}>
+          Kembali ke Rute Patroli
+        </button>
+      </div>
+    );
+  }
+
+  const floor = getFloorById(room.floorId) || (room.code ? getFloorById(room.code.split('-')[0]) : undefined);
+  const floorRooms = floor ? getRoomsByFloor(floor.id) : getRoomsByFloor(room.floorId);
   const currentSession = session || { sessionFloors: [] };
-  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => sf.floorCodeSnapshot === floor?.code);
+  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => {
+    if (!floor) return false;
+    const sfCode = String(sf.floorCodeSnapshot || sf.floor?.code || '').toUpperCase().trim();
+    const fCode = String(floor.code || '').toUpperCase().trim();
+    const sfName = String(sf.floorNameSnapshot || sf.floor?.name || '').toUpperCase().trim();
+    const fName = String(floor.name || '').toUpperCase().trim();
+    return (
+      sfCode === fCode ||
+      sf.floorId === floor.id ||
+      sf.floorId === room.floorId ||
+      sfName === fName ||
+      (fCode && sfCode.includes(fCode))
+    );
+  });
   
   // Combine online (DB) checks and offline checks for this floor (by code snapshot)
   const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
@@ -305,14 +371,16 @@ export default function RoomCheckPage({
 
     // Find next unchecked room
     setTimeout(() => {
-      const currentIndex = floorRooms.findIndex(r => r.id === id);
-      const nextRoom = floorRooms.slice(currentIndex + 1).find(r => !combinedCheckedSet.has(r.code) && r.id !== id);
+      const currentIndex = floorRooms.findIndex(r => r.id === room.id || r.code === room.code);
+      const nextRoom = 
+        (currentIndex !== -1 ? floorRooms.slice(currentIndex + 1).find(r => !combinedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code) : null) ||
+        floorRooms.find(r => !combinedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code);
 
       if (nextRoom) {
         router.push(`/security/patrol/room/${nextRoom.id}`);
       } else {
         // All rooms done, go to floor page for QR scan
-        router.push(`/security/patrol/floor/${room.floorId}`);
+        router.push(`/security/patrol/floor/${floor ? floor.id : room.floorId}`);
       }
     }, 1500);
   };

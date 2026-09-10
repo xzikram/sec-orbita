@@ -30,9 +30,16 @@ export default function FloorDetailPage({
   const [loading, setLoading] = useState(true);
 
   const floor = getFloorById(id) || 
-    (session?.sessionFloors?.find((sf: any) => sf.floorId === id || sf.id === id)
-      ? getFloorById(session.sessionFloors.find((sf: any) => sf.floorId === id || sf.id === id).floorCodeSnapshot)
-      : undefined);
+    (() => {
+      const match = session?.sessionFloors?.find((sf: any) => 
+        sf.floorId === id || 
+        sf.id === id || 
+        String(sf.floorCodeSnapshot || '').toUpperCase() === String(id).toUpperCase() ||
+        sf.floor?.id === id ||
+        String(sf.floor?.code || '').toUpperCase() === String(id).toUpperCase()
+      );
+      return match ? (getFloorById(match.floorCodeSnapshot) || getFloorById(match.floorId) || getFloorById(match.floor?.code)) : undefined;
+    })();
 
   useEffect(() => {
     async function loadData() {
@@ -78,9 +85,16 @@ export default function FloorDetailPage({
         }
 
         const resolvedFloor = getFloorById(id) || 
-          (activeSess?.sessionFloors?.find((sf: any) => sf.floorId === id || sf.id === id)
-            ? getFloorById(activeSess.sessionFloors.find((sf: any) => sf.floorId === id || sf.id === id).floorCodeSnapshot)
-            : undefined);
+          (() => {
+            const match = activeSess?.sessionFloors?.find((sf: any) => 
+              sf.floorId === id || 
+              sf.id === id || 
+              String(sf.floorCodeSnapshot || '').toUpperCase() === String(id).toUpperCase() ||
+              sf.floor?.id === id ||
+              String(sf.floor?.code || '').toUpperCase() === String(id).toUpperCase()
+            );
+            return match ? (getFloorById(match.floorCodeSnapshot) || getFloorById(match.floorId) || getFloorById(match.floor?.code)) : undefined;
+          })();
 
         const defaultRooms = getRoomsByFloor(resolvedFloor ? resolvedFloor.id : id);
 
@@ -96,7 +110,10 @@ export default function FloorDetailPage({
               if (idxB === -1) return -1;
               return idxA - idxB;
             });
-            setFloorRooms(sorted);
+            // Ensure no rooms were dropped if catalog changed
+            const sortedIds = new Set(sorted.map(r => r.id));
+            const missing = defaultRooms.filter(r => !sortedIds.has(r.id));
+            setFloorRooms([...sorted, ...missing]);
           } catch {
             setFloorRooms(defaultRooms);
           }
@@ -141,9 +158,21 @@ export default function FloorDetailPage({
   }
 
   const currentSession = session || { sessionFloors: [] };
-  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => 
-    (floor && sf.floorCodeSnapshot === floor.code) || sf.floorId === id || sf.id === id
-  );
+  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => {
+    if (!floor) return false;
+    const sfCode = String(sf.floorCodeSnapshot || sf.floor?.code || '').toUpperCase().trim();
+    const fCode = String(floor.code || '').toUpperCase().trim();
+    const sfName = String(sf.floorNameSnapshot || sf.floor?.name || '').toUpperCase().trim();
+    const fName = String(floor.name || '').toUpperCase().trim();
+    return (
+      sfCode === fCode ||
+      sf.floorId === id ||
+      sf.id === id ||
+      sf.floorId === floor.id ||
+      sfName === fName ||
+      (fCode && sfCode.includes(fCode))
+    );
+  });
   
   // Combine online (DB) checks and offline checks for this floor by code snapshot
   const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];

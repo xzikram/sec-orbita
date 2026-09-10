@@ -9,10 +9,19 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const floorId = searchParams.get('floorId');
+  const id = searchParams.get('id');
+  const code = searchParams.get('code');
 
   try {
     const where: any = { isActive: true };
     if (floorId) where.floorId = floorId;
+    if (id) {
+      where.OR = [
+        { id },
+        { code: { equals: id } }
+      ];
+    }
+    if (code) where.code = { equals: code };
 
     const rooms = await prisma.room.findMany({
       where,

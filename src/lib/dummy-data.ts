@@ -334,24 +334,47 @@ export function getFloorById(floorId: string): Floor | undefined {
   const byId = floors.find(f => f.id.toLowerCase() === cleanId);
   if (byId) return byId;
 
-  // 2. Match by code (e.g. 'SB', 'L1', 'P2')
+  // 2. Direct match on code (e.g. 'SB', 'L1', 'P2')
   const byCode = floors.find(f => f.code.toLowerCase() === cleanId);
   if (byCode) return byCode;
 
-  // 3. Match prefixed or stripped 'floor-'
+  // 3. Match on full or partial name
+  const byName = floors.find(f => f.name.toLowerCase() === cleanId);
+  if (byName) return byName;
+
+  // 4. Basement / Semi Basement aliases
+  if (cleanId === '0' || cleanId === 'sb' || cleanId.includes('basement') || cleanId.includes('semi')) {
+    return floors.find(f => f.code === 'SB');
+  }
+
+  // 5. Explicit floor code mappings for numbers & common prefixes
+  const numMatch = cleanId.match(/\d+/);
+  if (numMatch) {
+    const num = parseInt(numMatch[0], 10);
+    if (num === 0) return floors.find(f => f.code === 'SB');
+    if (num === 1) return floors.find(f => f.code === 'L1');
+    if (num === 2) return floors.find(f => f.code === 'P2');
+    if (num === 3) return floors.find(f => f.code === 'P3');
+    if (num === 4) return floors.find(f => f.code === 'P4');
+    if (num >= 5 && num <= 11) return floors.find(f => f.code === `L${num}`);
+  }
+
+  // 6. Match prefixed or stripped 'floor-'
   if (cleanId.startsWith('floor-')) {
     const codePart = cleanId.replace('floor-', '');
-    const byCodePart = floors.find(f => f.code.toLowerCase() === codePart || f.id.toLowerCase() === cleanId);
+    const byCodePart = floors.find(f => 
+      f.code.toLowerCase() === codePart || 
+      f.id.toLowerCase() === cleanId ||
+      f.code.toLowerCase() === codePart.replace('l', '') ||
+      f.code.toLowerCase() === `p${codePart}` ||
+      f.code.toLowerCase() === `l${codePart}`
+    );
     if (byCodePart) return byCodePart;
   } else {
     const withFloorPrefix = `floor-${cleanId}`;
     const byPrefix = floors.find(f => f.id.toLowerCase() === withFloorPrefix || f.code.toLowerCase() === cleanId);
     if (byPrefix) return byPrefix;
   }
-
-  // 4. Match numerical floor (e.g. '1' -> 'floor-1' / 'L1')
-  const byNum = floors.find(f => f.code.toLowerCase() === `l${cleanId}`);
-  if (byNum) return byNum;
 
   return undefined;
 }
@@ -365,11 +388,44 @@ export function getRoomsByFloor(floorId: string): Room[] {
 export function getRoomById(roomId: string): Room | undefined {
   if (!roomId) return undefined;
   const cleanId = String(roomId).trim().toLowerCase();
-  return rooms.find(r => 
+
+  // 1. Direct match on id or code
+  const exact = rooms.find(r => 
     r.id.toLowerCase() === cleanId || 
     r.code.toLowerCase() === cleanId ||
     r.code.replace('-', '').toLowerCase() === cleanId.replace('-', '').toLowerCase()
   );
+  if (exact) return exact;
+
+  // 2. Normalize zero-padding (e.g. 'SB-1' -> 'SB-01', 'room-sb-1' -> 'room-sb-01')
+  const match = cleanId.match(/^(?:room-)?([a-z0-9]+)[-_](\d+)$/i);
+  if (match) {
+    let floorPart = match[1].toLowerCase();
+    const numPart = String(match[2]).padStart(2, '0');
+    // Map numeric floor to code (e.g. 1 -> l1, 2 -> p2, 3 -> p3, 4 -> p4, 5 -> l5)
+    if (/^\d+$/.test(floorPart)) {
+      const num = parseInt(floorPart, 10);
+      if (num === 1) floorPart = 'l1';
+      else if (num >= 2 && num <= 4) floorPart = `p${num}`;
+      else if (num >= 5) floorPart = `l${num}`;
+    }
+    const normalizedId = `room-${floorPart}-${numPart}`;
+    const normalizedCode = `${floorPart.toUpperCase()}-${numPart}`;
+    const found = rooms.find(r => 
+      r.id.toLowerCase() === normalizedId || 
+      r.code.toUpperCase() === normalizedCode ||
+      r.code.replace('-', '').toUpperCase() === `${floorPart.toUpperCase()}${numPart}`
+    );
+    if (found) return found;
+  }
+
+  // 3. Match by name if query is descriptive
+  if (cleanId.length > 3) {
+    const byName = rooms.find(r => r.name.toLowerCase() === cleanId);
+    if (byName) return byName;
+  }
+
+  return undefined;
 }
 
 export function getCurrentSchedule(): PatrolSchedule {

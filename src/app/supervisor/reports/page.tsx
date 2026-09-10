@@ -83,6 +83,13 @@ export default function ReportsPage() {
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [sessionDetails, setSessionDetails] = useState<Record<string, FloorDetail[]>>({});
   const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<{
+    url: string;
+    room: string;
+    code: string;
+    floor: string;
+    time: string;
+  } | null>(null);
 
   // Set default date to today
   useEffect(() => {
@@ -464,12 +471,13 @@ export default function ReportsPage() {
                                   <table className={styles.checkTable}>
                                     <thead>
                                       <tr>
-                                        <th style={{ width: '35%' }}>Ruangan</th>
-                                        <th style={{ width: '15%' }}>Jam Cek</th>
-                                        <th style={{ width: '12%' }}>Lampu</th>
-                                        <th style={{ width: '12%' }}>AC</th>
-                                        <th style={{ width: '12%' }}>Kondisi</th>
-                                        <th style={{ width: '14%' }}>Catatan</th>
+                                        <th style={{ width: '28%' }}>Ruangan</th>
+                                        <th style={{ width: '13%' }}>Jam Cek</th>
+                                        <th style={{ width: '10%' }}>Lampu</th>
+                                        <th style={{ width: '10%' }}>AC</th>
+                                        <th style={{ width: '11%' }}>Kondisi</th>
+                                        <th style={{ width: '15%' }}>Catatan</th>
+                                        <th style={{ width: '13%', textAlign: 'center' }}>Foto Bukti</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -511,6 +519,34 @@ export default function ReportsPage() {
                                               <span style={{ fontSize: '11px', color: chk?.condition === 'finding' ? '#b91c1c' : '#64748b' }}>
                                                 {chk?.remarks || (chk?.condition === 'normal' ? 'Aman' : '—')}
                                               </span>
+                                            </td>
+                                            <td style={{ textAlign: 'center' }}>
+                                              {chk?.photos && chk.photos.length > 0 ? (
+                                                <button
+                                                  type="button"
+                                                  className={styles.photoThumbBtn}
+                                                  onClick={() => setSelectedPhoto({
+                                                    url: chk.photos![0].filePath,
+                                                    room: rm.name,
+                                                    code: rm.code,
+                                                    floor: fl.name,
+                                                    time: chk.checkedAt ? new Date(chk.checkedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''
+                                                  })}
+                                                  title="Klik untuk memperbesar foto bukti"
+                                                >
+                                                  <img
+                                                    src={chk.photos[0].filePath}
+                                                    alt={rm.name}
+                                                    className={styles.photoThumbImg}
+                                                    onError={(e) => {
+                                                      (e.target as HTMLElement).style.display = 'none';
+                                                    }}
+                                                  />
+                                                  <span>📷 Lihat</span>
+                                                </button>
+                                              ) : (
+                                                <span style={{ color: '#94a3b8', fontSize: '11px' }}>—</span>
+                                              )}
                                             </td>
                                           </tr>
                                         );
@@ -562,6 +598,80 @@ export default function ReportsPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Lightbox Modal Foto Patroli */}
+      {selectedPhoto && (
+        <div 
+          onClick={() => setSelectedPhoto(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.85)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div 
+            style={{ 
+              maxWidth: '650px', 
+              width: '100%', 
+              background: '#fff', 
+              borderRadius: '16px', 
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)'
+            }} 
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ 
+              padding: '12px 16px', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              borderBottom: '1px solid #e2e8f0',
+              background: '#f8fafc'
+            }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+                  {selectedPhoto.room} ({selectedPhoto.code})
+                </h4>
+                <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
+                  {selectedPhoto.floor} • Jam {selectedPhoto.time}
+                </p>
+              </div>
+              <button 
+                className="btn btn-ghost btn-sm" 
+                onClick={() => setSelectedPhoto(null)}
+                style={{ borderRadius: '8px', fontWeight: 'bold' }}
+              >
+                ✕ Tutup
+              </button>
+            </div>
+            <div style={{ padding: '8px', textAlign: 'center', background: '#000', minHeight: '280px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <img 
+                src={selectedPhoto.url} 
+                alt={selectedPhoto.room} 
+                style={{ maxWidth: '100%', maxHeight: '72vh', objectFit: 'contain', borderRadius: '4px' }} 
+              />
+            </div>
+            <div style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: '11px', color: '#64748b' }}>Dokumentasi Pemeriksaan Fisik Ruangan</span>
+              <a 
+                href={selectedPhoto.url} 
+                target="_blank" 
+                rel="noreferrer"
+                className="btn btn-outline btn-xs"
+                style={{ fontSize: '11px' }}
+              >
+                Buka Resolusi Penuh ↗
+              </a>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

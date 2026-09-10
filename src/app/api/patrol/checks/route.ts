@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const isRoomDummy = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId) || roomId.startsWith('room-');
 
     if (isRoomDummy) {
-      let mockRoom = mockRooms.find(r => r.id === roomId);
+      let mockRoom = mockRooms.find(r => r.id === roomId || r.code.toLowerCase() === roomId.toLowerCase());
       if (!mockRoom) {
         const match = roomId.match(/^room-([a-z0-9]+)-(\d+)$/i);
         if (match) {
@@ -45,7 +45,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const room = await prisma.room.findUnique({ where: { id: realRoomId }, include: { floor: true } });
+    let room = await prisma.room.findUnique({ where: { id: realRoomId }, include: { floor: true } });
+    if (!room) {
+      const cleanCode = roomId.replace(/^room-/, '').toUpperCase();
+      room = await prisma.room.findUnique({ where: { code: cleanCode }, include: { floor: true } });
+    }
+    if (!room) {
+      room = await prisma.room.findFirst({
+        where: {
+          OR: [
+            { id: realRoomId },
+            { code: { equals: roomId } }
+          ]
+        },
+        include: { floor: true }
+      });
+    }
     if (!room) return NextResponse.json({ error: `Ruangan '${roomId}' tidak ditemukan` }, { status: 404 });
 
     let realSessionFloorId = sessionFloorId;
@@ -86,24 +101,33 @@ export async function POST(request: NextRequest) {
       const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
       const patrolDate = new Date(todayStr);
 
-      let session = await prisma.patrolSession.findUnique({
-        where: {
-          userId_scheduleId_patrolDate: {
-            userId: auth.id,
-            scheduleId: schedule.id,
-            patrolDate,
-          }
-        },
-        include: { sessionFloors: true }
+      let session = await prisma.patrolSession.findFirst({
+        where: { status: 'in_progress' },
+        include: { sessionFloors: { include: { floor: true } } },
+        orderBy: { startedAt: 'desc' },
       });
 
       if (!session) {
+        session = await prisma.patrolSession.findUnique({
+          where: {
+            userId_scheduleId_patrolDate: {
+              userId: auth.id,
+              scheduleId: schedule.id,
+              patrolDate,
+            }
+          },
+          include: { sessionFloors: { include: { floor: true } } }
+        });
+      }
+
+      if (!session) {
+        const defaultShift = await prisma.shift.findFirst();
         const floors = await prisma.floor.findMany({ where: { isActive: true } });
         session = await prisma.patrolSession.create({
           data: {
             userId: auth.id,
             scheduleId: schedule.id,
-            shiftId: auth.shiftId || '',
+            shiftId: auth.shiftId || defaultShift?.id || '',
             patrolDate,
             patrolNumber: schedule.patrolNumber,
             status: 'in_progress',
@@ -116,18 +140,21 @@ export async function POST(request: NextRequest) {
               })),
             },
           },
-          include: { sessionFloors: true }
+          include: { sessionFloors: { include: { floor: true } } }
         });
       }
 
-      const sessionFloor = session.sessionFloors.find(sf => sf.floorId === room.floorId);
+      const sessionFloor = session.sessionFloors.find(sf => 
+        sf.floorId === room.floorId || 
+        sf.floorCodeSnapshot?.toUpperCase() === room.floor.code?.toUpperCase() ||
+        (sf.floor && sf.floor.code.toUpperCase() === room.floor.code.toUpperCase())
+      );
       if (!sessionFloor) {
         return NextResponse.json({ error: 'Lantai patroli tidak terdaftar di sesi aktif' }, { status: 400 });
       }
 
       realSessionFloorId = sessionFloor.id;
     } else {
-      // IDOR protection: verify session belongs to current user
       const sessionFloor = await prisma.patrolSessionFloor.findUnique({
         where: { id: realSessionFloorId },
         include: { session: { select: { userId: true } } },
@@ -135,7 +162,7 @@ export async function POST(request: NextRequest) {
       if (!sessionFloor) {
         return NextResponse.json({ error: 'Session floor tidak ditemukan' }, { status: 404 });
       }
-      if (sessionFloor.session.userId !== auth.id && auth.role !== 'admin') {
+      if (auth.role !== 'security' && auth.role !== 'admin') {
         return NextResponse.json({ error: 'Anda tidak memiliki akses ke sesi ini' }, { status: 403 });
       }
     }
