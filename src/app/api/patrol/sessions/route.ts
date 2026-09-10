@@ -38,12 +38,18 @@ export async function GET(request: NextRequest) {
       shift: { select: { name: true } },
       sessionFloors: {
         include: {
+          floor: true,
           patrolChecks: {
             include: {
               findings: true
             }
           },
         },
+        orderBy: {
+          floor: {
+            sortOrder: 'asc'
+          }
+        }
       },
     },
     orderBy: { patrolNumber: 'asc' },

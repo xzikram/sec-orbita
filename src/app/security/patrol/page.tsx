@@ -9,9 +9,50 @@ import {
   activeChecks,
   patrolSchedules,
   getRoomsByFloor,
+  getFloorById,
   rooms,
 } from '@/lib/dummy-data';
 import styles from './patrol.module.css';
+
+// Canonical physical floor progression for RS Mata JEC ORBITA
+const CANONICAL_FLOOR_ORDER: Record<string, number> = {
+  'SB': 0,
+  'L1': 1,
+  '1': 1,
+  'P2': 2,
+  '2': 2,
+  'P3': 3,
+  '3': 3,
+  'P4': 4,
+  '4': 4,
+  'L5': 5,
+  '5': 5,
+  'L6': 6,
+  '6': 6,
+  'L7': 7,
+  '7': 7,
+  'L8': 8,
+  '8': 8,
+  'L9': 9,
+  '9': 9,
+  'L10': 10,
+  '10': 10,
+  'L11': 11,
+  '11': 11,
+};
+
+function getFloorSortOrder(floorObj: any): number {
+  if (!floorObj) return 999;
+  const code = String(floorObj.code || floorObj.floorCodeSnapshot || '').toUpperCase().trim();
+  if (CANONICAL_FLOOR_ORDER[code] !== undefined) {
+    return CANONICAL_FLOOR_ORDER[code];
+  }
+  const name = String(floorObj.name || floorObj.floorNameSnapshot || '').toUpperCase().trim();
+  if (name.includes('BASEMENT') || name.includes('SEMI')) return 0;
+  const match = code.match(/\d+/) || name.match(/\d+/);
+  if (match) return parseInt(match[0], 10);
+  return floorObj.sortOrder ?? 999;
+}
 
 export default function PatrolPage() {
   const [isReversed, setIsReversed] = useState(false);
@@ -22,23 +63,31 @@ export default function PatrolPage() {
 
   useEffect(() => {
     setMounted(true);
+    // 1. Instantly read user's saved route direction preference
+    try {
+      const saved = localStorage.getItem('patrol-reversed');
+      if (saved === 'true') {
+        setIsReversed(true);
+      }
+    } catch {}
+
     async function loadData() {
       try {
         const [meRes, sessionsRes] = await Promise.all([
-          fetch('/api/auth/me'),
-          fetch('/api/patrol/sessions'),
+          fetch('/api/auth/me').catch(() => null),
+          fetch('/api/patrol/sessions').catch(() => null),
         ]);
 
-        if (meRes.ok) {
+        if (meRes && meRes.ok) {
           const meData = await meRes.json();
           const empId = meData.user?.employeeId || 'guest';
-          const saved = localStorage.getItem(`patrol-reversed-${empId}`);
+          const saved = localStorage.getItem(`patrol-reversed-${empId}`) || localStorage.getItem('patrol-reversed');
           if (saved === 'true') {
             setIsReversed(true);
           }
         }
 
-        if (sessionsRes.ok) {
+        if (sessionsRes && sessionsRes.ok) {
           const sessions = await sessionsRes.json();
           const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
           setSession(active);
@@ -62,16 +111,18 @@ export default function PatrolPage() {
     loadData();
   }, []);
 
-  const handleToggleReversed = () => {
-    const newValue = !isReversed;
-    setIsReversed(newValue);
-    fetch('/api/auth/me')
-      .then(res => res.json())
-      .then(data => {
-        const empId = data.user?.employeeId || 'guest';
-        localStorage.setItem(`patrol-reversed-${empId}`, String(newValue));
-      })
-      .catch(() => {});
+  const handleSetReversed = (reversed: boolean) => {
+    setIsReversed(reversed);
+    try {
+      localStorage.setItem('patrol-reversed', String(reversed));
+      fetch('/api/auth/me')
+        .then(res => res.json())
+        .then(data => {
+          const empId = data.user?.employeeId || 'guest';
+          localStorage.setItem(`patrol-reversed-${empId}`, String(reversed));
+        })
+        .catch(() => {});
+    } catch {}
   };
 
   const currentSession = session || activeSession;
@@ -103,7 +154,12 @@ export default function PatrolPage() {
   const overallProgress = totalRooms > 0 ? Math.round((checkedRooms / totalRooms) * 100) : 0;
 
   const rawFloorProgress = (currentSession.sessionFloors || activeSessionFloors).map((sf: any) => {
-    const floor = floors.find(f => f.id === sf.floorId || f.code === sf.floorCodeSnapshot)!;
+    const floor = floors.find(f => 
+      f.id === sf.floorId || 
+      f.code.toUpperCase() === String(sf.floorCodeSnapshot || '').toUpperCase() ||
+      (sf.floor?.code && f.code.toUpperCase() === sf.floor.code.toUpperCase())
+    ) || getFloorById(sf.floorCodeSnapshot) || getFloorById(sf.floorId) || getFloorById(sf.floorNameSnapshot) || floors[0];
+
     const floorRooms = getRoomsByFloor(floor.id);
     
     const dbCheckedCodes = sf.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
@@ -119,13 +175,17 @@ export default function PatrolPage() {
     return {
       ...sf,
       floor,
+      sortOrder: getFloorSortOrder(floor),
       total: floorRooms.length,
       checked,
       percent: floorRooms.length > 0 ? Math.round((checked / floorRooms.length) * 100) : 0,
     };
   });
 
-  const floorProgress = isReversed ? [...rawFloorProgress].reverse() : rawFloorProgress;
+  // Strictly sort by canonical floor order ascending (SB -> 11) or descending (11 -> SB)
+  const floorProgress = [...rawFloorProgress].sort((a, b) => {
+    return isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder;
+  });
 
   if (loading) {
     return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat progress patroli...</p></div>;
@@ -213,21 +273,55 @@ export default function PatrolPage() {
       )}
 
       {/* Floor Timeline */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
-        <h3 className="section-title" style={{ margin: 0, fontSize: '16px' }}>Rute Patroli</h3>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={handleToggleReversed}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '4px 8px', height: 'auto', background: 'var(--color-neutral-100)', color: 'var(--color-primary-600)', fontWeight: 'bold' }}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="17 1 21 5 17 9" />
-            <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-            <polyline points="7 23 3 19 7 15" />
-            <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-          </svg>
-          {isReversed ? 'Urutan: 11 ➔ SB' : 'Urutan: SB ➔ 11'}
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.25rem', marginBottom: '0.75rem' }}>
+        <div>
+          <h3 className="section-title" style={{ margin: 0, fontSize: '15px' }}>Rute Patroli</h3>
+          <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)' }}>
+            {isReversed ? 'Arah: Dari Atas ke Bawah (11 ➔ SB)' : 'Arah: Dari Bawah ke Atas (SB ➔ 11)'}
+          </p>
+        </div>
+        
+        {/* Sleek Segmented Switcher for Direction */}
+        <div style={{ display: 'flex', background: 'var(--color-neutral-100)', padding: '2px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+          <button
+            type="button"
+            className="btn btn-xs"
+            onClick={() => handleSetReversed(false)}
+            id="btn-route-sb-11"
+            style={{
+              padding: '5px 9px',
+              fontSize: '11px',
+              fontWeight: '700',
+              borderRadius: '6px',
+              border: 'none',
+              background: !isReversed ? 'var(--color-primary-600)' : 'transparent',
+              color: !isReversed ? '#fff' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            ⬆️ SB ➔ 11
+          </button>
+          <button
+            type="button"
+            className="btn btn-xs"
+            onClick={() => handleSetReversed(true)}
+            id="btn-route-11-sb"
+            style={{
+              padding: '5px 9px',
+              fontSize: '11px',
+              fontWeight: '700',
+              borderRadius: '6px',
+              border: 'none',
+              background: isReversed ? 'var(--color-primary-600)' : 'transparent',
+              color: isReversed ? '#fff' : 'var(--text-secondary)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            ⬇️ 11 ➔ SB
+          </button>
+        </div>
       </div>
 
       <div className={styles.timeline}>
@@ -256,7 +350,7 @@ export default function PatrolPage() {
               </div>
             ) : (
               <div className={`${styles.statusCircle} ${styles.statusPending}`}>
-                <span className={styles.statusNumber}>{isReversed ? floorProgress.length - index : index + 1}</span>
+                <span className={styles.statusNumber}>{index + 1}</span>
               </div>
             )}
 
