@@ -41,10 +41,13 @@ const navGroups = [
     label: 'SISTEM',
     items: [
       { path: '/admin/settings', label: 'Pengaturan', icon: '⚙️' },
+      { path: '/admin/error-logs', label: 'Log Error Sistem (IT)', icon: '🚨' },
+      { path: '/admin/feedbacks', label: 'Bantuan & Saran Security', icon: '💡' },
       { path: '/admin/audit-logs', label: 'Log Aktivitas', icon: '📜' },
     ],
   },
 ];
+
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

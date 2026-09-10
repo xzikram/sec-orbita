@@ -33,6 +33,7 @@ model User {
   handoversFrom   ShiftHandover[]   @relation("HandoverFrom")
   handoversTo     ShiftHandover[]   @relation("HandoverTo")
   achievements    UserAchievement[]
+  feedbacks       SupportFeedback[]
 
   @@map("users")
 }
@@ -460,3 +461,49 @@ model SystemSetting {
 
   @@map("system_settings")
 }
+
+// ============================================================
+// SYSTEM ERROR LOGS (AUTO-CAPTURED IT LOGS)
+// ============================================================
+
+model SystemErrorLog {
+  id          String    @id @default(uuid())
+  userId      String?   @map("user_id")
+  userName    String?   @map("user_name")
+  employeeId  String?   @map("employee_id")
+  role        String?
+  url         String    @db.Text
+  message     String    @db.Text
+  stack       String?   @db.LongText
+  digest      String?
+  userAgent   String?   @map("user_agent") @db.Text
+  ipAddress   String?   @map("ip_address")
+  status      String    @default("unresolved") // unresolved, investigated, resolved
+  resolvedBy  String?   @map("resolved_by")
+  resolvedAt  DateTime? @map("resolved_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("system_error_logs")
+}
+
+// ============================================================
+// SUPPORT & FEEDBACK (SECURITY HELP & SUGGESTIONS)
+// ============================================================
+
+model SupportFeedback {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  category    String   // "saran", "kendala", "pertanyaan", "lainnya"
+  subject     String
+  message     String   @db.Text
+  photoUrl    String?  @map("photo_url")
+  status      String   @default("open") // open, in_review, resolved
+  adminNotes  String?  @map("admin_notes") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("support_feedbacks")
+}
+

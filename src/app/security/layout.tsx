@@ -152,12 +152,52 @@ export default function SecurityLayout({
       .catch(err => console.error('Error fetching auth user:', err));
 
 
+    // Global uncaught error listener to send errors to IT/Admin
+    const handleGlobalError = (event: ErrorEvent) => {
+      try {
+        const errorMsg = event.message || 'Window Error';
+        if (errorMsg.includes('ResizeObserver') || errorMsg.includes('Script error')) return;
+        fetch('/api/system/error-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: errorMsg,
+            stack: event.error?.stack || `${event.filename}:${event.lineno}:${event.colno}`,
+            url: window.location.href,
+          }),
+        }).catch(() => {});
+      } catch {}
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      try {
+        const reason = event.reason;
+        const msg = typeof reason === 'string' ? reason : reason?.message || 'Unhandled Promise Rejection';
+        if (msg.includes('AbortError')) return;
+        fetch('/api/system/error-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: msg,
+            stack: reason?.stack || null,
+            url: window.location.href,
+          }),
+        }).catch(() => {});
+      } catch {}
+    };
+
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       clearInterval(offlineInterval);
     };
   }, []);
+
 
   const user = currentUser;
   const shift = currentUser?.shift;

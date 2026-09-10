@@ -28,6 +28,26 @@ export default function ProfilePage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // States for Help & Feedback
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [showFeedbackList, setShowFeedbackList] = useState(false);
+  const [feedbackCategory, setFeedbackCategory] = useState<'saran' | 'kendala' | 'pertanyaan' | 'lainnya'>('saran');
+  const [feedbackSubject, setFeedbackSubject] = useState('');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackError, setFeedbackError] = useState('');
+  const [feedbackSuccess, setFeedbackSuccess] = useState('');
+  const [myFeedbacks, setMyFeedbacks] = useState<any[]>([]);
+
+  const fetchMyFeedbacks = () => {
+    fetch('/api/support/feedback')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.feedbacks) setMyFeedbacks(data.feedbacks);
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     // Check if PWA is already installed or running standalone
     const checkInstalled = () => {
@@ -69,10 +89,13 @@ export default function ProfilePage() {
       .catch(err => console.error('Error fetching profile user:', err))
       .finally(() => setLoading(false));
 
+    fetchMyFeedbacks();
+
     return () => {
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
+
 
   const user = currentUser;
   const shift = currentUser?.shift;
@@ -143,7 +166,49 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedbackError('');
+    setFeedbackSuccess('');
+
+    if (!feedbackSubject.trim() || !feedbackMessage.trim()) {
+      setFeedbackError('Topik dan pesan wajib diisi.');
+      return;
+    }
+
+    setFeedbackSubmitting(true);
+    try {
+      const res = await fetch('/api/support/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: feedbackCategory,
+          subject: feedbackSubject.trim(),
+          message: feedbackMessage.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal mengirim saran/laporan.');
+      }
+
+      setFeedbackSuccess('✓ Berhasil dikirim! Tim IT akan segera meninjau masukan Anda.');
+      setFeedbackSubject('');
+      setFeedbackMessage('');
+      fetchMyFeedbacks();
+      setShowFeedbackList(true);
+      setShowFeedbackForm(false);
+      setTimeout(() => setFeedbackSuccess(''), 5000);
+    } catch (err: any) {
+      setFeedbackError(err.message || 'Gagal terhubung ke server.');
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
+
   return (
+
     <div className="page-content">
       {/* Profile Header */}
       <div className={`${styles.profileHeader} animate-slide-up`}>
@@ -296,8 +361,173 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Pusat Bantuan & Saran Security */}
+
+      <div className="card animate-slide-up stagger-3" style={{ border: '1.5px solid #fed7aa', background: '#fffaf0', marginBottom: '1rem', borderRadius: '14px' }}>
+        <div className="card-body" style={{ padding: '1.15rem' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <span style={{ fontSize: '24px', lineHeight: 1 }}>💡</span>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#9a3412', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                Bantuan & Saran Pengembangan
+              </h3>
+              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#c2410c', lineHeight: '1.4' }}>
+                Ada ide fitur baru, saran perbaikan, atau kendala teknis? Sampaikan langsung ke Tim IT Rumah Sakit!
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-warning btn-sm"
+              onClick={() => {
+                setShowFeedbackForm(!showFeedbackForm);
+                setFeedbackSuccess('');
+                setFeedbackError('');
+              }}
+              style={{ fontWeight: 700, borderRadius: '8px', padding: '6px 12px', fontSize: '12px' }}
+            >
+              {showFeedbackForm ? '✕ Tutup Formulir' : '✍️ Tulis Saran / Kendala'}
+            </button>
+            {myFeedbacks.length > 0 && (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => setShowFeedbackList(!showFeedbackList)}
+                style={{ borderRadius: '8px', padding: '6px 12px', fontSize: '12px', background: 'white', borderColor: '#fdba74', color: '#c2410c' }}
+              >
+                Riwayat Masukan ({myFeedbacks.length}) {showFeedbackList ? '▲' : '▼'}
+              </button>
+            )}
+          </div>
+
+          {/* Feedback Form */}
+          {showFeedbackForm && (
+            <form onSubmit={handleSubmitFeedback} style={{ marginTop: '12px', background: '#fff', border: '1px solid #fed7aa', borderRadius: '10px', padding: '12px' }}>
+              <h4 style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: 800, color: '#9a3412' }}>
+                Form Masukan ke Tim IT
+              </h4>
+
+              {feedbackError && <div style={{ color: '#dc2626', fontSize: '11px', marginBottom: '8px', background: '#fef2f2', padding: '6px 10px', borderRadius: '6px', border: '1px solid #fecaca' }}>{feedbackError}</div>}
+              {feedbackSuccess && <div style={{ color: '#16a34a', fontSize: '11px', marginBottom: '8px', background: '#f0fdf4', padding: '6px 10px', borderRadius: '6px', border: '1px solid #bbf7d0' }}>{feedbackSuccess}</div>}
+
+              {/* Kategori Radio / Pills */}
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>Pilih Kategori</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                  {[
+                    { id: 'saran', label: '💡 Saran Fitur', desc: 'Ide pengembangan' },
+                    { id: 'kendala', label: '⚠️ Laporan Kendala', desc: 'Error atau bug' },
+                    { id: 'pertanyaan', label: '❓ Pertanyaan', desc: 'Panduan aplikasi' },
+                    { id: 'lainnya', label: '📝 Lain-lain', desc: 'Masukan umum' },
+                  ].map(cat => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setFeedbackCategory(cat.id as any)}
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: '6px',
+                        border: feedbackCategory === cat.id ? '2px solid #f97316' : '1px solid #e2e8f0',
+                        background: feedbackCategory === cat.id ? '#fff7ed' : '#fff',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: feedbackCategory === cat.id ? '#c2410c' : '#1e293b' }}>{cat.label}</div>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>{cat.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Subjek */}
+              <div style={{ marginBottom: '8px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '3px' }}>Topik / Judul</label>
+                <input
+                  type="text"
+                  className={styles.formInput}
+                  placeholder="Contoh: Usulan tombol periksa diperbesar"
+                  value={feedbackSubject}
+                  onChange={e => setFeedbackSubject(e.target.value)}
+                  style={{ fontSize: '12px', padding: '8px 10px' }}
+                  required
+                />
+              </div>
+
+              {/* Detail Pesan */}
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '3px' }}>Pesan / Uraian Lengkap</label>
+                <textarea
+                  className={styles.formInput}
+                  rows={3}
+                  placeholder="Tuliskan detail saran atau kendala yang dialami secara rinci..."
+                  value={feedbackMessage}
+                  onChange={e => setFeedbackMessage(e.target.value)}
+                  style={{ fontSize: '12px', padding: '8px 10px', resize: 'vertical' }}
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={feedbackSubmitting}
+                style={{ width: '100%', fontWeight: 700, height: '34px', fontSize: '12px' }}
+              >
+                {feedbackSubmitting ? 'Mengirim ke IT...' : '🚀 Kirim ke Tim IT'}
+              </button>
+            </form>
+          )}
+
+          {/* Feedback History List */}
+          {showFeedbackList && myFeedbacks.length > 0 && (
+            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <h4 style={{ margin: '0 0 2px', fontSize: '11px', fontWeight: 800, color: '#9a3412', textTransform: 'uppercase' }}>
+                Riwayat Masukan Anda ({myFeedbacks.length})
+              </h4>
+              {myFeedbacks.map((fb: any) => (
+                <div key={fb.id} style={{ background: '#fff', border: '1px solid #fed7aa', borderRadius: '8px', padding: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: '8px',
+                      background: fb.category === 'saran' ? '#dbeafe' : fb.category === 'kendala' ? '#fee2e2' : '#fef3c7',
+                      color: fb.category === 'saran' ? '#1d4ed8' : fb.category === 'kendala' ? '#b91c1c' : '#b45309'
+                    }}>
+                      {fb.category.toUpperCase()}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                      {new Date(fb.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>{fb.subject}</div>
+                  <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px', lineHeight: 1.4 }}>{fb.message}</div>
+                  
+                  <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: fb.status === 'resolved' ? '#16a34a' : fb.status === 'in_review' ? '#ea580c' : '#2563eb' }}>
+                      Status: {fb.status === 'resolved' ? '✓ Selesai / Ditindaklanjuti' : fb.status === 'in_review' ? '⏳ Sedang Ditinjau IT' : '📩 Terkirim'}
+                    </span>
+                  </div>
+
+                  {fb.adminNotes && (
+                    <div style={{ marginTop: '6px', background: '#f8fafc', padding: '6px 8px', borderRadius: '6px', fontSize: '11px', color: '#334155', borderLeft: '3px solid #3b82f6' }}>
+                      <strong>💬 Tanggapan IT:</strong> {fb.adminNotes}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Logout */}
       <div className={`${styles.logoutSection} animate-slide-up stagger-3`}>
+
         <button
           className="btn btn-danger btn-xl"
           onClick={handleLogout}

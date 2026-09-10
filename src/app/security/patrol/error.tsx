@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function PatrolErrorPage({
   error,
@@ -10,19 +9,17 @@ export default function PatrolErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const router = useRouter();
   const [autoRetryCount, setAutoRetryCount] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [reported, setReported] = useState(false);
 
   const doRetry = useCallback(() => {
     setIsRetrying(true);
-    // Clear any stale chunk reload flags and render retry flags on manual retry
     try {
       sessionStorage.removeItem('chunk_reload_security');
       sessionStorage.removeItem('chunk_reload_patrol');
       sessionStorage.removeItem('patrol_render_retry_count');
     } catch {}
-    // Reset the error boundary
     setTimeout(() => {
       reset();
       setIsRetrying(false);
@@ -31,6 +28,30 @@ export default function PatrolErrorPage({
 
   useEffect(() => {
     console.error('Patrol Error caught by boundary:', error?.message, error);
+
+    // Otomatis kirim error log ke Tim IT / Admin
+    try {
+      const logKey = `err_logged_${error?.digest || error?.message || 'patrol'}`;
+      if (!sessionStorage.getItem(logKey)) {
+        sessionStorage.setItem(logKey, 'true');
+        fetch('/api/system/error-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: error?.message || 'Patrol Runtime Error',
+            stack: error?.stack || null,
+            digest: error?.digest || null,
+            url: typeof window !== 'undefined' ? window.location.href : '',
+          }),
+        })
+          .then(() => setReported(true))
+          .catch(() => setReported(true));
+      } else {
+        setReported(true);
+      }
+    } catch {
+      setReported(true);
+    }
 
     const msg = error?.message || '';
     const isChunkError =
@@ -42,20 +63,17 @@ export default function PatrolErrorPage({
       msg.includes('error loading dynamically imported module');
 
     if (isChunkError) {
-      // Auto-retry up to 2 times for chunk load errors
       const retryKey = 'patrol_chunk_retry_count';
       const count = parseInt(sessionStorage.getItem(retryKey) || '0', 10);
       if (count < 2) {
         sessionStorage.setItem(retryKey, String(count + 1));
-        // Force a full page reload to get fresh chunks
         window.location.reload();
         return;
       }
-      // After 2 retries, reset the counter for next time
       sessionStorage.removeItem(retryKey);
     }
 
-    // For non-chunk errors, auto-retry once after a short delay (guarded by sessionStorage to prevent loops)
+    // Auto-retry once after 1 second if haven't tried yet
     const renderRetryKey = 'patrol_render_retry_count';
     const renderRetryCount = parseInt(sessionStorage.getItem(renderRetryKey) || '0', 10);
     if (renderRetryCount < 1 && autoRetryCount === 0) {
@@ -69,7 +87,6 @@ export default function PatrolErrorPage({
   }, [error, autoRetryCount, doRetry]);
 
   const handleForceReload = () => {
-    // Clear all cached session data that might be stale
     try {
       sessionStorage.removeItem('chunk_reload_security');
       sessionStorage.removeItem('chunk_reload_patrol');
@@ -104,37 +121,51 @@ export default function PatrolErrorPage({
         width: '64px',
         height: '64px',
         borderRadius: '50%',
-        background: '#fef3c7',
-        color: '#d97706',
+        background: '#e0f2fe',
+        color: '#0284c7',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        fontSize: '28px',
+        fontSize: '30px',
         marginBottom: '16px',
+        boxShadow: '0 4px 12px rgba(2, 132, 199, 0.15)'
       }}>
-        ⚠️
+        🛡️
       </div>
 
       {isRetrying ? (
         <>
           <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 8px 0', color: '#0f172a' }}>
-            Mencoba memuat ulang...
+            Menghubungkan kembali...
           </h2>
           <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '320px', lineHeight: 1.5, margin: 0 }}>
-            Mohon tunggu sebentar
+            Mohon tunggu sebentar, sistem sedang memuat ulang halaman
           </p>
         </>
       ) : (
         <>
-          <h2 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 8px 0', color: '#0f172a' }}>
-            Halaman Gagal Dimuat
+          <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 8px 0', color: '#0f172a' }}>
+            Pemberitahuan Sistem
           </h2>
-          <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '320px', margin: '0 0 8px 0', lineHeight: 1.5 }}>
-            Terjadi gangguan saat memuat halaman pemeriksaan. Data pemeriksaan Anda yang sudah tersimpan tetap aman.
+          <p style={{ fontSize: '13px', color: '#475569', maxWidth: '340px', margin: '0 0 12px 0', lineHeight: 1.5 }}>
+            Terjadi kendala teknis pada aplikasi. Data patroli Anda yang telah disimpan tetap aman.
           </p>
-          <p style={{ fontSize: '11px', color: '#94a3b8', maxWidth: '320px', margin: '0 0 20px 0', lineHeight: 1.5 }}>
-            Tip: Coba muat ulang halaman atau kembali ke rute patroli.
-          </p>
+
+          <div style={{
+            background: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: '8px',
+            padding: '8px 14px',
+            fontSize: '12px',
+            color: '#15803d',
+            fontWeight: 600,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginBottom: '20px'
+          }}>
+            <span>✓</span> Laporan error otomatis telah dikirim ke Tim IT
+          </div>
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
             <button
@@ -165,7 +196,7 @@ export default function PatrolErrorPage({
                 cursor: 'pointer',
               }}
             >
-              🔃 Muat Ulang Penuh
+              🔃 Muat Ulang
             </button>
             <button
               onClick={handleGoBack}
@@ -183,15 +214,6 @@ export default function PatrolErrorPage({
               ← Rute Patroli
             </button>
           </div>
-
-          {error?.message && (
-            <details style={{ marginTop: '20px', maxWidth: '340px', textAlign: 'left', fontSize: '11px', color: '#94a3b8' }}>
-              <summary style={{ cursor: 'pointer', textAlign: 'center' }}>Detail Kendala</summary>
-              <pre style={{ marginTop: '8px', padding: '8px', background: '#f8fafc', borderRadius: '6px', overflowX: 'auto', fontSize: '10px', color: '#e11d48', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {error.message}
-              </pre>
-            </details>
-          )}
         </>
       )}
     </div>
