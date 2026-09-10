@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import CameraCapture from '@/components/CameraCapture';
 import { submitRoomCheck, submitFinding } from '@/lib/data-client';
@@ -128,49 +128,122 @@ export default function RoomCheckPage({
   const combinedCheckedSet = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
   const checked = combinedCheckedSet.size;
 
-  const startSpeechRecognition = (target: 'remarks' | 'finding') => {
+  const recognitionRef = useRef<any>(null);
+
+  // Clean up speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
+
+  const toggleSpeechRecognition = (target: 'remarks' | 'finding') => {
     setSpeechError(null);
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setSpeechError('Perekaman suara tidak didukung di browser ini.');
-      setTimeout(() => setSpeechError(null), 3000);
+
+    // If already recording this target, clicking the button cleanly stops it
+    if ((target === 'remarks' && isRecordingRemarks) || (target === 'finding' && isRecordingFinding)) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+        recognitionRef.current = null;
+      }
+      setIsRecordingRemarks(false);
+      setIsRecordingFinding(false);
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'id-ID';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    // If recording another target, cancel it first
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch {}
+      recognitionRef.current = null;
+    }
+    setIsRecordingRemarks(false);
+    setIsRecordingFinding(false);
 
-    if (target === 'remarks') {
-      setIsRecordingRemarks(true);
-    } else {
-      setIsRecordingFinding(true);
+    const SpeechRecognition =
+      typeof window !== 'undefined'
+        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        : null;
+
+    if (!SpeechRecognition) {
+      setSpeechError('Perekaman suara tidak didukung di browser ini.');
+      setTimeout(() => setSpeechError(null), 4000);
+      return;
     }
 
-    recognition.onresult = (event: any) => {
-      const text = event.results[0][0].transcript;
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'id-ID';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
       if (target === 'remarks') {
-        setRemarks(prev => prev ? `${prev} ${text}` : text);
+        setIsRecordingRemarks(true);
       } else {
-        setFindingDescription(prev => prev ? `${prev} ${text}` : text);
+        setIsRecordingFinding(true);
       }
-    };
 
-    recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      setSpeechError(`Gagal merekam: ${event.error}`);
-      setTimeout(() => setSpeechError(null), 3000);
+      recognition.onresult = (event: any) => {
+        let transcript = '';
+        for (let i = event.resultIndex || 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        const cleanText = transcript.trim();
+        if (cleanText) {
+          if (target === 'remarks') {
+            setRemarks(prev => (prev ? `${prev} ${cleanText}` : cleanText));
+          } else {
+            setFindingDescription(prev => (prev ? `${prev} ${cleanText}` : cleanText));
+          }
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        // Do NOT treat aborted or no-speech as an error message
+        if (event.error === 'aborted' || event.error === 'no-speech') {
+          setIsRecordingRemarks(false);
+          setIsRecordingFinding(false);
+          recognitionRef.current = null;
+          return;
+        }
+
+        console.warn('Speech recognition status:', event.error);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setSpeechError('Izin mikrofon diperlukan. Mohon izinkan mikrofon di browser.');
+        } else if (event.error === 'network') {
+          setSpeechError('Koneksi internet diperlukan untuk pengenalan suara.');
+        } else {
+          setSpeechError(`Selesai merekam (${event.error})`);
+        }
+        setTimeout(() => setSpeechError(null), 3500);
+
+        setIsRecordingRemarks(false);
+        setIsRecordingFinding(false);
+        recognitionRef.current = null;
+      };
+
+      recognition.onend = () => {
+        setIsRecordingRemarks(false);
+        setIsRecordingFinding(false);
+        recognitionRef.current = null;
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err: any) {
+      console.warn('Failed to start speech recognition:', err);
       setIsRecordingRemarks(false);
       setIsRecordingFinding(false);
-    };
-
-    recognition.onend = () => {
-      setIsRecordingRemarks(false);
-      setIsRecordingFinding(false);
-    };
-
-    recognition.start();
+      recognitionRef.current = null;
+    }
   };
 
   const canSubmit = () => {
@@ -465,11 +538,12 @@ export default function RoomCheckPage({
               <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)' }}>CATATAN (OPSIONAL)</span>
               <button
                 type="button"
-                onClick={() => startSpeechRecognition('remarks')}
+                onClick={() => toggleSpeechRecognition('remarks')}
                 className={`btn btn-sm ${isRecordingRemarks ? 'btn-danger' : 'btn-ghost'}`}
                 style={{ height: '22px', padding: '0 6px', minHeight: 'auto', fontSize: '10px' }}
+                title={isRecordingRemarks ? 'Klik untuk berhenti merekam' : 'Klik untuk rekam suara'}
               >
-                🎙️ {isRecordingRemarks ? 'Merekam...' : 'Suara'}
+                🎙️ {isRecordingRemarks ? 'Berhenti' : 'Suara'}
               </button>
             </div>
             {speechError && <p style={{ fontSize: '10px', color: 'var(--color-danger-500)', margin: '0 0 4px' }}>{speechError}</p>}
@@ -508,11 +582,12 @@ export default function RoomCheckPage({
             <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-danger-700)' }}>DESKRIPSI TEMUAN *</span>
             <button
               type="button"
-              onClick={() => startSpeechRecognition('finding')}
+              onClick={() => toggleSpeechRecognition('finding')}
               className={`btn btn-sm ${isRecordingFinding ? 'btn-danger' : 'btn-outline'}`}
               style={{ height: '22px', padding: '0 6px', minHeight: 'auto', fontSize: '10px' }}
+              title={isRecordingFinding ? 'Klik untuk berhenti merekam' : 'Klik untuk rekam suara'}
             >
-              🎙️ {isRecordingFinding ? 'Merekam...' : 'Suara'}
+              🎙️ {isRecordingFinding ? 'Berhenti' : 'Suara'}
             </button>
           </div>
           {speechError && <p style={{ fontSize: '10px', color: 'var(--color-danger-500)', margin: '0 0 4px' }}>{speechError}</p>}

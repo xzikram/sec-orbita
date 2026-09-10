@@ -45,7 +45,16 @@ export default function PwaInstallBanner() {
       }
     };
 
+    const handleAppInstalled = () => {
+      setShowBanner(false);
+      try {
+        localStorage.setItem('pwa_installed', 'true');
+      } catch {}
+      setIsStandalone(true);
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
 
     // 5. If iOS and not standalone, show banner after 2.5 seconds (unless recently dismissed)
     if (iosDevice && !isRecentlyDismissed) {
@@ -55,6 +64,7 @@ export default function PwaInstallBanner() {
       return () => {
         clearTimeout(timer);
         window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.removeEventListener('appinstalled', handleAppInstalled);
       };
     }
 
@@ -66,6 +76,7 @@ export default function PwaInstallBanner() {
     return () => {
       clearTimeout(navCheckTimer);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
@@ -80,6 +91,9 @@ export default function PwaInstallBanner() {
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
         setShowBanner(false);
+        try {
+          localStorage.setItem('pwa_installed', 'true');
+        } catch {}
       }
       setDeferredPrompt(null);
     } else {

@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<ProfileUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   // States for change password
   const [currentPassword, setCurrentPassword] = useState('');
@@ -28,6 +29,36 @@ export default function ProfilePage() {
   const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
+    // Check if PWA is already installed or running standalone
+    const checkInstalled = () => {
+      if (typeof window === 'undefined') return;
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true ||
+        document.referrer.includes('android-app://') ||
+        localStorage.getItem('pwa_installed') === 'true';
+      setIsInstalled(Boolean(standalone));
+    };
+
+    checkInstalled();
+
+    try {
+      const mql = window.matchMedia('(display-mode: standalone)');
+      const mqlHandler = (e: MediaQueryListEvent) => {
+        if (e.matches) setIsInstalled(true);
+      };
+      mql.addEventListener('change', mqlHandler);
+    } catch {}
+
+    const handleAppInstalled = () => {
+      try {
+        localStorage.setItem('pwa_installed', 'true');
+      } catch {}
+      setIsInstalled(true);
+    };
+
+    window.addEventListener('appinstalled', handleAppInstalled);
+
     fetch('/api/auth/me')
       .then(res => res.json())
       .then(data => {
@@ -37,6 +68,10 @@ export default function ProfilePage() {
       })
       .catch(err => console.error('Error fetching profile user:', err))
       .finally(() => setLoading(false));
+
+    return () => {
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
   }, []);
 
   const user = currentUser;
@@ -199,32 +234,36 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* PWA Install Section */}
-      <div className="card animate-slide-up stagger-3" style={{ border: '1px solid var(--color-primary-200)', background: 'var(--color-primary-50)', marginBottom: '1rem' }}>
-        <div className="card-body" style={{ padding: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: 'var(--color-primary-800)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                📲 Pasang Aplikasi di HP
-              </h3>
-              <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--color-primary-700)', lineHeight: '1.4' }}>
-                Pasang di Layar Utama HP Android atau iPhone agar cepat diakses layaknya aplikasi toko aplikasi.
-              </p>
+      {/* PWA Install Section - Hanya tampil jika belum diinstall */}
+      {!isInstalled && (
+        <div className="card animate-slide-up stagger-3" style={{ border: '1px solid var(--color-primary-200)', background: 'var(--color-primary-50)', marginBottom: '1rem' }}>
+          <div className="card-body" style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: 'var(--color-primary-800)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  📲 Pasang Aplikasi di HP
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--color-primary-700)', lineHeight: '1.4' }}>
+                  Pasang di Layar Utama HP Android atau iPhone agar cepat diakses layaknya aplikasi toko aplikasi.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem('pwa_prompt_dismissed_at');
+                  } catch {}
+                  window.location.reload();
+                }}
+                style={{ flexShrink: 0, fontWeight: 700 }}
+              >
+                Pasang
+              </button>
             </div>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={() => {
-                localStorage.removeItem('pwa_prompt_dismissed_at');
-                window.location.reload();
-              }}
-              style={{ flexShrink: 0, fontWeight: 700 }}
-            >
-              Pasang
-            </button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Logout */}
       <div className={`${styles.logoutSection} animate-slide-up stagger-3`}>
