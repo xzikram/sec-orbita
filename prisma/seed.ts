@@ -35,6 +35,17 @@ const adapter = new PrismaMariaDb(connectionConfig);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  console.log('🌱 Checking database seeding conditions...');
+
+  // Proteksi: Jangan hapus data yang sudah ada kecuali ada flag FORCE_SEED=true
+  const existingUsers = await prisma.user.count();
+  if (existingUsers > 0 && process.env.FORCE_SEED !== 'true') {
+    console.log('⚠️ Database sudah memiliki data! Seeding dilewati untuk melindungi data patroli & operasional.');
+    console.log('   Jika Anda BENAR-BENAR bermaksud me-reset seluruh database ke awal, jalankan:');
+    console.log('   FORCE_SEED=true npx tsx prisma/seed.ts (atau bash deploy.sh --seed)');
+    return;
+  }
+
   console.log('🌱 Seeding database...');
 
   // Clear existing data

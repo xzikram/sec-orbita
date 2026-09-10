@@ -21,9 +21,13 @@ npx prisma generate
 echo "🗄️ Sinkronisasi skema database..."
 npx prisma db push
 
-# 5. Seed data master terbaru ke database (aman jika dijalankan berulang)
-echo "🌱 Melakukan database seeding..."
-npx tsx prisma/seed.ts
+# 5. Database seeding HANYA dijalankan jika diberikan flag --seed (untuk mencegah data patroli/temuan terhapus)
+if [ "$1" == "--seed" ]; then
+    echo "🌱 Menjalankan database seeding (--seed aktif)..."
+    FORCE_SEED=true npx tsx prisma/seed.ts
+else
+    echo "⏩ Melewati database seed agar data patroli & temuan tetap aman."
+fi
 
 # 6. Membangun ulang (build) kode Next.js untuk production
 echo "🛠️ Membangun (build) proyek Next.js..."
