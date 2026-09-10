@@ -14,6 +14,8 @@ export default function PatrolSummaryPage() {
   const [scheduleName, setScheduleName] = useState('Patroli Rutin');
   const [findingsCount, setFindingsCount] = useState(0);
   const [roomsCheckedCount, setRoomsCheckedCount] = useState(0);
+  const [floorsCompletedCount, setFloorsCompletedCount] = useState(floors.length);
+  const [sessionFindings, setSessionFindings] = useState<any[]>([]);
 
   useEffect(() => {
     async function loadSummary() {
@@ -49,16 +51,33 @@ export default function PatrolSummaryPage() {
 
           let totalChecked = 0;
           let totalFnd = 0;
+          const extractedFindings: any[] = [];
+
           s.sessionFloors?.forEach((sf: any) => {
             if (sf.patrolChecks) {
               totalChecked += sf.patrolChecks.length;
               sf.patrolChecks.forEach((c: any) => {
-                if (c.findings?.length) totalFnd += c.findings.length;
+                if (c.findings?.length) {
+                  totalFnd += c.findings.length;
+                  c.findings.forEach((f: any) => {
+                    extractedFindings.push({
+                      id: f.id,
+                      description: f.description,
+                      roomNameSnapshot: c.roomNameSnapshot,
+                      floorNameSnapshot: c.floorNameSnapshot,
+                    });
+                  });
+                }
               });
             }
           });
+
           setRoomsCheckedCount(totalChecked || floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0));
           setFindingsCount(totalFnd);
+          setSessionFindings(extractedFindings);
+
+          const compFloors = s.sessionFloors?.filter((sf: any) => sf.status === 'completed' || sf.qrValidated).length;
+          setFloorsCompletedCount(compFloors !== undefined && compFloors > 0 ? compFloors : floors.length);
         } else {
           setEndTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }));
           setRoomsCheckedCount(floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0));
@@ -90,7 +109,7 @@ export default function PatrolSummaryPage() {
           <span className={styles.statLabel}>Ruangan Diperiksa</span>
         </div>
         <div className={styles.stat}>
-          <span className={styles.statNum}>{floors.length}</span>
+          <span className={styles.statNum}>{floorsCompletedCount}</span>
           <span className={styles.statLabel}>Lantai Selesai</span>
         </div>
         <div className={styles.stat}>
@@ -145,13 +164,13 @@ export default function PatrolSummaryPage() {
       </div>
 
       {/* Findings summary */}
-      {activeFindings.length > 0 && (
+      {(sessionFindings.length > 0 || activeFindings.length > 0) && (
         <div className={`card ${styles.findingsCard}`}>
           <h3 className={styles.breakdownTitle}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-danger-500)" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-            Temuan ({activeFindings.length})
+            Temuan ({sessionFindings.length || activeFindings.length})
           </h3>
-          {activeFindings.map(finding => (
+          {(sessionFindings.length > 0 ? sessionFindings : activeFindings).map(finding => (
             <div key={finding.id} className={styles.findingItem}>
               <div className={styles.findingDot} />
               <div className={styles.findingContent}>

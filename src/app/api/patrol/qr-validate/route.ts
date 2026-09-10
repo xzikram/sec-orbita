@@ -5,7 +5,9 @@ import { getAuthUser } from '@/lib/auth';
 // POST /api/patrol/qr-validate - Validate QR scan for a floor
 export async function POST(request: NextRequest) {
   const auth = await getAuthUser();
-  if (!auth || auth.role !== 'security') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!auth || (auth.role !== 'security' && auth.role !== 'admin')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   try {
     const body = await request.json();
@@ -15,11 +17,59 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Session floor ID dan QR token wajib' }, { status: 400 });
     }
 
-    // Find session floor
-    const sessionFloor = await prisma.patrolSessionFloor.findUnique({
-      where: { id: sessionFloorId },
-      include: { floor: { include: { qrCode: true } } },
-    });
+    // Find session floor by UUID or fallback by code from active session
+    let sessionFloor = null;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionFloorId);
+    if (isUuid) {
+      sessionFloor = await prisma.patrolSessionFloor.findUnique({
+        where: { id: sessionFloorId },
+        include: { floor: { include: { qrCode: true } } },
+      });
+    }
+
+    if (!sessionFloor) {
+      const cleanCode = String(sessionFloorId)
+        .replace(/^sf-/, '')
+        .replace(/^floor-/, '')
+        .toUpperCase();
+      const normalizedCode = cleanCode === '1' ? 'L1' : cleanCode;
+
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+      const patrolDate = new Date(todayStr);
+
+      const activeSession = await prisma.patrolSession.findFirst({
+        where: {
+          patrolDate,
+          ...(auth.role === 'security' ? { userId: auth.id } : {}),
+          status: 'in_progress',
+        },
+        include: {
+          sessionFloors: {
+            include: { floor: { include: { qrCode: true } } }
+          }
+        },
+        orderBy: { startedAt: 'desc' }
+      }) || await prisma.patrolSession.findFirst({
+        where: {
+          ...(auth.role === 'security' ? { userId: auth.id } : {}),
+        },
+        include: {
+          sessionFloors: {
+            include: { floor: { include: { qrCode: true } } }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (activeSession) {
+        sessionFloor = activeSession.sessionFloors.find(
+          sf => sf.floor.code.toUpperCase() === normalizedCode ||
+                sf.floorCodeSnapshot?.toUpperCase() === normalizedCode ||
+                sf.floorId === sessionFloorId ||
+                sf.id === sessionFloorId
+        ) || null;
+      }
+    }
 
     if (!sessionFloor) return NextResponse.json({ error: 'Session floor tidak ditemukan' }, { status: 404 });
 

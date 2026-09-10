@@ -6,7 +6,9 @@ import { rooms as mockRooms } from '@/lib/dummy-data';
 // POST /api/patrol/checks - Submit a room check
 export async function POST(request: NextRequest) {
   const auth = await getAuthUser();
-  if (!auth || auth.role !== 'security') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!auth || (auth.role !== 'security' && auth.role !== 'admin')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   try {
     const body = await request.json();
@@ -133,7 +135,7 @@ export async function POST(request: NextRequest) {
       if (!sessionFloor) {
         return NextResponse.json({ error: 'Session floor tidak ditemukan' }, { status: 404 });
       }
-      if (sessionFloor.session.userId !== auth.id) {
+      if (sessionFloor.session.userId !== auth.id && auth.role !== 'admin') {
         return NextResponse.json({ error: 'Anda tidak memiliki akses ke sesi ini' }, { status: 403 });
       }
     }

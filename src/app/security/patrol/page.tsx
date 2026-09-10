@@ -192,6 +192,26 @@ export default function PatrolPage() {
         </div>
       </div>
 
+      {/* Completed Patrol Summary Banner */}
+      {(overallProgress === 100 || floorProgress.every((f: any) => f.status === 'completed' || f.percent === 100)) && (
+        <div className="card animate-scale-in" style={{ marginTop: '1rem', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', padding: '16px', borderRadius: '12px', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.9, fontWeight: 700 }}>🎉 Patroli Lengkap</span>
+              <h3 style={{ margin: '2px 0 0 0', fontSize: '15px', color: '#fff', fontWeight: 800 }}>Semua Lantai Berhasil Diperiksa!</h3>
+            </div>
+            <Link
+              href="/security/patrol/summary"
+              className="btn"
+              style={{ background: '#fff', color: '#059669', fontWeight: 700, padding: '8px 16px', borderRadius: '8px', fontSize: '13px', textDecoration: 'none' }}
+              id="btn-view-summary"
+            >
+              Lihat Ringkasan →
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Floor Timeline */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
         <h3 className="section-title" style={{ margin: 0, fontSize: '16px' }}>Rute Patroli</h3>
@@ -214,7 +234,7 @@ export default function PatrolPage() {
         {floorProgress.map((fp: any, index: number) => (
           <Link
             key={fp.id}
-            href={`/security/patrol/floor/${fp.floorId}`}
+            href={`/security/patrol/floor/${fp.floor.id}`}
             className={`${styles.timelineItem} animate-slide-up stagger-${index + 1}`}
             id={`patrol-floor-${fp.floor.code}`}
           >

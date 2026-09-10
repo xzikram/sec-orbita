@@ -325,17 +325,51 @@ export const patrolSchedules: PatrolSchedule[] = [
   { id: 'sched-8', name: 'Patroli 8', patrolNumber: 8, startTime: '04:00', endTime: '07:00' },
 ];
 
-// Helper
-export function getRoomsByFloor(floorId: string): Room[] {
-  return rooms.filter(r => r.floorId === floorId).sort((a, b) => a.patrolOrder - b.patrolOrder);
+// Helper functions
+export function getFloorById(floorId: string): Floor | undefined {
+  if (!floorId) return undefined;
+  const cleanId = String(floorId).trim().toLowerCase();
+
+  // 1. Direct match on id
+  const byId = floors.find(f => f.id.toLowerCase() === cleanId);
+  if (byId) return byId;
+
+  // 2. Match by code (e.g. 'SB', 'L1', 'P2')
+  const byCode = floors.find(f => f.code.toLowerCase() === cleanId);
+  if (byCode) return byCode;
+
+  // 3. Match prefixed or stripped 'floor-'
+  if (cleanId.startsWith('floor-')) {
+    const codePart = cleanId.replace('floor-', '');
+    const byCodePart = floors.find(f => f.code.toLowerCase() === codePart || f.id.toLowerCase() === cleanId);
+    if (byCodePart) return byCodePart;
+  } else {
+    const withFloorPrefix = `floor-${cleanId}`;
+    const byPrefix = floors.find(f => f.id.toLowerCase() === withFloorPrefix || f.code.toLowerCase() === cleanId);
+    if (byPrefix) return byPrefix;
+  }
+
+  // 4. Match numerical floor (e.g. '1' -> 'floor-1' / 'L1')
+  const byNum = floors.find(f => f.code.toLowerCase() === `l${cleanId}`);
+  if (byNum) return byNum;
+
+  return undefined;
 }
 
-export function getFloorById(floorId: string): Floor | undefined {
-  return floors.find(f => f.id === floorId);
+export function getRoomsByFloor(floorId: string): Room[] {
+  const floor = getFloorById(floorId);
+  const targetId = floor ? floor.id : floorId;
+  return rooms.filter(r => r.floorId === targetId || (floor && r.floorId === floor.id)).sort((a, b) => a.patrolOrder - b.patrolOrder);
 }
 
 export function getRoomById(roomId: string): Room | undefined {
-  return rooms.find(r => r.id === roomId);
+  if (!roomId) return undefined;
+  const cleanId = String(roomId).trim().toLowerCase();
+  return rooms.find(r => 
+    r.id.toLowerCase() === cleanId || 
+    r.code.toLowerCase() === cleanId ||
+    r.code.replace('-', '').toLowerCase() === cleanId.replace('-', '').toLowerCase()
+  );
 }
 
 export function getCurrentSchedule(): PatrolSchedule {

@@ -7,6 +7,7 @@ import { Room } from '@/lib/dummy-data';
 import {
   floors,
   getRoomsByFloor,
+  getFloorById,
 } from '@/lib/dummy-data';
 import { submitRoomCheck } from '@/lib/data-client';
 import QuickCheckCard from './QuickCheckCard';
@@ -20,17 +21,20 @@ export default function FloorDetailPage({
   const { id } = use(params);
   const router = useRouter();
 
-  const floor = floors.find(f => f.id === id);
+  const [session, setSession] = useState<any>(null);
   const [floorRooms, setFloorRooms] = useState<Room[]>([]);
   const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isQuickMode, setIsQuickMode] = useState(false);
-  const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const floor = getFloorById(id) || 
+    (session?.sessionFloors?.find((sf: any) => sf.floorId === id || sf.id === id)
+      ? getFloorById(session.sessionFloors.find((sf: any) => sf.floorId === id || sf.id === id).floorCodeSnapshot)
+      : undefined);
+
   useEffect(() => {
-    const defaultRooms = getRoomsByFloor(id);
     async function loadData() {
       try {
         const [meRes, sessionsRes] = await Promise.all([
@@ -55,6 +59,31 @@ export default function FloorDetailPage({
           }
         }
 
+        let activeSess: any = null;
+        if (sessionsRes && sessionsRes.ok) {
+          const sessions = await sessionsRes.json();
+          activeSess = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+          setSession(activeSess);
+          if (activeSess) {
+            try { localStorage.setItem('cached-active-session', JSON.stringify(activeSess)); } catch {}
+          }
+        } else {
+          const cachedSess = localStorage.getItem('cached-active-session');
+          if (cachedSess) {
+            try {
+              activeSess = JSON.parse(cachedSess);
+              setSession(activeSess);
+            } catch {}
+          }
+        }
+
+        const resolvedFloor = getFloorById(id) || 
+          (activeSess?.sessionFloors?.find((sf: any) => sf.floorId === id || sf.id === id)
+            ? getFloorById(activeSess.sessionFloors.find((sf: any) => sf.floorId === id || sf.id === id).floorCodeSnapshot)
+            : undefined);
+
+        const defaultRooms = getRoomsByFloor(resolvedFloor ? resolvedFloor.id : id);
+
         const savedOrder = localStorage.getItem(`patrol-order-${empId}-${id}`);
         if (savedOrder) {
           try {
@@ -73,20 +102,6 @@ export default function FloorDetailPage({
           }
         } else {
           setFloorRooms(defaultRooms);
-        }
-
-        if (sessionsRes && sessionsRes.ok) {
-          const sessions = await sessionsRes.json();
-          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
-          setSession(active);
-          if (active) {
-            try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
-          }
-        } else {
-          const cachedSess = localStorage.getItem('cached-active-session');
-          if (cachedSess) {
-            try { setSession(JSON.parse(cachedSess)); } catch {}
-          }
         }
 
         // Get offline checks
@@ -110,16 +125,25 @@ export default function FloorDetailPage({
     loadData();
   }, [id]);
 
-  if (!floor) {
-    return <div className="page-content"><p>Lantai tidak ditemukan</p></div>;
-  }
-
   if (loading) {
     return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat progress lantai...</p></div>;
   }
 
+  if (!floor) {
+    return (
+      <div className="page-content" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>Lantai tidak ditemukan</p>
+        <button className="btn btn-outline btn-sm" onClick={() => router.push('/security/patrol')}>
+          Kembali ke Rute Patroli
+        </button>
+      </div>
+    );
+  }
+
   const currentSession = session || { sessionFloors: [] };
-  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => sf.floorCodeSnapshot === floor.code);
+  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => 
+    (floor && sf.floorCodeSnapshot === floor.code) || sf.floorId === id || sf.id === id
+  );
   
   // Combine online (DB) checks and offline checks for this floor by code snapshot
   const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
@@ -424,8 +448,21 @@ export default function FloorDetailPage({
         </>
       )}
 
-      {/* QR Scan CTA (only if all rooms checked) */}
-      {percent === 100 && (
+      {/* QR Validated or Scan CTA */}
+      {(sessionFloor?.qrValidated || sessionFloor?.status === 'completed') ? (
+        <div className="card animate-scale-in" style={{ marginTop: '1.5rem', background: 'var(--color-success-50)', border: '1px solid var(--color-success-200)', textAlign: 'center', padding: '1.5rem 1.25rem', borderRadius: '12px' }}>
+          <div style={{ color: 'var(--color-success-700)', fontWeight: 800, fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '50%', background: 'var(--color-success-600)', color: '#fff', fontSize: '15px' }}>✓</span>
+            Lantai Selesai & Tervalidasi QR
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--color-neutral-600)', margin: '0 0 14px' }}>
+            Seluruh titik pemeriksaan di {floor.name} telah dicek dan validasi QR fisik berhasil.
+          </p>
+          <Link href="/security/patrol" className="btn btn-outline btn-sm" style={{ fontWeight: 600 }}>
+            Kembali ke Rute Patroli →
+          </Link>
+        </div>
+      ) : percent === 100 ? (
         <div className={`${styles.qrCta} animate-scale-in`} style={{ marginTop: '1.5rem' }}>
           <div className={styles.qrCtaContent}>
             <div className={styles.qrCtaIcon}>
@@ -441,7 +478,7 @@ export default function FloorDetailPage({
               Menuju titik validasi QR untuk menyelesaikan lantai ini
             </p>
             <Link
-              href={`/security/patrol/floor/${id}/qr-scan`}
+              href={`/security/patrol/floor/${floor.id}/qr-scan`}
               className="btn btn-success btn-xl"
               id="btn-scan-qr"
             >
@@ -455,7 +492,7 @@ export default function FloorDetailPage({
             </Link>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

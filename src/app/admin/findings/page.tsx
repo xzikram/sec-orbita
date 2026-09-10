@@ -29,16 +29,12 @@ export default function AdminFindingsPage() {
             status: f.status,
           }));
 
-          if (dbList.length > 0) {
-            setFindingsList(dbList);
-          } else {
-            setFindingsList(mockFindings);
-          }
+          setFindingsList(dbList);
         } else {
-          setFindingsList(mockFindings);
+          setFindingsList([]);
         }
       } catch {
-        setFindingsList(mockFindings);
+        setFindingsList([]);
       } finally {
         setLoading(false);
       }

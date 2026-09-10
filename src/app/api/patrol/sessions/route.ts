@@ -55,7 +55,9 @@ export async function GET(request: NextRequest) {
 // POST /api/patrol/sessions - Start a new patrol session
 export async function POST(request: NextRequest) {
   const auth = await getAuthUser();
-  if (!auth || auth.role !== 'security') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!auth || (auth.role !== 'security' && auth.role !== 'admin')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   try {
     const body = await request.json();

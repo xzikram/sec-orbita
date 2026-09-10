@@ -13,11 +13,15 @@ export default function QRScanPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const floor = getFloorById(id);
+
+  const [session, setSession] = useState<any>(null);
+  const floor = getFloorById(id) || 
+    (session?.sessionFloors?.find((sf: any) => sf.floorId === id || sf.id === id)
+      ? getFloorById(session.sessionFloors.find((sf: any) => sf.floorId === id || sf.id === id).floorCodeSnapshot)
+      : undefined);
 
   const [scanState, setScanState] = useState<'scanning' | 'success' | 'error'>('scanning');
   const [errorMsg, setErrorMsg] = useState('Titik validasi tidak sesuai dengan lantai yang sedang diperiksa.');
-  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
   const [showManualInput, setShowManualInput] = useState(false);
@@ -67,7 +71,9 @@ export default function QRScanPage({
   }, []);
 
   const currentSession = session || { sessionFloors: [] };
-  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => sf.floorCodeSnapshot === floor?.code);
+  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => 
+    (floor && sf.floorCodeSnapshot === floor.code) || sf.id === id || sf.floorId === id
+  );
 
   if (loading) {
     return (
@@ -85,17 +91,13 @@ export default function QRScanPage({
     }
 
     try {
-      if (!sessionFloor) {
-        setScanState('error');
-        setErrorMsg('Sesi patroli lantai tidak aktif atau belum dimulai.');
-        return;
-      }
+      const sfId = sessionFloor?.id || (floor ? `sf-${floor.code.toLowerCase()}` : id);
 
       const res = await fetch('/api/patrol/qr-validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionFloorId: sessionFloor.id,
+          sessionFloorId: sfId,
           qrToken: scannedText.trim(),
         }),
       });
@@ -116,8 +118,17 @@ export default function QRScanPage({
 
         setScanState('success');
         try { localStorage.removeItem('lastPatrolState'); } catch {}
+
+        // Check if all floors are completed
+        const otherFloors = currentSession.sessionFloors?.filter((sf: any) => sf.id !== (sessionFloor?.id || sfId)) || [];
+        const isAllDone = otherFloors.length > 0 && otherFloors.every((sf: any) => sf.status === 'completed' || sf.qrValidated);
+
         setTimeout(() => {
-          router.push('/security/patrol');
+          if (isAllDone) {
+            router.push('/security/patrol/summary');
+          } else {
+            router.push('/security/patrol');
+          }
         }, 2200);
       } else {
         setScanState('error');
