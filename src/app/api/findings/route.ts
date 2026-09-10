@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (isCheckDummy) {
+    if (!realCheckId || isCheckDummy) {
       const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
       const patrolDate = new Date(todayStr);
 
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
         },
         orderBy: { checkedAt: 'desc' }
       });
-      realCheckId = recentCheck ? recentCheck.id : null;
+      if (recentCheck) realCheckId = recentCheck.id;
     }
 
     if (isSessionDummy || !realSessionId || realSessionId.startsWith('session-')) {

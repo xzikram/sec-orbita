@@ -58,7 +58,16 @@ export async function GET(request: NextRequest) {
       },
       include: {
         user: { select: { name: true } },
-        room: { select: { name: true, code: true } }
+        room: { select: { name: true, code: true } },
+        check: {
+          include: {
+            photos: {
+              select: {
+                filePath: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'asc' }
     });
@@ -117,7 +126,8 @@ export async function GET(request: NextRequest) {
         description: f.description,
         status: f.status,
         officer: f.user?.name || 'Petugas',
-        date: f.createdAt.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+        date: f.createdAt.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        photoUrl: f.check?.photos?.[0]?.filePath || null,
       }))
     });
   } catch (error) {

@@ -33,6 +33,7 @@ interface FindingItem {
   status: string;
   officer: string;
   date: string;
+  photoUrl?: string | null;
 }
 
 interface ReportSummary {
@@ -575,10 +576,37 @@ export default function ReportsPage() {
               <div className={styles.findingsList}>
                 {findings.map(f => (
                   <div key={f.id} className={styles.findingRow}>
-                    <div>
-                      <span style={{ fontWeight: 700, color: '#1e293b' }}>{f.room} ({f.floor})</span>
-                      <span style={{ margin: '0 8px', color: '#cbd5e1' }}>•</span>
-                      <span style={{ color: '#475569' }}>{f.description}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      {f.photoUrl && (
+                        <button
+                          type="button"
+                          className={styles.photoThumbBtn}
+                          onClick={() => setSelectedPhoto({
+                            url: f.photoUrl!,
+                            room: f.room,
+                            code: f.number,
+                            floor: f.floor,
+                            time: f.date
+                          })}
+                          title="Klik untuk melihat foto bukti temuan"
+                          style={{ marginRight: '4px' }}
+                        >
+                          <img
+                            src={f.photoUrl}
+                            alt={f.room}
+                            className={styles.photoThumbImg}
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                          <span>📷 Foto</span>
+                        </button>
+                      )}
+                      <div>
+                        <span style={{ fontWeight: 700, color: '#1e293b' }}>{f.room} ({f.floor})</span>
+                        <span style={{ margin: '0 8px', color: '#cbd5e1' }}>•</span>
+                        <span style={{ color: '#475569' }}>{f.description}</span>
+                      </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span className={`badge ${f.status === 'new' ? 'badge-danger' : f.status === 'in_progress' ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '11px' }}>

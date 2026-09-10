@@ -340,7 +340,7 @@ export default function RoomCheckPage({
     // If there is a finding, submit it as well
     if (condition === 'finding' && findingCategory && findingDescription) {
       await submitFinding({
-        checkId: undefined, // Will link on backend/during sync
+        checkId: result.checkId || undefined,
         sessionId: sessionFloor?.sessionId || 'session-dummy',
         floorId: room.floorId,
         roomId: room.id,

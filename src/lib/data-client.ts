@@ -24,18 +24,19 @@ export interface FindingPayload {
 }
 
 // Unified client to route check submissions to API (online) or IndexedDB (offline)
-export async function submitRoomCheck(payload: RoomCheckPayload): Promise<{ success: boolean; mode: 'online' | 'offline'; error?: string }> {
+export async function submitRoomCheck(payload: RoomCheckPayload): Promise<{ success: boolean; mode: 'online' | 'offline'; error?: string; checkId?: string }> {
   const isOnline = typeof window !== 'undefined' && navigator.onLine;
 
   if (!isOnline) {
     // Save to IndexedDB
     try {
+      const offlineId = `check-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       await saveOfflineCheck({
-        id: `check-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        id: offlineId,
         ...payload,
         checkedAt: new Date().toISOString(),
       });
-      return { success: true, mode: 'offline' };
+      return { success: true, mode: 'offline', checkId: offlineId };
     } catch (err) {
       return { success: false, mode: 'offline', error: err instanceof Error ? err.message : 'Gagal menyimpan lokal' };
     }
@@ -50,7 +51,8 @@ export async function submitRoomCheck(payload: RoomCheckPayload): Promise<{ succ
     });
 
     if (res.ok) {
-      return { success: true, mode: 'online' };
+      const data = await res.json().catch(() => null);
+      return { success: true, mode: 'online', checkId: data?.id };
     }
 
     const data = await res.json();
