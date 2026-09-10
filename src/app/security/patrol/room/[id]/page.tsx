@@ -32,7 +32,10 @@ export default function RoomCheckPage({
   const [isCapturing, setIsCapturing] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [acStatus, setAcStatus] = useState<ACStatus | null>(null);
+  const [acStatus, setAcStatus] = useState<ACStatus | null>(() => {
+    const initialRoom = getRoomById(id);
+    return initialRoom && !initialRoom.hasAc ? 'not_available' : null;
+  });
   const [lightStatus, setLightStatus] = useState<LightStatus | null>(null);
   const [condition, setCondition] = useState<'normal' | 'finding' | null>(null);
   const [remarks, setRemarks] = useState('');
@@ -78,6 +81,9 @@ export default function RoomCheckPage({
           resolvedRoom = getRoomById(id);
           if (resolvedRoom) {
             setRoom(resolvedRoom);
+            if (!resolvedRoom.hasAc) {
+              setAcStatus('not_available');
+            }
           } else {
             // Try fetching from rooms API by id or code
             try {
@@ -101,6 +107,9 @@ export default function RoomCheckPage({
                   };
                   setRoom(mapped);
                   resolvedRoom = mapped;
+                  if (!mapped.hasAc) {
+                    setAcStatus('not_available');
+                  }
                 }
               }
             } catch (err) {
@@ -448,285 +457,297 @@ export default function RoomCheckPage({
   }
 
   return (
-    <div className="page-content" style={{ paddingBottom: '8px' }}>
-      {/* Compact Header */}
-      <div className={styles.header}>
-        <div className={styles.headerLeft}>
-          <button
-            className="btn btn-ghost btn-icon"
-            onClick={() => router.push(`/security/patrol/floor/${room.floorId}`)}
-            aria-label="Kembali"
-            style={{ width: '32px', height: '32px', padding: 0 }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          <div className={styles.headerInfo}>
-            <div className={styles.roomTitleRow}>
-              <h1 className={styles.roomName}>{room.name}</h1>
-              <span className={styles.roomCodeBadge}>{room.code}</span>
-            </div>
-            <span className={styles.headerFloor}>{floor?.name}</span>
-          </div>
-        </div>
-        <span className={styles.stepBadge}>
-          {checked + 1}/{floorRooms.length}
-        </span>
-      </div>
-
-      {/* Slim progress bar */}
-      <div className={styles.progressBar}>
-        <div
-          className={styles.progressFill}
-          style={{ width: `${floorRooms.length > 0 ? Math.round(((checked + 1) / floorRooms.length) * 100) : 0}%` }}
-        />
-      </div>
-
-      {/* Compact Photo Card */}
-      <div className={styles.compactPhotoCard}>
-        <div
-          className={`${styles.photoThumb} ${photo ? styles.hasPhoto : ''}`}
-          onClick={() => setIsCapturing(true)}
-          title="Ambil Foto"
-        >
-          {photo ? (
-            <img src={photo} alt="Foto" />
-          ) : (
-            <>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
+    <div className="page-content" style={{ paddingBottom: '32px' }}>
+      <div className={styles.inspectionContainer}>
+        {/* Header */}
+        <div className={styles.header}>
+          <div className={styles.headerLeft}>
+            <button
+              className={styles.backBtn}
+              onClick={() => router.push(`/security/patrol/floor/${room.floorId}`)}
+              aria-label="Kembali"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="15 18 9 12 15 6" />
               </svg>
-              <span style={{ fontSize: '9px', fontWeight: 'bold' }}>FOTO</span>
-            </>
-          )}
-        </div>
-        <div className={styles.photoGuideBox}>
-          <div className={styles.photoGuideTitle}>FOTO BUKTI PEMERIKSAAN</div>
-          <p className={styles.photoGuideText}>{room.photoGuide}</p>
-          {photo ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--color-success-600)', fontWeight: 'bold' }}>
-                ✓ Foto Tersimpan
-              </span>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => setIsCapturing(true)}
-                style={{ padding: '0 6px', height: '22px', minHeight: 'auto', fontSize: '11px' }}
-              >
-                Ulang Foto
-              </button>
+            </button>
+            <div className={styles.headerInfo}>
+              <div className={styles.roomTitleRow}>
+                <h1 className={styles.roomName}>{room.name}</h1>
+                <span className={styles.roomCodeBadge}>{room.code}</span>
+              </div>
+              <span className={styles.headerFloor}>{floor?.name}</span>
             </div>
-          ) : (
-            <span style={{ fontSize: '11px', color: 'var(--color-danger-600)', fontWeight: '600' }}>
-              * Wajib ambil foto ruangan
-            </span>
-          )}
-        </div>
-      </div>
-
-      {isCapturing && (
-        <CameraCapture
-          onCapture={(file, preview) => {
-            setPhoto(preview);
-            setPhotoFile(file);
-            setIsCapturing(false);
-          }}
-          onCancel={() => setIsCapturing(false)}
-          roomName={room.name}
-          officerName="Petugas Security"
-        />
-      )}
-
-      {/* 2-Column Utilities Grid (AC & Lampu side-by-side) */}
-      <div className={styles.utilitiesGrid}>
-        <div className={styles.utilityCard}>
-          <div className={styles.utilityLabel}>
-            <span>Kondisi AC</span>
-            {!room.hasAc && <span style={{ opacity: 0.6 }}>(TIDAK ADA)</span>}
           </div>
-          <div className={styles.btnGroupCompact}>
-            <button
-              type="button"
-              className={`${styles.btnCompact} ${acStatus === 'on' ? styles.activeOn : ''}`}
-              onClick={() => setAcStatus('on')}
-            >
-              ON
-            </button>
-            <button
-              type="button"
-              className={`${styles.btnCompact} ${acStatus === 'off' ? styles.activeOff : ''}`}
-              onClick={() => setAcStatus('off')}
-            >
-              OFF
-            </button>
-            {!room.hasAc && (
-              <button
-                type="button"
-                className={`${styles.btnCompact} ${acStatus === 'not_available' ? styles.activeNA : ''}`}
-                onClick={() => setAcStatus('not_available')}
-              >
-                N/A
-              </button>
-            )}
-          </div>
+          <span className={styles.stepBadge}>
+            {checked + 1}/{floorRooms.length}
+          </span>
         </div>
 
-        <div className={styles.utilityCard}>
-          <div className={styles.utilityLabel}>
-            <span>Kondisi Lampu</span>
-            {!room.hasLight && <span style={{ opacity: 0.6 }}>(TIDAK ADA)</span>}
-          </div>
-          <div className={styles.btnGroupCompact}>
-            <button
-              type="button"
-              className={`${styles.btnCompact} ${lightStatus === 'on' ? styles.activeOn : ''}`}
-              onClick={() => setLightStatus('on')}
+        {/* Slim progress bar */}
+        <div className={styles.progressBar}>
+          <div
+            className={styles.progressFill}
+            style={{ width: `${floorRooms.length > 0 ? Math.round(((checked + 1) / floorRooms.length) * 100) : 0}%` }}
+          />
+        </div>
+
+        {/* Modern Photo Card */}
+        <div className={styles.photoCard}>
+          <div className={styles.photoCardContent}>
+            <div
+              className={`${styles.photoTrigger} ${photo ? styles.hasPhoto : ''}`}
+              onClick={() => setIsCapturing(true)}
+              title="Ambil Foto"
+              role="button"
             >
-              ON
-            </button>
-            <button
-              type="button"
-              className={`${styles.btnCompact} ${lightStatus === 'off' ? styles.activeOff : ''}`}
-              onClick={() => setLightStatus('off')}
-            >
-              OFF
-            </button>
-            {!room.hasLight && (
-              <button
-                type="button"
-                className={`${styles.btnCompact} ${lightStatus === 'not_available' ? styles.activeNA : ''}`}
-                onClick={() => setLightStatus('not_available')}
-              >
-                N/A
-              </button>
-            )}
+              {photo ? (
+                <img src={photo} alt="Foto Bukti" />
+              ) : (
+                <>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                  <span style={{ fontSize: '10px', fontWeight: '800' }}>FOTO</span>
+                </>
+              )}
+            </div>
+            <div className={styles.photoGuideBox}>
+              <div className={styles.photoGuideTitle}>Foto Bukti Pemeriksaan</div>
+              <p className={styles.photoGuideText}>{room.photoGuide || `Foto area ${room.name}`}</p>
+              <div className={styles.photoActionRow}>
+                {photo ? (
+                  <>
+                    <span className={styles.photoStatusBadge}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Foto Tersimpan
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.photoRetakeBtn}
+                      onClick={() => setIsCapturing(true)}
+                    >
+                      Ulang Foto
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.photoRequiredBadge}
+                    onClick={() => setIsCapturing(true)}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    Wajib Ambil Foto
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Condition Card */}
-      <div className={styles.conditionCard}>
-        <div className={styles.conditionLabel}>STATUS KEAMANAN & FASILITAS</div>
-        <div className={styles.conditionToggle}>
-          <button
-            type="button"
-            className={`${styles.conditionBtn} ${condition === 'normal' ? styles.activeNormal : ''}`}
-            onClick={() => {
-              setCondition('normal');
-              setFindingCategory(null);
-              setFindingDescription('');
+        {isCapturing && (
+          <CameraCapture
+            onCapture={(file, preview) => {
+              setPhoto(preview);
+              setPhotoFile(file);
+              setIsCapturing(false);
             }}
-          >
-            ✓ AMAN / NORMAL
-          </button>
-          <button
-            type="button"
-            className={`${styles.conditionBtn} ${condition === 'finding' ? styles.activeFinding : ''}`}
-            onClick={() => setCondition('finding')}
-          >
-            ⚠️ ADA TEMUAN
-          </button>
-        </div>
+            onCancel={() => setIsCapturing(false)}
+            roomName={room.name}
+            officerName="Petugas Security"
+          />
+        )}
 
-        {/* Optional remarks for normal */}
-        {condition === 'normal' && (
-          <div className={styles.remarksBox}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <span style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--text-muted)' }}>CATATAN (OPSIONAL)</span>
+        {/* 2-Column Utilities Grid (AC & Lampu side-by-side) */}
+        <div className={styles.utilitiesGrid}>
+          <div className={styles.utilityCard}>
+            <div className={styles.utilityLabel}>
+              <span>❄️ AC</span>
+              {!room.hasAc && <span className={styles.noAcBadge}>TIDAK ADA</span>}
+            </div>
+            {!room.hasAc ? (
+              <div className={styles.noAcNotice}>
+                <span>Area ini tanpa AC</span>
+              </div>
+            ) : (
+              <div className={styles.btnGroupCompact}>
+                <button
+                  type="button"
+                  className={`${styles.btnCompact} ${acStatus === 'on' ? styles.activeOn : ''}`}
+                  onClick={() => setAcStatus('on')}
+                >
+                  ON
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.btnCompact} ${acStatus === 'off' ? styles.activeOff : ''}`}
+                  onClick={() => setAcStatus('off')}
+                >
+                  OFF
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className={styles.utilityCard}>
+            <div className={styles.utilityLabel}>
+              <span>💡 Lampu</span>
+              {!room.hasLight && <span className={styles.noAcBadge}>TIDAK ADA</span>}
+            </div>
+            <div className={styles.btnGroupCompact}>
               <button
                 type="button"
-                onClick={() => toggleSpeechRecognition('remarks')}
-                className={`btn btn-sm ${isRecordingRemarks ? 'btn-danger' : 'btn-ghost'}`}
-                style={{ height: '22px', padding: '0 6px', minHeight: 'auto', fontSize: '10px' }}
-                title={isRecordingRemarks ? 'Klik untuk berhenti merekam' : 'Klik untuk rekam suara'}
+                className={`${styles.btnCompact} ${lightStatus === 'on' ? styles.activeOn : ''}`}
+                onClick={() => setLightStatus('on')}
               >
-                🎙️ {isRecordingRemarks ? 'Berhenti' : 'Suara'}
+                ON
+              </button>
+              <button
+                type="button"
+                className={`${styles.btnCompact} ${lightStatus === 'off' ? styles.activeOff : ''}`}
+                onClick={() => setLightStatus('off')}
+              >
+                OFF
               </button>
             </div>
-            {speechError && <p style={{ fontSize: '10px', color: 'var(--color-danger-500)', margin: '0 0 4px' }}>{speechError}</p>}
-            <input
-              className="form-input"
-              style={{ padding: '6px 8px', fontSize: '12px' }}
-              placeholder="Keterangan tambahan jika ada..."
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              id="input-remarks"
+          </div>
+        </div>
+
+        {/* Condition Card */}
+        <div className={styles.conditionCard}>
+          <div className={styles.conditionLabel}>🛡️ Status Keamanan & Fasilitas</div>
+          <div className={styles.conditionToggle}>
+            <button
+              type="button"
+              className={`${styles.conditionBtn} ${condition === 'normal' ? styles.activeNormal : ''}`}
+              onClick={() => {
+                setCondition('normal');
+                setFindingCategory(null);
+                setFindingDescription('');
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              AMAN / NORMAL
+            </button>
+            <button
+              type="button"
+              className={`${styles.conditionBtn} ${condition === 'finding' ? styles.activeFinding : ''}`}
+              onClick={() => setCondition('finding')}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              ADA TEMUAN
+            </button>
+          </div>
+
+          {/* Optional remarks for normal */}
+          {condition === 'normal' && (
+            <div className={styles.remarksBox}>
+              <div className={styles.remarksHeader}>
+                <span className={styles.remarksLabel}>Catatan Tambahan (Opsional)</span>
+                <button
+                  type="button"
+                  onClick={() => toggleSpeechRecognition('remarks')}
+                  className={`${styles.voiceBtn} ${isRecordingRemarks ? styles.voiceBtnActive : styles.voiceBtnNormal}`}
+                  title={isRecordingRemarks ? 'Klik untuk berhenti merekam' : 'Klik untuk rekam suara'}
+                >
+                  🎙️ {isRecordingRemarks ? 'Berhenti' : 'Suara'}
+                </button>
+              </div>
+              {speechError && <p style={{ fontSize: '11px', color: 'var(--color-danger-600)', margin: '0 0 6px' }}>{speechError}</p>}
+              <input
+                className={styles.remarksInput}
+                placeholder="Keterangan tambahan jika ada..."
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                id="input-remarks"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Finding Form */}
+        {condition === 'finding' && (
+          <div className={styles.findingSection}>
+            <div style={{ fontSize: '12px', fontWeight: '800', color: '#b91c1c', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>⚠️</span> KATEGORI TEMUAN *
+            </div>
+            <div className={styles.categoryGrid}>
+              {(Object.entries(findingCategoryLabels) as [FindingCategory, string][]).map(([key, label]) => (
+                <button
+                  key={key}
+                  className={`${styles.categoryBtn} ${findingCategory === key ? styles.categoryActive : ''}`}
+                  onClick={() => setFindingCategory(key)}
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0 6px 0' }}>
+              <span style={{ fontSize: '12px', fontWeight: '800', color: '#b91c1c' }}>DESKRIPSI TEMUAN *</span>
+              <button
+                type="button"
+                onClick={() => toggleSpeechRecognition('finding')}
+                className={`${styles.voiceBtn} ${isRecordingFinding ? styles.voiceBtnActive : styles.voiceBtnNormal}`}
+                title={isRecordingFinding ? 'Klik untuk berhenti merekam' : 'Klik untuk rekam suara'}
+              >
+                🎙️ {isRecordingFinding ? 'Berhenti' : 'Suara'}
+              </button>
+            </div>
+            {speechError && <p style={{ fontSize: '11px', color: 'var(--color-danger-600)', margin: '0 0 6px' }}>{speechError}</p>}
+            <textarea
+              className={styles.findingTextarea}
+              placeholder="Jelaskan detail kondisi temuan yang ditemukan..."
+              value={findingDescription}
+              onChange={(e) => setFindingDescription(e.target.value)}
+              rows={3}
+              id="input-finding-description"
             />
           </div>
         )}
-      </div>
 
-      {/* Finding Form */}
-      {condition === 'finding' && (
-        <div className={styles.findingSection}>
-          <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-danger-700)', marginBottom: '6px' }}>
-            KATEGORI TEMUAN *
-          </div>
-          <div className={styles.categoryGrid}>
-            {(Object.entries(findingCategoryLabels) as [FindingCategory, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                className={`${styles.categoryBtn} ${findingCategory === key ? styles.categoryActive : ''}`}
-                onClick={() => setFindingCategory(key)}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '6px 0 4px 0' }}>
-            <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--color-danger-700)' }}>DESKRIPSI TEMUAN *</span>
-            <button
-              type="button"
-              onClick={() => toggleSpeechRecognition('finding')}
-              className={`btn btn-sm ${isRecordingFinding ? 'btn-danger' : 'btn-outline'}`}
-              style={{ height: '22px', padding: '0 6px', minHeight: 'auto', fontSize: '10px' }}
-              title={isRecordingFinding ? 'Klik untuk berhenti merekam' : 'Klik untuk rekam suara'}
-            >
-              🎙️ {isRecordingFinding ? 'Berhenti' : 'Suara'}
-            </button>
-          </div>
-          {speechError && <p style={{ fontSize: '10px', color: 'var(--color-danger-500)', margin: '0 0 4px' }}>{speechError}</p>}
-          <textarea
-            className="form-input form-textarea"
-            style={{ padding: '6px 8px', fontSize: '12px' }}
-            placeholder="Jelaskan kondisi temuan..."
-            value={findingDescription}
-            onChange={(e) => setFindingDescription(e.target.value)}
-            rows={2}
-            id="input-finding-description"
-          />
+        {/* Submit Button */}
+        <div className={styles.submitSection}>
+          <button
+            className={`${styles.submitBtn} ${!canSubmit() ? styles.btnDisabled : ''}`}
+            onClick={handleSubmit}
+            disabled={!canSubmit()}
+            id="btn-save-next"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            SIMPAN & LANJUT
+          </button>
+          {!canSubmit() && (
+            <div className={styles.submitHint}>
+              <span className={styles.submitHintWarn}>
+                {!photo ? '⚠️ Ambil foto bukti terlebih dahulu' :
+                 (room.hasAc && !acStatus) ? '⚠️ Pilih status AC (ON / OFF)' :
+                 (room.hasLight && !lightStatus) ? '⚠️ Pilih status lampu (ON / OFF)' :
+                 !condition ? '⚠️ Pilih status (Aman / Ada Temuan)' :
+                 (condition === 'finding' && !findingCategory) ? '⚠️ Pilih kategori temuan' :
+                 (condition === 'finding' && !findingDescription.trim()) ? '⚠️ Tulis deskripsi temuan' :
+                 ''}
+              </span>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* Submit Button */}
-      <div className={styles.submitSection}>
-        <button
-          className={`btn btn-primary ${styles.submitBtn} ${!canSubmit() ? styles.btnDisabled : ''}`}
-          onClick={handleSubmit}
-          disabled={!canSubmit()}
-          id="btn-save-next"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-          SIMPAN & LANJUT
-        </button>
-        {!canSubmit() && (
-          <p className={styles.submitHint}>
-            {!photo ? '⚠️ Ambil foto bukti terlebih dahulu' :
-             (room.hasAc && !acStatus) ? 'Pilih status AC' :
-             (room.hasLight && !lightStatus) ? 'Pilih status lampu' :
-             !condition ? 'Pilih status kondisi ruangan' :
-             (condition === 'finding' && !findingCategory) ? 'Pilih kategori temuan' :
-             (condition === 'finding' && !findingDescription.trim()) ? 'Isi deskripsi temuan' :
-             ''}
-          </p>
-        )}
       </div>
     </div>
   );
