@@ -183,6 +183,15 @@ export default function PatrolErrorPage({
               ← Rute Patroli
             </button>
           </div>
+
+          {error?.message && (
+            <details style={{ marginTop: '20px', maxWidth: '340px', textAlign: 'left', fontSize: '11px', color: '#94a3b8' }}>
+              <summary style={{ cursor: 'pointer', textAlign: 'center' }}>Detail Kendala</summary>
+              <pre style={{ marginTop: '8px', padding: '8px', background: '#f8fafc', borderRadius: '6px', overflowX: 'auto', fontSize: '10px', color: '#e11d48', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {error.message}
+              </pre>
+            </details>
+          )}
         </>
       )}
     </div>

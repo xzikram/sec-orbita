@@ -45,6 +45,20 @@ export default function RoomCheckPage({
   const [isRecordingFinding, setIsRecordingFinding] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
 
+  const recognitionRef = useRef<any>(null);
+
+  // Clean up speech recognition on unmount (must be declared before any conditional returns)
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     // Read pre-selected condition if passed via query param (e.g. ?condition=finding)
     if (typeof window !== 'undefined') {
@@ -199,19 +213,6 @@ export default function RoomCheckPage({
   const combinedCheckedSet = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
   const checked = combinedCheckedSet.size;
 
-  const recognitionRef = useRef<any>(null);
-
-  // Clean up speech recognition on unmount
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch {}
-        recognitionRef.current = null;
-      }
-    };
-  }, []);
 
   const toggleSpeechRecognition = (target: 'remarks' | 'finding') => {
     setSpeechError(null);
