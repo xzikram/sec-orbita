@@ -1,6 +1,8 @@
-const CACHE_NAME = 'sec-patrol-v4';
+const CACHE_NAME = 'sec-patrol-v5';
 const STATIC_ASSETS = [
   '/manifest.json',
+  '/offline.html',
+  '/Logo RS JEC ORBITA.png',
   '/apple-touch-icon.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
@@ -42,7 +44,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Static assets (icons, manifest) — cache-first
+  // Static assets (icons, manifest, offline page) — cache-first
   if (STATIC_ASSETS.some(asset => url.pathname === asset)) {
     e.respondWith(
       caches.match(e.request).then((cached) => {
@@ -56,19 +58,27 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // HTML pages — network-first with cache fallback
-  e.respondWith(
-    fetch(e.request)
-      .then((response) => {
-        // Cache a copy for offline use
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
-        return response;
-      })
-      .catch(() => {
-        return caches.match(e.request).then((cached) => {
-          return cached || caches.match('/login');
-        });
-      })
-  );
+  // HTML navigation pages — network-first with cache and offline fallback
+  if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
+    e.respondWith(
+      fetch(e.request)
+        .then((response) => {
+          if (response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(e.request);
+          if (cached) return cached;
+          const offlinePage = await caches.match('/offline.html');
+          if (offlinePage) return offlinePage;
+          return new Response('Server RS Mata JEC ORBITA tidak dapat dijangkau. Pastikan HP terhubung ke Wi-Fi RS.', {
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
+        })
+    );
+    return;
+  }
 });

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Koneksi Terputus — RS Mata JEC ORBITA</title>
+  <link rel="icon" href="/Logo RS JEC ORBITA.png" type="image/png">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: #0A1628;
+      color: #FFFFFF;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      text-align: center;
+    }
+    .card {
+      background: #FFFFFF;
+      color: #0F172A;
+      width: 100%;
+      max-width: 400px;
+      border-radius: 20px;
+      padding: 32px 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+    .icon-wrap {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: #EFF6FF;
+      color: #1565C0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px auto;
+      font-size: 32px;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #0F172A;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #64748B;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .notice-box {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: left;
+      margin-bottom: 24px;
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.6;
+    }
+    .notice-title {
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .notice-item {
+      margin-bottom: 8px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .notice-item:last-child {
+      margin-bottom: 0;
+    }
+    .badge-num {
+      background: #1565C0;
+      color: #FFFFFF;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      background: #1565C0;
+      color: #FFFFFF;
+      border: none;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(21, 101, 192, 0.3);
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:active {
+      transform: scale(0.98);
+      background: #0D47A1;
+    }
+    .footer {
+      margin-top: 20px;
+      font-size: 11px;
+      color: #94A3B8;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-wrap">📶</div>
+    <h1 class="title">Server Tidak Dijangkau</h1>
+    <p class="subtitle">
+      Aplikasi patroli tidak dapat menghubungi server <strong>security-orbita.jec.co.id</strong>.
+    </p>
+
+    <div class="notice-box">
+      <div class="notice-title">
+        <span>💡</span> Petunjuk Penyelesaian:
+      </div>
+      <div class="notice-item">
+        <span class="badge-num">1</span>
+        <div>
+          <strong>Hubungkan ke Wi-Fi RS:</strong> Server ini berada di jaringan lokal (intranet) RS Mata JEC ORBITA. Pastikan Wi-Fi HP Anda aktif dan terhubung ke Wi-Fi rumah sakit.
+        </div>
+      </div>
+      <div class="notice-item">
+        <span class="badge-num">2</span>
+        <div>
+          <strong>Matikan Data Seluler (4G/5G):</strong> Jika HP menggunakan kuota data seluler biasa, domain lokal ini tidak dapat diakses dari internet publik.
+        </div>
+      </div>
+    </div>
+
+    <button class="btn" onclick="window.location.reload()">
+      🔄 Coba Muat Ulang Halaman
+    </button>
+  </div>
+
+  <p class="footer">RS Mata JEC ORBITA — Security Patrol System</p>
+</body>
+</html>
