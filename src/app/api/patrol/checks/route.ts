@@ -194,13 +194,21 @@ export async function POST(request: NextRequest) {
         const base64Data = photoBase64.replace(/^data:image\/\w+;base64,/, '');
         const buffer = Buffer.from(base64Data, 'base64');
         const fileName = `patrol-${check.id}-${Date.now()}.jpg`;
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'patrol');
+        const publicUploadDir = path.join(process.cwd(), 'public', 'uploads', 'patrol');
+        const rootUploadDir = path.join(process.cwd(), 'uploads', 'patrol');
 
-        // Create directory if not exists
-        await fs.mkdir(uploadDir, { recursive: true });
+        // Create directories if they do not exist
+        await fs.mkdir(publicUploadDir, { recursive: true }).catch(() => {});
+        await fs.mkdir(rootUploadDir, { recursive: true }).catch(() => {});
 
-        const filePath = path.join(uploadDir, fileName);
+        // Save to public upload dir
+        const filePath = path.join(publicUploadDir, fileName);
         await fs.writeFile(filePath, buffer);
+
+        // Also save a copy to root uploads dir for nginx direct mapping fallback
+        try {
+          await fs.writeFile(path.join(rootUploadDir, fileName), buffer);
+        } catch {}
 
         // Create PatrolPhoto record
         await prisma.patrolPhoto.create({
