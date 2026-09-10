@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import PwaInstallBanner from "@/components/PwaInstallBanner";
 
 export const metadata: Metadata = {
   title: "Security Patrol Monitoring System — JEC ORBITA",
@@ -9,7 +10,19 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "JEC Security",
+    title: "SecPatrol",
+    startupImage: [
+      "/icons/icon-512.png",
+    ],
+  },
+  icons: {
+    icon: "/icons/icon-192.png",
+    shortcut: "/icons/icon-192.png",
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
   },
 };
 
@@ -30,50 +43,38 @@ export default function RootLayout({
     <html lang="id">
       <head>
         <link rel="icon" href="/Logo RS JEC ORBITA.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="SecPatrol" />
+        <meta name="application-name" content="SecPatrol" />
+        <meta name="format-detection" content="telephone=no" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              (function() {
-                if (typeof window !== 'undefined') {
-                  var CLEAN_KEY = 'sw_cleaned_v3';
-                  if (!localStorage.getItem(CLEAN_KEY)) {
-                    if ('serviceWorker' in navigator) {
-                      navigator.serviceWorker.getRegistrations().then(function(regs) {
-                        var hasRegs = regs && regs.length > 0;
-                        if (hasRegs) {
-                          for (var i = 0; i < regs.length; i++) {
-                            regs[i].unregister();
-                          }
-                          localStorage.setItem(CLEAN_KEY, 'true');
-                          setTimeout(function() {
-                            window.location.reload();
-                          }, 200);
-                        } else {
-                          localStorage.setItem(CLEAN_KEY, 'true');
-                        }
-                      }).catch(function() {
-                        localStorage.setItem(CLEAN_KEY, 'true');
-                      });
-                    } else {
-                      localStorage.setItem(CLEAN_KEY, 'true');
-                    }
-                    if ('caches' in window) {
-                      caches.keys().then(function(keys) {
-                        if (keys) {
-                          keys.forEach(function(key) {
-                            caches.delete(key);
-                          });
-                        }
-                      });
-                    }
-                  }
-                }
-              })();
+              if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(reg) {
+                      console.log('PWA Service Worker registered:', reg.scope);
+                    })
+                    .catch(function(err) {
+                      console.warn('PWA Service Worker registration error:', err);
+                    });
+                });
+              }
             `,
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <PwaInstallBanner />
+      </body>
     </html>
   );
 }

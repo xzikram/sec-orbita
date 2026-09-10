@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import SyncStatus from '@/components/SyncStatus';
-import PwaInstallBanner from '@/components/PwaInstallBanner';
 import ConnectionStatus from '@/components/ConnectionStatus';
 import styles from './security.module.css';
 
@@ -215,7 +214,6 @@ export default function SecurityLayout({
       {/* Page Content */}
       <div className="page-container" style={{ paddingTop: '0px', paddingBottom: '76px' }}>
         <SyncStatus />
-        <PwaInstallBanner />
         {children}
       </div>
 

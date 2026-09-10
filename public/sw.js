@@ -1,6 +1,7 @@
-const CACHE_NAME = 'sec-patrol-v3';
+const CACHE_NAME = 'sec-patrol-v4';
 const STATIC_ASSETS = [
   '/manifest.json',
+  '/apple-touch-icon.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
 ];

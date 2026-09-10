@@ -199,6 +199,33 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* PWA Install Section */}
+      <div className="card animate-slide-up stagger-3" style={{ border: '1px solid var(--color-primary-200)', background: 'var(--color-primary-50)', marginBottom: '1rem' }}>
+        <div className="card-body" style={{ padding: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: 'var(--color-primary-800)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                📲 Pasang Aplikasi di HP
+              </h3>
+              <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--color-primary-700)', lineHeight: '1.4' }}>
+                Pasang di Layar Utama HP Android atau iPhone agar cepat diakses layaknya aplikasi toko aplikasi.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                localStorage.removeItem('pwa_prompt_dismissed_at');
+                window.location.reload();
+              }}
+              style={{ flexShrink: 0, fontWeight: 700 }}
+            >
+              Pasang
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Logout */}
       <div className={`${styles.logoutSection} animate-slide-up stagger-3`}>
         <button
