@@ -260,43 +260,45 @@ export default function QRScanPage({
               setErrorMsg(msg);
             }}
             floorName={floor?.name}
+            hideHeader={true}
           />
         </div>
       </div>
 
       {/* Manual Input Fallback (for damaged/unreadable printed stickers) */}
-      <div style={{ marginTop: '16px', textAlign: 'center' }}>
+      <div style={{ marginTop: '10px', textAlign: 'center' }}>
         {!showManualInput ? (
           <button
             type="button"
             className="btn btn-ghost btn-sm"
             onClick={() => setShowManualInput(true)}
-            style={{ color: 'var(--color-primary-600)', fontSize: '13px' }}
+            style={{ color: 'var(--text-muted)', fontSize: '11px', padding: '4px 8px', height: 'auto' }}
           >
-            Stiker QR rusak/tidak terbaca? Ketik kode manual
+            Stiker QR rusak/sulit terbaca? Ketik kode manual
           </button>
         ) : (
-          <form onSubmit={handleManualSubmit} className="card" style={{ padding: '16px', textAlign: 'left' }}>
-            <label className="form-label" style={{ fontSize: '13px' }}>Kode Token QR Lantai (tertera di bawah stiker)</label>
-            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+          <form onSubmit={handleManualSubmit} className="card" style={{ padding: '12px', textAlign: 'left', maxWidth: '320px', margin: '0 auto' }}>
+            <label className="form-label" style={{ fontSize: '11px', marginBottom: '4px' }}>Kode Token QR Lantai (di bawah stiker)</label>
+            <div style={{ display: 'flex', gap: '6px' }}>
               <input
                 className="form-input"
                 placeholder="Contoh: ORB-L1-QR-..."
                 value={manualToken}
                 onChange={e => setManualToken(e.target.value)}
+                style={{ fontSize: '12px', padding: '6px 8px' }}
                 autoFocus
               />
-              <button className="btn btn-primary" type="submit" disabled={!manualToken.trim() || submittingManual}>
-                {submittingManual ? '...' : 'Verifikasi'}
+              <button className="btn btn-primary btn-sm" type="submit" disabled={!manualToken.trim() || submittingManual}>
+                {submittingManual ? '...' : 'Cek'}
               </button>
             </div>
             <button
               type="button"
-              className="btn btn-ghost btn-sm mt-2"
+              className="btn btn-ghost btn-sm mt-1"
               onClick={() => setShowManualInput(false)}
-              style={{ padding: 0, fontSize: '12px' }}
+              style={{ padding: 0, fontSize: '11px', color: 'var(--text-muted)' }}
             >
-              Kembali ke Kamera
+              Tutup Form Manual
             </button>
           </form>
         )}
