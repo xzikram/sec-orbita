@@ -3,7 +3,7 @@
   "name": "JEC ORBITA Security Patrol",
   "short_name": "SecPatrol",
   "description": "Aplikasi Patroli Security RS Mata JEC ORBITA",
-  "start_url": "/login",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "window-controls-overlay", "minimal-ui"],

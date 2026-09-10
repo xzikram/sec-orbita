@@ -76,7 +76,9 @@ export async function POST(request: NextRequest) {
     };
 
     const token = generateToken(authUser);
-    await setAuthCookie(token);
+    const forwardedProto = request.headers.get('x-forwarded-proto');
+    const isHttps = forwardedProto === 'https' || request.url.startsWith('https:');
+    await setAuthCookie(token, isHttps);
 
     // Log activity
     await prisma.activityLog.create({

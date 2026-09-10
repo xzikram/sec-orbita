@@ -121,11 +121,23 @@ export default function SecurityLayout({
     checkOffline();
     const offlineInterval = setInterval(checkOffline, 30000);
 
+    // Instant user from local cache (offline resilient)
+    const cachedUser = localStorage.getItem('cached-user');
+    if (cachedUser) {
+      try {
+        const parsed = JSON.parse(cachedUser);
+        setCurrentUser(parsed);
+      } catch {}
+    }
+
     fetch('/api/auth/me')
       .then(res => res.json())
       .then(data => {
         if (data.user) {
           setCurrentUser(data.user);
+          try {
+            localStorage.setItem('cached-user', JSON.stringify(data.user));
+          } catch {}
           // Auto dark mode for night shifts (endTime after 22:00 or startTime before 06:00)
           if (!savedTheme && data.user.shift) {
             const endH = parseInt(data.user.shift.endTime?.split(':')[0] || '0');
@@ -138,6 +150,7 @@ export default function SecurityLayout({
         }
       })
       .catch(err => console.error('Error fetching auth user:', err));
+
 
     return () => {
       window.removeEventListener('online', handleOnline);

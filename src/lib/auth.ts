@@ -8,8 +8,10 @@ if (!_jwtSecret) {
   throw new Error('FATAL: JWT_SECRET environment variable is not set. Server cannot start.');
 }
 const JWT_SECRET: string = _jwtSecret;
-const TOKEN_EXPIRY = '30d';
+const TOKEN_EXPIRY = '365d'; // 1 year persistent session
 const COOKIE_NAME = 'patrol-auth-token';
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 365 days in seconds
+
 
 export interface AuthUser {
   id: string;
@@ -85,13 +87,23 @@ export async function getAuthUser(): Promise<AuthUser | null> {
   }
 }
 
-export async function setAuthCookie(token: string) {
+export async function setAuthCookie(token: string, isSecure?: boolean) {
   const cookieStore = await cookies();
+  
+  // Safe secure flag: only use secure if explicitly requested or via HTTPS
+  // Never blindly enable secure on HTTP production hosts (which causes browsers to reject the cookie)
+  let secureFlag = false;
+  if (isSecure !== undefined) {
+    secureFlag = isSecure;
+  } else if (process.env.COOKIE_SECURE === 'true') {
+    secureFlag = true;
+  }
+
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: secureFlag,
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 30, // 30 days
+    maxAge: COOKIE_MAX_AGE, // 365 days
     path: '/',
   });
 }
@@ -99,4 +111,12 @@ export async function setAuthCookie(token: string) {
 export async function clearAuthCookie() {
   const cookieStore = await cookies();
   cookieStore.delete(COOKIE_NAME);
+  // Ensure the browser immediately expires any residual cookie
+  cookieStore.set(COOKIE_NAME, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 0,
+    path: '/',
+  });
 }
+

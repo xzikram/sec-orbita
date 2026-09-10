@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
@@ -24,7 +25,33 @@ export default function LoginPage() {
         setRememberMe(false);
       }
     }
-  }, []);
+
+    // Auto-detect persistent session: If already logged in, redirect directly to dashboard
+    fetch('/api/auth/me')
+      .then(res => {
+        if (res.ok) return res.json();
+        return null;
+      })
+      .then(data => {
+        if (data?.user) {
+          try {
+            localStorage.setItem('cached-user', JSON.stringify(data.user));
+          } catch {}
+          const role = data.user.role;
+          const redirectMap: Record<string, string> = {
+            security: '/security/dashboard',
+            supervisor: '/supervisor/reports',
+            admin: '/admin/dashboard',
+          };
+          router.replace(redirectMap[role] || '/security/dashboard');
+        } else {
+          setCheckingAuth(false);
+        }
+      })
+      .catch(() => {
+        setCheckingAuth(false);
+      });
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +83,13 @@ export default function LoginPage() {
         return;
       }
 
-      // Save/remove employee ID based on remember me
+      // Save user & remember me state
+      if (data.user) {
+        try {
+          localStorage.setItem('cached-user', JSON.stringify(data.user));
+        } catch {}
+      }
+
       if (rememberMe) {
         localStorage.setItem('saved-employee-id', employeeId.trim().toUpperCase());
         localStorage.setItem('saved-remember-me', 'true');
@@ -71,6 +104,37 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="login-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <img 
+            src="/Logo RS JEC ORBITA.png" 
+            alt="Logo RS Mata JEC ORBITA" 
+            style={{ height: '70px', objectFit: 'contain', marginBottom: '16px' }}
+          />
+          <div style={{
+            width: '32px',
+            height: '32px',
+            border: '3px solid var(--color-neutral-200, #e5e7eb)',
+            borderTopColor: 'var(--color-primary-600, #0b6623)',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            margin: '0 auto 12px'
+          }} />
+          <p style={{ fontSize: '13px', color: 'var(--color-neutral-500, #6b7280)', margin: 0 }}>Memeriksa sesi login...</p>
+        </div>
+        <style jsx global>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
 
   return (
     <div className="login-page">

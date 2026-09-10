@@ -91,8 +91,13 @@ export default function ProfilePage() {
     } catch (err) {
       console.error('Logout error:', err);
     }
+    try {
+      localStorage.removeItem('cached-user');
+      localStorage.removeItem('lastPatrolState');
+    } catch {}
     router.push('/login');
   };
+
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();

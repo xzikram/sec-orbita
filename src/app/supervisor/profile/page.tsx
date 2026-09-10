@@ -1,9 +1,23 @@
 'use client';
 
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import styles from './profile.module.css';
 
 export default function SupervisorProfilePage() {
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+    try {
+      localStorage.removeItem('cached-user');
+    } catch {}
+    router.push('/login');
+  };
+
   return (
     <div>
       <h1 className={styles.pageTitle}>Profil Supervisor</h1>
@@ -37,10 +51,11 @@ export default function SupervisorProfilePage() {
 
       <div className={styles.actions}>
         <button className="btn btn-outline">Ubah Password</button>
-        <Link href="/login" className="btn btn-danger">
+        <button onClick={handleLogout} className="btn btn-danger">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
           Keluar
-        </Link>
+        </button>
+
       </div>
     </div>
   );
