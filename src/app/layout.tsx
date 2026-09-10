@@ -59,21 +59,34 @@ export default function RootLayout({
               // Auto-recover from chunk load errors caused by new deployments
               window.addEventListener('error', function(e) {
                 var msg = (e && e.message) || '';
-                if (msg.indexOf('Loading chunk') !== -1 || msg.indexOf('ChunkLoadError') !== -1 || msg.indexOf('Failed to fetch dynamically imported module') !== -1) {
-                  if (!sessionStorage.getItem('chunk_reload_attempted')) {
-                    sessionStorage.setItem('chunk_reload_attempted', 'true');
+                if (msg.indexOf('Loading chunk') !== -1 || msg.indexOf('ChunkLoadError') !== -1 || msg.indexOf('Failed to fetch dynamically imported module') !== -1 || msg.indexOf('error loading dynamically imported module') !== -1) {
+                  var count = parseInt(sessionStorage.getItem('chunk_reload_count') || '0', 10);
+                  if (count < 2) {
+                    sessionStorage.setItem('chunk_reload_count', String(count + 1));
                     window.location.reload();
                   }
                 }
               });
               window.addEventListener('unhandledrejection', function(e) {
                 var reason = (e && e.reason) ? (e.reason.message || String(e.reason)) : '';
-                if (reason.indexOf('Loading chunk') !== -1 || reason.indexOf('ChunkLoadError') !== -1 || reason.indexOf('Failed to fetch dynamically imported module') !== -1) {
-                  if (!sessionStorage.getItem('chunk_reload_attempted')) {
-                    sessionStorage.setItem('chunk_reload_attempted', 'true');
+                if (reason.indexOf('Loading chunk') !== -1 || reason.indexOf('ChunkLoadError') !== -1 || reason.indexOf('Failed to fetch dynamically imported module') !== -1 || reason.indexOf('error loading dynamically imported module') !== -1) {
+                  var count = parseInt(sessionStorage.getItem('chunk_reload_count') || '0', 10);
+                  if (count < 2) {
+                    sessionStorage.setItem('chunk_reload_count', String(count + 1));
                     window.location.reload();
                   }
                 }
+              });
+              // Clear reload counter on successful page load (after 5s stability)
+              window.addEventListener('load', function() {
+                setTimeout(function() {
+                  try {
+                    sessionStorage.removeItem('chunk_reload_count');
+                    sessionStorage.removeItem('chunk_reload_attempted');
+                    sessionStorage.removeItem('patrol_chunk_retry_count');
+                    sessionStorage.removeItem('security_chunk_retry_count');
+                  } catch(e) {}
+                }, 5000);
               });
 
               if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {

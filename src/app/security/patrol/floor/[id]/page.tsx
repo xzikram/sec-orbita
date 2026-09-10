@@ -176,13 +176,18 @@ export default function FloorDetailPage({
   
   // Combine online (DB) checks and offline checks for this floor by code snapshot
   const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
-  const offCheckedRoomCodes = offlineChecks
-    .filter((c: any) => c.sessionFloorId === sessionFloor?.id || c.sessionFloorId === `sf-${floor.code.toLowerCase()}`)
-    .map((c: any) => {
-      // Look up room code in any floor rooms list
-      const r = floors.reduce((found: any, f) => found || getRoomsByFloor(f.id).find(rm => rm.id === c.roomId), null as any);
-      return r ? r.code : c.roomId;
-    });
+  let offCheckedRoomCodes: string[] = [];
+  try {
+    offCheckedRoomCodes = offlineChecks
+      .filter((c: any) => c.sessionFloorId === sessionFloor?.id || (floor?.code && c.sessionFloorId === `sf-${floor.code.toLowerCase()}`))
+      .map((c: any) => {
+        // Look up room code in any floor rooms list
+        const r = floors.reduce((found: any, f) => found || getRoomsByFloor(f.id).find(rm => rm.id === c.roomId), null as any);
+        return r ? r.code : c.roomId;
+      });
+  } catch (e) {
+    console.error('Error processing offline checks:', e);
+  }
   const combinedCheckedSet = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
 
   const checked = combinedCheckedSet.size;
@@ -265,6 +270,17 @@ export default function FloorDetailPage({
         timestamp: new Date().toISOString(),
       };
       localStorage.setItem('lastPatrolState', JSON.stringify(lastPatrolState));
+
+      // Refresh cached session data asynchronously for next page
+      fetch('/api/patrol/sessions').then(res => {
+        if (res.ok) return res.json();
+        return null;
+      }).then(sessions => {
+        if (sessions) {
+          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+          if (active) localStorage.setItem('cached-active-session', JSON.stringify(active));
+        }
+      }).catch(() => {});
 
       // Re-trigger layout render
       setFloorRooms([...floorRooms]);

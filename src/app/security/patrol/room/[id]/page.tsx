@@ -185,12 +185,17 @@ export default function RoomCheckPage({
   
   // Combine online (DB) checks and offline checks for this floor (by code snapshot)
   const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
-  const offCheckedRoomCodes = offlineChecks
-    .filter((c: any) => c.sessionFloorId === sessionFloor?.id || c.sessionFloorId === `sf-${floor?.code.toLowerCase() || 'dummy'}`)
-    .map((c: any) => {
-      const r = getRoomById(c.roomId);
-      return r ? r.code : c.roomId;
-    });
+  let offCheckedRoomCodes: string[] = [];
+  try {
+    offCheckedRoomCodes = offlineChecks
+      .filter((c: any) => c.sessionFloorId === sessionFloor?.id || (floor?.code && c.sessionFloorId === `sf-${floor.code.toLowerCase()}`))
+      .map((c: any) => {
+        const r = getRoomById(c.roomId);
+        return r ? r.code : c.roomId;
+      });
+  } catch (e) {
+    console.error('Error processing offline checks in room page:', e);
+  }
   const combinedCheckedSet = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
   const checked = combinedCheckedSet.size;
 
@@ -366,21 +371,47 @@ export default function RoomCheckPage({
       console.error('Failed to save lastPatrolState:', e);
     }
 
+    // Refresh cached session data so next page has fresh state
+    try {
+      const sessRes = await fetch('/api/patrol/sessions').catch(() => null);
+      if (sessRes && sessRes.ok) {
+        const sessions = await sessRes.json();
+        const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+        if (active) {
+          localStorage.setItem('cached-active-session', JSON.stringify(active));
+        }
+      }
+    } catch {
+      // Non-critical: ignore refresh failure
+    }
+
     setSyncMode(result.mode);
     setShowSuccess(true);
 
+    // Build an up-to-date checked set that includes the current room
+    const updatedCheckedSet = new Set(combinedCheckedSet);
+    updatedCheckedSet.add(room.code);
+
     // Find next unchecked room
     setTimeout(() => {
-      const currentIndex = floorRooms.findIndex(r => r.id === room.id || r.code === room.code);
-      const nextRoom = 
-        (currentIndex !== -1 ? floorRooms.slice(currentIndex + 1).find(r => !combinedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code) : null) ||
-        floorRooms.find(r => !combinedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code);
+      try {
+        const currentIndex = floorRooms.findIndex(r => r.id === room.id || r.code === room.code);
+        const nextRoom = 
+          (currentIndex !== -1 ? floorRooms.slice(currentIndex + 1).find(r => !updatedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code) : null) ||
+          floorRooms.find(r => !updatedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code);
 
-      if (nextRoom) {
-        router.push(`/security/patrol/room/${nextRoom.id}`);
-      } else {
-        // All rooms done, go to floor page for QR scan
-        router.push(`/security/patrol/floor/${floor ? floor.id : room.floorId}`);
+        if (nextRoom) {
+          // Use window.location for reliable navigation that fully re-initializes the page
+          window.location.href = `/security/patrol/room/${nextRoom.id}`;
+        } else {
+          // All rooms done, go to floor page for QR scan — use window.location to avoid stale state
+          const floorTarget = floor ? floor.id : room.floorId;
+          window.location.href = `/security/patrol/floor/${floorTarget}`;
+        }
+      } catch (navErr) {
+        console.error('Navigation error after submit:', navErr);
+        // Fallback: go to patrol route
+        window.location.href = '/security/patrol';
       }
     }, 1500);
   };
@@ -447,7 +478,7 @@ export default function RoomCheckPage({
       <div className={styles.progressBar}>
         <div
           className={styles.progressFill}
-          style={{ width: `${Math.round(((checked + 1) / floorRooms.length) * 100)}%` }}
+          style={{ width: `${floorRooms.length > 0 ? Math.round(((checked + 1) / floorRooms.length) * 100) : 0}%` }}
         />
       </div>
 
