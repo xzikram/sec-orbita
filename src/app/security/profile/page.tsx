@@ -265,6 +265,32 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* Buku Panduan Security PDF */}
+      <div className="card animate-slide-up stagger-3" style={{ border: '1.5px solid #bae6fd', background: '#f0f9ff', marginBottom: '1rem', borderRadius: '14px' }}>
+        <div className="card-body" style={{ padding: '1.15rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                📘 Buku Panduan Security (PDF)
+              </h3>
+              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#0284c7', lineHeight: '1.4' }}>
+                Panduan resmi seluruh fitur patroli 12 lantai, rekam suara, scan barcode & mode offline.
+              </p>
+            </div>
+            <a
+              href="/panduan-security.pdf"
+              download="Panduan-Patroli-Security-JEC-ORBITA.pdf"
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-primary btn-sm"
+              style={{ flexShrink: 0, fontWeight: 700, textDecoration: 'none' }}
+            >
+              📥 Unduh PDF
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* Logout */}
       <div className={`${styles.logoutSection} animate-slide-up stagger-3`}>
         <button

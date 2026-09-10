@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Panduan Penggunaan Aplikasi Patroli Keamanan - RS Mata JEC ORBITA</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    @page {
+      size: A4 portrait;
+      margin: 14mm 14mm 16mm 14mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1e293b;
+      line-height: 1.5;
+      font-size: 11pt;
+      background: #ffffff;
+      margin: 0;
+      padding: 0;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    /* COVER PAGE */
+    .cover-page {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px 0;
+      page-break-after: always;
+    }
+
+    .cover-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 3px solid #0284c7;
+      padding-bottom: 16px;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: #0284c7;
+      color: white;
+      font-weight: 900;
+      font-size: 20pt;
+      padding: 6px 14px;
+      border-radius: 8px;
+      letter-spacing: -1px;
+    }
+
+    .logo-text h1 {
+      font-size: 15pt;
+      margin: 0;
+      color: #0f172a;
+      font-weight: 800;
+    }
+
+    .logo-text p {
+      font-size: 9pt;
+      color: #0284c7;
+      margin: 2px 0 0 0;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .cover-body {
+      margin: 60px 0;
+      text-align: left;
+    }
+
+    .doc-category {
+      display: inline-block;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 10pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+
+    .cover-title {
+      font-size: 26pt;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1.25;
+      margin: 0 0 16px 0;
+    }
+
+    .cover-subtitle {
+      font-size: 12pt;
+      color: #475569;
+      line-height: 1.6;
+      max-width: 600px;
+      margin: 0 0 30px 0;
+    }
+
+    .cover-features-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      max-width: 600px;
+      margin-top: 30px;
+    }
+
+    .feature-pill {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 10pt;
+      font-weight: 600;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cover-footer {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 9pt;
+      color: #64748b;
+    }
+
+    /* GENERAL STYLING */
+    h2 {
+      font-size: 15pt;
+      font-weight: 800;
+      color: #0f172a;
+      border-left: 5px solid #0284c7;
+      padding-left: 12px;
+      margin: 26px 0 14px 0;
+      line-height: 1.3;
+    }
+
+    h3 {
+      font-size: 12pt;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 18px 0 10px 0;
+    }
+
+    p {
+      margin: 0 0 10px 0;
+      color: #334155;
+    }
+
+    ul, ol {
+      margin: 0 0 16px 0;
+      padding-left: 22px;
+    }
+
+    li {
+      margin-bottom: 6px;
+      color: #334155;
+    }
+
+    .info-box {
+      background: #f0f9ff;
+      border-left: 4px solid #0284c7;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 10pt;
+    }
+
+    .info-box strong {
+      color: #0369a1;
+      display: block;
+      margin-bottom: 4px;
+      font-size: 10.5pt;
+    }
+
+    .warning-box {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 10pt;
+    }
+
+    .warning-box strong {
+      color: #b45309;
+      display: block;
+      margin-bottom: 4px;
+      font-size: 10.5pt;
+    }
+
+    .success-box {
+      background: #f0fdf4;
+      border-left: 4px solid #10b981;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 10pt;
+    }
+
+    .success-box strong {
+      color: #15803d;
+      display: block;
+      margin-bottom: 4px;
+      font-size: 10.5pt;
+    }
+
+    /* STEP CARDS */
+    .step-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+
+    .step-num {
+      background: #0284c7;
+      color: white;
+      font-weight: 800;
+      font-size: 11pt;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    .step-content h4 {
+      margin: 0 0 4px 0;
+      font-size: 11pt;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .step-content p {
+      margin: 0;
+      font-size: 9.5pt;
+      color: #475569;
+    }
+
+    /* TABLES */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 9.5pt;
+    }
+
+    th {
+      background: #0f172a;
+      color: white;
+      text-align: left;
+      padding: 8px 12px;
+      font-weight: 700;
+    }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+
+    /* FOOTER */
+    .page-footer {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 8px;
+      margin-top: 24px;
+      font-size: 8pt;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== HALAMAN 1: COVER ==================== -->
+  <div class="cover-page">
+    <div class="cover-header">
+      <div class="logo-container">
+        <div class="logo-badge">JEC</div>
+        <div class="logo-text">
+          <h1>RS Mata JEC ORBITA</h1>
+          <p>MAKASSAR • SECURITY DIVISION</p>
+        </div>
+      </div>
+      <div style="text-align: right; font-size: 9pt; color: #64748b;">
+        <strong>SOP-SEC-01</strong><br>
+        Revisi: 2026.1
+      </div>
+    </div>
+
+    <div class="cover-body">
+      <div class="doc-category">📘 Buku Panduan Pengguna (User Manual)</div>
+      <h1 class="cover-title">Panduan Lengkap Petugas Security</h1>
+      <p class="cover-subtitle">
+        Sistem Pemantauan Patroli Keamanan Digital Berbasis Web & PWA.<br>
+        Meliputi alur patroli 12 lantai, validasi QR code dinding, perekaman temuan fisik, perekaman suara, serta sinkronisasi offline.
+      </p>
+
+      <div class="cover-features-list">
+        <div class="feature-pill">🛡️ Alur Patroli 12 Lantai Terstruktur</div>
+        <div class="feature-pill">📸 Foto Bukti & Watermark Geotag</div>
+        <div class="feature-pill">📱 Mendukung Mode Offline Penuh</div>
+        <div class="feature-pill">🎙️ Rekam Catatan Suara (Voice-to-Text)</div>
+        <div class="feature-pill">🔍 Validasi QR Code Dinding Fisik</div>
+        <div class="feature-pill">⚡ Mode Swipe Cepat Ruangan</div>
+      </div>
+    </div>
+
+    <div class="cover-footer">
+      <div>Rumah Sakit Mata JEC ORBITA Makassar</div>
+      <div>Dokumen Resmi Departemen Keamanan & K3RS</div>
+    </div>
+  </div>
+
+  <!-- ==================== HALAMAN 2: DAFTAR ISI & PENGENALAN ==================== -->
+  <div>
+    <h2>1. Pengenalan Aplikasi & Ketentuan Shift</h2>
+    <p>
+      Aplikasi <strong>JEC ORBITA Security Patrol</strong> adalah platform digital resmi yang dirancang untuk mendukung operasional patroli fisik petugas satuan pengamanan di seluruh gedung RS Mata JEC ORBITA Makassar.
+    </p>
+
+    <div class="info-box">
+      <strong>🎯 Tujuan Utama Sistem:</strong>
+      Memastikan seluruh area rumah sakit (mulai dari Semi Basement hingga Lantai 11) terpantau secara konsisten, aman dari risiko bahaya kebakaran, kebocoran, fasilitas tertinggal, maupun gangguan keamanan fisik lainnya.
+    </div>
+
+    <h3>A. Pembagian Shift Kerja Security</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Shift</th>
+          <th>Jam Dinas</th>
+          <th>Total Sesi Patroli</th>
+          <th>Jadwal Sesi Patroli</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Shift Pagi</strong></td>
+          <td>07:00 – 19:00 WITA</td>
+          <td>4 Sesi</td>
+          <td>Sesi 1 (07-10), Sesi 2 (10-13), Sesi 3 (13-16), Sesi 4 (16-19)</td>
+        </tr>
+        <tr>
+          <td><strong>Shift Malam</strong></td>
+          <td>19:00 – 07:00 WITA</td>
+          <td>4 Sesi</td>
+          <td>Sesi 5 (19-22), Sesi 6 (22-01), Sesi 7 (01-04), Sesi 8 (04-07)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="warning-box">
+      <strong>⚠️ Toleransi Waktu Patroli:</strong>
+      Setiap sesi patroli berlangsung selama 3 jam dengan toleransi keterlambatan maksimal 15 menit. Pastikan memulai patroli tepat waktu sesuai sesi yang sedang aktif.
+    </div>
+
+    <h2>2. Cara Masuk ke Aplikasi (Login)</h2>
+    <div class="step-container">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Buka Browser HP</h4>
+          <p>Buka browser Chrome di smartphone Anda, lalu ketik alamat website patroli yang telah diberikan oleh Tim IT/Supervisor.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Masukkan ID Karyawan</h4>
+          <p>Ketik nomor ID Karyawan resmi Anda (Contoh: <code>SEC-002</code>, <code>SEC-003</code>, s/d <code>SEC-009</code>).</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Masukkan Password</h4>
+          <p>Password bawaan pertama kali sama persis dengan ID Karyawan Anda (Contoh: <code>SEC-002</code>). Anda dapat mengganti password kapan saja di menu Profil.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>Tekan "Masuk ke Sistem"</h4>
+          <p>Setelah berhasil login, Anda akan langsung diarahkan ke halaman Beranda Security.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- ==================== HALAMAN 3: CARA INSTALL APLIKASI & MENU UTAMA ==================== -->
+  <div>
+    <h2>3. Memasang Aplikasi di Layar Utama HP (PWA)</h2>
+    <p>
+      Agar tidak perlu membuka browser dan mengetik alamat URL setiap hari, Anda sangat disarankan memasang aplikasi ini ke Layar Utama (Home Screen) smartphone Anda.
+    </p>
+
+    <div class="step-container">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Ketuk Banner "Pasang Aplikasi"</h4>
+          <p>Saat login pertama kali, akan muncul kotak biru bertuliskan <em>"Pasang Aplikasi Patroli"</em> di bagian bawah. Ketuk tombol <strong>"Pasang Aplikasi"</strong>.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Alternatif Manual (Menu Titik Tiga Chrome)</h4>
+          <p>Jika banner tidak muncul: Ketuk ikon titik tiga (⋮) di pojok kanan atas browser Google Chrome &rarr; Pilih <strong>"Tambahkan ke Layar Utama"</strong> atau <strong>"Install App"</strong>.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Ikon Siap Digunakan</h4>
+          <p>Ikon <em>JEC ORBITA Security</em> kini muncul di layar smartphone layaknya aplikasi Android asli dan dapat dibuka secara instan.</p>
+        </div>
+      </div>
+    </div>
+
+    <h2>4. Mengenal Navigasi Menu Utama</h2>
+    <p>Di bagian bawah layar HP terdapat 5 menu utama:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Ikon & Menu</th>
+          <th>Fungsi Utama</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>🏠 <strong>Beranda</strong></td>
+          <td>Menampilkan ringkasan shift kerja hari ini, status patroli aktif, dan jalan pintas mulai patroli.</td>
+        </tr>
+        <tr>
+          <td>⚠️ <strong>Temuan</strong></td>
+          <td>Melihat daftar temuan/kendala yang Anda laporkan dan memantau status perbaikan oleh teknisi.</td>
+        </tr>
+        <tr>
+          <td>🛡️ <strong>Patroli</strong></td>
+          <td><strong>Menu Utama Patroli!</strong> Tempat memilih lantai, memeriksa ruangan, dan scan QR code.</td>
+        </tr>
+        <tr>
+          <td>🕒 <strong>Riwayat</strong></td>
+          <td>Melihat catatan seluruh sesi patroli yang telah Anda selesaikan sebelumnya.</td>
+        </tr>
+        <tr>
+          <td>👤 <strong>Profil</strong></td>
+          <td>Informasi akun petugas, menu ubah password, dan tombol sinkronisasi data offline.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- ==================== HALAMAN 4: STANDAR OPERASIONAL PATROLI ==================== -->
+  <div>
+    <h2>5. Alur & Standar Operasional Patroli (SOP)</h2>
+    <p>
+      Patroli dilakukan berurutan di setiap lantai. Total terdapat <strong>12 Lantai</strong> di RS Mata JEC ORBITA:
+    </p>
+
+    <div class="info-box">
+      <strong>🏢 Daftar Lantai Patroli:</strong>
+      Semi Basement (SB), Lantai 1 (L1), Lantai P2, Lantai P3, Lantai P4, Lantai 5 (L5), Lantai 6 (L6), Lantai 7 (L7), Lantai 8 (L8), Lantai 9 (L9), Lantai 10 (L10), dan Lantai 11 (L11).
+    </div>
+
+    <h3>A. Langkah Demi Langkah Memulai Patroli</h3>
+    <div class="step-container">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Buka Menu "Patroli"</h4>
+          <p>Buka tab menu <strong>Patroli</strong> di navigasi bawah. Layar akan menampilkan daftar 12 lantai beserta jumlah ruangan di tiap lantai.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Pilih Urutan Rute (Opsional)</h4>
+          <p>Secara default, rute dimulai dari Lantai 11 turun ke Semi Basement. Jika ingin patroli dari bawah ke atas, ketuk tombol <strong>"Balik Urutan"</strong> (SB &rarr; L11).</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Pilih Lantai yang Hendak Diperiksa</h4>
+          <p>Ketuk kartu lantai yang ingin Anda periksa (misalnya <em>Lantai 11</em>). Daftar seluruh ruangan di lantai tersebut akan terbuka.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>Pilih Ruangan untuk Diperiksa</h4>
+          <p>Ketuk tombol <strong>"Periksa"</strong> pada ruangan pertama yang dituju.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>B. Pengisian Form Pemeriksaan Ruangan</h3>
+    <p>Pada setiap ruangan, terdapat 4 elemen penting:</p>
+    <ol>
+      <li>
+        <strong>Ambil Foto Bukti Ruangan (Wajib):</strong><br>
+        Ketuk kotak foto bertuliskan <em>"Wajib Ambil Foto (Ketuk di sini)"</em>. Kamera HP akan terbuka otomatis. Arahkan kamera ke area ruangan sesuai panduan foto, lalu tekan tombol shutter. Foto otomatis diberi watermark waktu WITA dan nama petugas.
+      </li>
+      <li>
+        <strong>Kondisi AC (Pendingin Udara):</strong><br>
+        - Jika ruangan memiliki AC: Pilih <strong>ON</strong> jika menyala, atau <strong>OFF</strong> jika mati.<br>
+        - Jika ruangan tidak memiliki AC (seperti Gondola, Tangga Darurat): Sistem otomatis mencatat <em>"Area ini tanpa AC"</em> sehingga Anda tidak perlu memilih.
+      </li>
+      <li>
+        <strong>Kondisi Lampu Penerangan:</strong><br>
+        Pilih <strong>ON</strong> jika lampu ruangan menyala, atau <strong>OFF</strong> jika lampu padam.
+      </li>
+      <li>
+        <strong>Status Keamanan & Fasilitas:</strong><br>
+        - <strong>AMAN / NORMAL (Hijau):</strong> Pilih opsi ini jika ruangan dalam keadaan aman, bersih, terkunci rapi, dan fasilitas berfungsi normal. Anda bisa menambahkan catatan teks atau suara.<br>
+        - <strong>ADA TEMUAN (Merah):</strong> Pilih opsi ini jika ditemukan kendala (misal: AC bocor, lampu konslet, pintu tidak terkunci, sampah menumpuk). Pilih kategori temuan dan tulis/rekam penjelasannya.
+      </li>
+      <li>
+        <strong>Tekan "SIMPAN & LANJUT":</strong><br>
+        Setelah semua data lengkap, tombol <strong>SIMPAN & LANJUT</strong> akan menyala biru. Ketuk untuk menyimpan dan langsung berpindah ke ruangan berikutnya secara otomatis.
+      </li>
+    </ol>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- ==================== HALAMAN 5: FITUR SUARA & SCAN QR ==================== -->
+  <div>
+    <h2>6. Menggunakan Fitur Perekam Suara (Voice-to-Text)</h2>
+    <p>
+      Untuk mempercepat pengisian laporan agar tidak perlu mengetik panjang di keyboard HP saat sedang berjalan patroli, aplikasi menyediakan fitur rekam suara berbahasa Indonesia.
+    </p>
+
+    <div class="step-container">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Ketuk Tombol Mikrofon (🎙️ Suara)</h4>
+          <p>Tombol mikrofon tersedia di kolom catatan tambahan maupun di kolom deskripsi temuan.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Bicara dengan Jelas</h4>
+          <p>Ucapkan keterangan Anda dengan tenang dan jelas (Contoh: <em>"Lampu koridor kedap-kedip dan pintu darurat terbuka"</em>).</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Selesai & Otomatis Tertulis</h4>
+          <p>Ketuk tombol <strong>🎙️ Berhenti</strong> (atau diam sejenak). Ucapan Anda akan langsung otomatis dikonversi menjadi teks di kolom catatan.</p>
+        </div>
+      </div>
+    </div>
+
+    <h2>7. Validasi QR Code Dinding Fisik per Lantai</h2>
+    <p>
+      Setelah seluruh ruangan pada suatu lantai selesai diperiksa, petugas <strong>wajib memindai stiker QR Code fisik</strong> yang tertempel di dinding pos/titik barcode lantai tersebut sebagai bukti fisik kehadiran.
+    </p>
+
+    <div class="step-container">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Buka Menu "Scan QR Validasi"</h4>
+          <p>Setelah ruangan terakhir diperiksa, aplikasi akan memunculkan tombol <strong>"Scan QR Lantai"</strong>.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Arahkan Kamera ke Stiker Dinding</h4>
+          <p>Arahkan kamera HP ke stiker barcode fisik di dinding. Kamera akan membaca kode secara instan dalam 1 detik.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Verifikasi Sukses</h4>
+          <p>Layar akan menampilkan centang hijau <em>"Lantai Berhasil Diverifikasi"</em>. Status lantai tersebut kini resmi berubah menjadi <strong>Selesai (Completed)</strong> dan Anda dapat lanjut ke lantai berikutnya.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="warning-box">
+      <strong>💡 Opsi Darurat (Input Token Manual):</strong>
+      Jika stiker QR dinding rusak, basah, atau kamera HP bermasalah, ketuk tombol <em>"Input Token Manual"</em> di bawah layar pemindai, lalu masukkan kode token darurat lantai tersebut.
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- ==================== HALAMAN 6: MODE OFFLINE & TIPS KEAMANAN ==================== -->
+  <div>
+    <h2>8. Cara Kerja Saat Sinyal Hilang (Mode Offline)</h2>
+    <p>
+      Gedung rumah sakit sering kali memiliki titik dengan sinyal lemah (misalnya di area Semi Basement atau ruang mesin lift). Aplikasi telah dilengkapi teknologi <strong>Offline-First</strong>:
+    </p>
+
+    <ul>
+      <li><strong>Patroli Tetap Berjalan Normal:</strong> Anda tetap bisa mengambil foto, mengisi checklist AC/Lampu, dan mencatat temuan meski tanpa internet sama sekali.</li>
+      <li><strong>Penyimpanan Lokal Aman:</strong> Hasil pemeriksaan akan disimpan sementara di memori lokal HP (IndexedDB) dengan tanda badge kuning <em>"📱 Tersimpan Lokal (Offline)"</em>.</li>
+      <li><strong>Sinkronisasi Otomatis:</strong> Begitu smartphone Anda kembali mendapatkan sinyal 4G/Wi-Fi rumah sakit atau saat Anda melakukan scan QR code lantai, seluruh data patroli yang tersimpan di HP akan otomatis diunggah ke server secara aman tanpa ada data yang hilang.</li>
+      <li><strong>Sinkronisasi Manual (Menu Profil):</strong> Anda juga bisa menekan tombol <em>"Sinkronkan Sekarang"</em> di menu <strong>Profil</strong> untuk memastikan seluruh data telah terkirim.</li>
+    </ul>
+
+    <h2>9. Penyelesaian Sesi Patroli (Ringkasan)</h2>
+    <p>
+      Setelah seluruh 12 lantai selesai diperiksa dan divalidasi QR code-nya:
+    </p>
+    <div class="step-container">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Buka Ringkasan Patroli</h4>
+          <p>Aplikasi akan menampilkan kartu <strong>"Selesaikan Sesi Patroli"</strong>.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Periksa Statistik</h4>
+          <p>Pastikan jumlah ruangan diperiksa sudah 100% dan tidak ada lantai yang terlewat.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Ketuk "Selesaikan Patroli"</h4>
+          <p>Laporan patroli sesi Anda otomatis tersusun rapi dan dapat langsung dipantau oleh Komandan Regu, Supervisor, dan Manajemen melalui dashboard web.</p>
+        </div>
+      </div>
+    </div>
+
+    <h2>10. Kontak Bantuan & Pusat Kendala</h2>
+    <p>Jika mengalami kendala operasional, aplikasi error, atau stiker QR dinding rusak, segera hubungi:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Pihak / Bagian</th>
+          <th>Kontak / Lokasi</th>
+          <th>Tanggung Jawab</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Supervisor Security</strong></td>
+          <td>Posko Utama / Ext. Security</td>
+          <td>Koordinasi jadwal shift, kendala operasional lapangan, eskalasi temuan.</td>
+        </tr>
+        <tr>
+          <td><strong>Tim IT Support</strong></td>
+          <td>Ruang IT / Helpdesk IT</td>
+          <td>Reset akun & password, perbaikan sistem web server, kendala perangkat.</td>
+        </tr>
+        <tr>
+          <td><strong>Teknisi IPSRS / ME</strong></td>
+          <td>Ruang ME / Maintenance</td>
+          <td>Tindak lanjut temuan kerusakan fasilitas, AC, listrik, dan pintu darurat.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="page-footer">
+      <div>RS Mata JEC ORBITA Makassar • Buku Panduan Security v2.0</div>
+      <div>Dilarang menggandakan dokumen ini tanpa izin resmi Manajemen</div>
+    </div>
+  </div>
+
+</body>
+</html>
