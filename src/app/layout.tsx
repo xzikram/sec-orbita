@@ -56,6 +56,26 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              // Auto-recover from chunk load errors caused by new deployments
+              window.addEventListener('error', function(e) {
+                var msg = (e && e.message) || '';
+                if (msg.indexOf('Loading chunk') !== -1 || msg.indexOf('ChunkLoadError') !== -1 || msg.indexOf('Failed to fetch dynamically imported module') !== -1) {
+                  if (!sessionStorage.getItem('chunk_reload_attempted')) {
+                    sessionStorage.setItem('chunk_reload_attempted', 'true');
+                    window.location.reload();
+                  }
+                }
+              });
+              window.addEventListener('unhandledrejection', function(e) {
+                var reason = (e && e.reason) ? (e.reason.message || String(e.reason)) : '';
+                if (reason.indexOf('Loading chunk') !== -1 || reason.indexOf('ChunkLoadError') !== -1 || reason.indexOf('Failed to fetch dynamically imported module') !== -1) {
+                  if (!sessionStorage.getItem('chunk_reload_attempted')) {
+                    sessionStorage.setItem('chunk_reload_attempted', 'true');
+                    window.location.reload();
+                  }
+                }
+              });
+
               if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js')

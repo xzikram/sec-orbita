@@ -58,8 +58,8 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  if (pathname.startsWith('/security') && role !== 'security') {
-    const redirectUrl = new URL(role === 'admin' ? '/admin/dashboard' : '/supervisor/reports', request.url);
+  if (pathname.startsWith('/security') && role !== 'security' && role !== 'admin') {
+    const redirectUrl = new URL(role === 'supervisor' ? '/supervisor/reports' : '/login', request.url);
     return NextResponse.redirect(redirectUrl);
   }
 
