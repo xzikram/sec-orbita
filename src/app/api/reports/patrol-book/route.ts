@@ -40,18 +40,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Patrol session not found' }, { status: 404 });
     }
 
-    // 2. Map all checks by roomId and floors for fast lookup
+    // 2. Map all checks by roomId and roomCodeSnapshot for 100% reliable matching
     const checksMap = new Map<string, any>();
     const sessionFloorMap = new Map<string, any>();
     for (const sf of session.sessionFloors) {
-      sessionFloorMap.set(sf.floorId, sf);
+      if (sf.floorId) sessionFloorMap.set(sf.floorId, sf);
+      if (sf.floorCodeSnapshot) sessionFloorMap.set(sf.floorCodeSnapshot.toUpperCase(), sf);
+
       for (const chk of sf.patrolChecks) {
-        checksMap.set(chk.roomId, chk);
+        if (chk.roomId) checksMap.set(chk.roomId, chk);
+        if (chk.roomCodeSnapshot) checksMap.set(chk.roomCodeSnapshot.toUpperCase(), chk);
       }
     }
 
     // 3. Fetch all active floors and rooms from database
-    const dbFloors = await prisma.floor.findMany({
+    let dbFloors = await prisma.floor.findMany({
       where: { isActive: true },
       include: {
         rooms: {
@@ -62,9 +65,18 @@ export async function GET(request: NextRequest) {
       orderBy: { sortOrder: 'asc' },
     });
 
+    // Fallback to static floor catalog if DB floors are empty
+    if (dbFloors.length === 0) {
+      const { floors: mockFloors, getRoomsByFloor } = await import('@/lib/dummy-data');
+      dbFloors = mockFloors.map(f => ({
+        ...f,
+        rooms: getRoomsByFloor(f.id) as any,
+      })) as any;
+    }
+
     // 4. Construct the report matrix
     const floorMatrix = dbFloors.map(floor => {
-      const sf = sessionFloorMap.get(floor.id);
+      const sf = sessionFloorMap.get(floor.id) || sessionFloorMap.get(floor.code.toUpperCase());
       return {
         id: floor.id,
         code: floor.code,
@@ -72,8 +84,8 @@ export async function GET(request: NextRequest) {
         qrValidated: sf?.qrValidated || false,
         qrScannedAt: sf?.qrScannedAt || null,
         floorStatus: sf?.status || 'pending',
-        rooms: floor.rooms.map(room => {
-          const check = checksMap.get(room.id);
+        rooms: floor.rooms.map((room: any) => {
+          const check = checksMap.get(room.id) || (room.code ? checksMap.get(room.code.toUpperCase()) : null);
           return {
             id: room.id,
             code: room.code,
@@ -114,9 +126,9 @@ export async function GET(request: NextRequest) {
         startedAt: session.startedAt,
         completedAt: session.completedAt,
         notes: session.notes,
-        officer: session.user,
-        schedule: session.schedule,
-        shift: session.shift,
+        officer: session.user || { name: 'Petugas Security', employeeId: 'SEC' },
+        schedule: session.schedule || { name: 'Jadwal Patroli', startTime: '00:00', endTime: '00:00' },
+        shift: session.shift || { name: 'Shift Patroli' },
       },
       floors: floorMatrix,
     });

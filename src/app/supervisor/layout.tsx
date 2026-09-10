@@ -66,10 +66,11 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
         if (res.ok) {
           const data = await res.json();
           if (data.user.role === 'admin') {
-            router.replace(pathname.includes('/findings') ? '/admin/findings' : '/admin/reports');
-            return;
-          }
-          if (data.user.role !== 'supervisor') {
+            if (!pathname.includes('/print')) {
+              router.replace(pathname.includes('/findings') ? '/admin/findings' : '/admin/reports');
+              return;
+            }
+          } else if (data.user.role !== 'supervisor') {
             router.push(`/${data.user.role}/dashboard`);
             return;
           }
@@ -92,7 +93,7 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
       }
     }
     checkAuth();
-  }, [router]);
+  }, [router, pathname]);
 
   const isActive = (path: string) => {
     if (path === '/supervisor/reports') {
@@ -109,6 +110,11 @@ export default function SupervisorLayout({ children }: { children: React.ReactNo
     }
     router.push('/login');
   };
+
+  // Print pages should render cleanly as a printable document without sidebar shell
+  if (pathname.includes('/print')) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (

@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './print-report.module.css';
 
@@ -56,7 +56,7 @@ interface ReportData {
   floors: FloorItem[];
 }
 
-export default function PrintPatrolBookPage() {
+function PrintPatrolBookContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('sessionId');
@@ -64,6 +64,7 @@ export default function PrintPatrolBookPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'desc' | 'asc'>('desc');
 
   useEffect(() => {
     if (!sessionId) {
@@ -103,13 +104,19 @@ export default function PrintPatrolBookPage() {
     return days[d.getDay()];
   };
 
-  const getFormattedDate = (dateString: string) => {
-    const months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-    ];
-    const d = new Date(dateString);
-    return `${getDayName(dateString)}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  const getFormattedDate = (dateString: string | undefined) => {
+    if (!dateString) return '—';
+    try {
+      const months = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      ];
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return dateString;
+      return `${getDayName(dateString)}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch {
+      return dateString;
+    }
   };
 
   const formatCheckTime = (timeString: string | undefined) => {
@@ -152,11 +159,48 @@ export default function PrintPatrolBookPage() {
 
   const { session, floors: floorList } = data;
 
+  // Sorting floors canonically (either 11 down to SB or SB up to 11)
+  const sortedFloors = [...floorList].sort((a, b) => {
+    const getRank = (code: string) => {
+      const c = code.toUpperCase();
+      if (c === 'SB') return -1;
+      const num = parseInt(c.replace(/\D/g, ''), 10);
+      return isNaN(num) ? 0 : num;
+    };
+    const rankA = getRank(a.code);
+    const rankB = getRank(b.code);
+    return sortDirection === 'desc' ? rankB - rankA : rankA - rankB;
+  });
+
   return (
     <div>
       {/* On-screen controls */}
       <div className={styles.toolbar}>
-        <span className={styles.toolbarTitle}>Pratinjau Cetak: Buku Patroli</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <span className={styles.toolbarTitle}>Pratinjau Cetak: Buku Patroli</span>
+          <button
+            onClick={() => setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc')}
+            style={{
+              background: '#334155',
+              color: '#f8fafc',
+              border: '1px solid #475569',
+              borderRadius: '6px',
+              padding: '5px 12px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'background 0.2s',
+            }}
+            title="Klik untuk mengubah urutan lantai cetak"
+          >
+            <span>↕️</span>
+            <span>{sortDirection === 'desc' ? 'Urutan: Lantai 11 → SB' : 'Urutan: SB → Lantai 11'}</span>
+          </button>
+        </div>
+
         <div className={styles.toolbarActions}>
           <button className="btn btn-outline btn-sm text-white" onClick={() => router.back()}>
             Kembali
@@ -172,19 +216,16 @@ export default function PrintPatrolBookPage() {
         {/* Brand & Title block */}
         <div className={styles.headerBlock}>
           <div className={styles.logoArea}>
-            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0b6623" strokeWidth="2.5">
-              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-            <div className={styles.logoText}>
-              <span className={styles.brandName}>JEC ORBITA</span>
-              <span className={styles.brandSub}>Eye Hospitals and Clinics</span>
-            </div>
+            <img 
+              src="/Logo RS JEC ORBITA.png" 
+              alt="Logo RS JEC ORBITA" 
+              style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
+            />
           </div>
           <div className={styles.titleArea}>
             <span className={styles.titleText}>BUKU PATROLI</span>
           </div>
-          <div style={{ width: '150px' }} /> {/* Spacer to balance logo */}
+          <div style={{ width: '160px' }} /> {/* Spacer to balance logo */}
         </div>
 
         {/* Metadata block layout */}
@@ -192,7 +233,7 @@ export default function PrintPatrolBookPage() {
           <div className={styles.metaCol}>
             <div className={styles.metaRow}>
               <span className={styles.metaLabel}>Nama Petugas:</span>
-              <span className={styles.metaValue}>{session.officer.name}</span>
+              <span className={styles.metaValue}>{session.officer?.name || 'Petugas Security'}</span>
             </div>
             <div className={styles.metaRow}>
               <span className={styles.metaLabel}>Hari / Tanggal:</span>
@@ -202,11 +243,14 @@ export default function PrintPatrolBookPage() {
           <div className={styles.metaCol}>
             <div className={styles.metaRow}>
               <span className={styles.metaLabel}>PERIODE:</span>
-              <span className={styles.metaValue}>{session.shift.name} ({session.schedule.startTime} - {session.schedule.endTime})</span>
+              <span className={styles.metaValue}>
+                {session.shift?.name || 'Shift Patroli'} 
+                {session.schedule ? ` (${session.schedule.startTime} - ${session.schedule.endTime})` : ''}
+              </span>
             </div>
             <div className={styles.metaRow}>
               <span className={styles.metaLabel}>Patroli ke :</span>
-              <span className={styles.metaValue}>{session.patrolNumber}</span>
+              <span className={styles.metaValue}>{session.patrolNumber ?? '—'}</span>
             </div>
           </div>
         </div>
@@ -231,7 +275,7 @@ export default function PrintPatrolBookPage() {
             </tr>
           </thead>
           <tbody>
-            {floorList.map((floor) => {
+            {sortedFloors.map((floor) => {
               if (floor.rooms.length === 0) return null;
 
               return floor.rooms.map((room, idx) => {
@@ -299,5 +343,31 @@ export default function PrintPatrolBookPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PrintPatrolBookPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', gap: '1rem' }}>
+        <div style={{
+          width: '50px',
+          height: '50px',
+          border: '5px solid #ccc',
+          borderTop: '5px solid #0b6623',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <p style={{ fontFamily: 'sans-serif', color: '#555' }}>Memuat Buku Patroli...</p>
+        <style jsx global>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    }>
+      <PrintPatrolBookContent />
+    </Suspense>
   );
 }

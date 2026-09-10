@@ -108,6 +108,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  // Print pages should render cleanly as a printable document without sidebar shell
+  if (pathname.includes('/print')) {
+    return <>{children}</>;
+  }
+
   return (
     <div className={styles.shell}>
       {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}

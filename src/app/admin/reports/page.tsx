@@ -406,7 +406,7 @@ export default function AdminReportsPage() {
 
                         <button
                           className={styles.printBtn}
-                          onClick={() => window.open(`/supervisor/reports/print?sessionId=${sess.id}`, '_blank')}
+                          onClick={() => window.open(`/admin/reports/print?sessionId=${sess.id}`, '_blank')}
                           title="Cetak format buku laporan patroli resmi"
                         >
                           🖨️ Cetak Buku
