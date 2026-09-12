@@ -67,40 +67,11 @@ export async function POST(request: NextRequest) {
     const isDummy = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionFloorId) || sessionFloorId.startsWith('sf-');
 
     if (isDummy) {
-      // Find the active schedule for current Makassar time
-      const now = new Date();
-      const options: Intl.DateTimeFormatOptions = {
-        timeZone: 'Asia/Makassar',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      };
-      const formatter = new Intl.DateTimeFormat('id-ID', options);
-      const parts = formatter.formatToParts(now);
-      const hour = parts.find(p => p.type === 'hour')?.value || '00';
-      const minute = parts.find(p => p.type === 'minute')?.value || '00';
-      const currentTime = `${hour}:${minute}`;
-
-      const dbSchedules = await prisma.patrolSchedule.findMany({ where: { isActive: true } });
-      let schedule = dbSchedules.find(s => {
-        if (s.startTime < s.endTime) {
-          return currentTime >= s.startTime && currentTime < s.endTime;
-        }
-        return currentTime >= s.startTime || currentTime < s.endTime;
-      });
-
-      if (!schedule) {
-        schedule = dbSchedules[0] || await prisma.patrolSchedule.findFirst();
-      }
-
-      if (!schedule) {
-        return NextResponse.json({ error: 'Jadwal patroli tidak ditemukan di database' }, { status: 400 });
-      }
-
-      // Find or create active PatrolSession for today strictly for this user (Option C)
+      // Today date in Makassar time
       const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
       const patrolDate = new Date(todayStr);
 
+      // Check if user already has an in_progress session today
       let session = await prisma.patrolSession.findFirst({
         where: {
           userId: auth.id,
@@ -112,40 +83,113 @@ export async function POST(request: NextRequest) {
       });
 
       if (!session) {
+        // Find all active schedules
+        const dbSchedules = await prisma.patrolSchedule.findMany({
+          where: { isActive: true },
+          orderBy: { patrolNumber: 'asc' },
+        });
+
+        if (dbSchedules.length === 0) {
+          return NextResponse.json({ error: 'Jadwal patroli belum dikonfigurasi' }, { status: 400 });
+        }
+
+        // Check which schedules this user already completed today
+        const completedSessions = await prisma.patrolSession.findMany({
+          where: {
+            userId: auth.id,
+            patrolDate,
+            status: { in: ['completed', 'incomplete'] },
+          },
+          select: { scheduleId: true },
+        });
+        const completedScheduleIds = new Set(completedSessions.map(s => s.scheduleId));
+
+        // Get current Makassar time
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('id-ID', {
+          timeZone: 'Asia/Makassar',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+        const parts = formatter.formatToParts(now);
+        const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+        const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+        const currentMins = hour * 60 + minute;
+
+        // Smart flexible schedule picker (Early start buffer: up to 60 minutes before start)
+        const uncompleted = dbSchedules.filter(s => !completedScheduleIds.has(s.id));
+        let selectedSchedule = uncompleted[0] || dbSchedules[0];
+        let isEarlyStart = false;
+
+        const parseMins = (t: string) => {
+          const [h, m] = t.split(':').map(Number);
+          return h * 60 + m;
+        };
+
+        for (const s of uncompleted) {
+          const startMins = parseMins(s.startTime);
+          let endMins = parseMins(s.endTime);
+          if (endMins <= startMins) endMins += 24 * 60; // crosses midnight
+
+          // 60-minute early buffer window
+          const earlyBufferStart = startMins - 60;
+          let testCurrent = currentMins;
+          if (testCurrent < earlyBufferStart && earlyBufferStart < 0) {
+            testCurrent += 24 * 60;
+          }
+
+          if (testCurrent >= earlyBufferStart && testCurrent < endMins) {
+            selectedSchedule = s;
+            isEarlyStart = testCurrent < startMins;
+            break;
+          }
+        }
+
+        const schedule = selectedSchedule;
+
+        // Check if session for this schedule already exists
         session = await prisma.patrolSession.findUnique({
           where: {
             userId_scheduleId_patrolDate: {
               userId: auth.id,
               scheduleId: schedule.id,
               patrolDate,
-            }
-          },
-          include: { sessionFloors: { include: { floor: true } } }
-        });
-      }
-
-      if (!session) {
-        const defaultShift = await prisma.shift.findFirst();
-        const floors = await prisma.floor.findMany({ where: { isActive: true } });
-        session = await prisma.patrolSession.create({
-          data: {
-            userId: auth.id,
-            scheduleId: schedule.id,
-            shiftId: auth.shiftId || defaultShift?.id || '',
-            patrolDate,
-            patrolNumber: schedule.patrolNumber,
-            status: 'in_progress',
-            startedAt: new Date(),
-            sessionFloors: {
-              create: floors.map(f => ({
-                floorId: f.id,
-                floorNameSnapshot: f.name,
-                floorCodeSnapshot: f.code,
-              })),
             },
           },
-          include: { sessionFloors: { include: { floor: true } } }
+          include: { sessionFloors: { include: { floor: true } } },
         });
+
+        if (!session) {
+          const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });
+          const floors = await prisma.floor.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
+          
+          let earlyNotes: string | null = null;
+          if (isEarlyStart) {
+            earlyNotes = `Mulai lebih awal pukul ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} WITA (Jadwal resmi: ${schedule.startTime} - ${schedule.endTime})`;
+          }
+
+          session = await prisma.patrolSession.create({
+            data: {
+              userId: auth.id,
+              scheduleId: schedule.id,
+              shiftId: auth.shiftId || defaultShift?.id || '',
+              patrolDate,
+              patrolNumber: schedule.patrolNumber,
+              status: 'in_progress',
+              startedAt: now,
+              notes: earlyNotes,
+              sessionFloors: {
+                create: floors.map(f => ({
+                  floorId: f.id,
+                  floorNameSnapshot: f.name,
+                  floorCodeSnapshot: f.code,
+                })),
+              },
+            },
+            include: { sessionFloors: { include: { floor: true } } },
+          });
+        }
       }
 
       const sessionFloor = session.sessionFloors.find(sf => 

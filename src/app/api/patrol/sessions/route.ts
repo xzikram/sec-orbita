@@ -107,6 +107,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(existingSession, { status: 200 });
     }
 
+    // Get default shift if not assigned to user
+    let userShiftId = auth.shiftId;
+    if (!userShiftId) {
+      const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });
+      userShiftId = defaultShift?.id || '';
+    }
+
+    // Check if patrol started earlier than scheduled
+    let earlyNotes: string | null = null;
+    const now = new Date();
+    if (schedule.startTime) {
+      const [sh, sm] = schedule.startTime.split(':').map(Number);
+      const nowH = parseInt(now.toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', hour12: false }));
+      const nowM = parseInt(now.toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', minute: '2-digit' }));
+      const diffMins = (sh * 60 + sm) - (nowH * 60 + nowM);
+      if (diffMins > 10 && diffMins <= 90) {
+        earlyNotes = `Mulai lebih awal pukul ${String(nowH).padStart(2, '0')}:${String(nowM).padStart(2, '0')} WITA (Jadwal resmi: ${schedule.startTime} - ${schedule.endTime})`;
+      }
+    }
+
     // Get all active floors and create session floors
     const floors = await prisma.floor.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
 
@@ -114,11 +134,12 @@ export async function POST(request: NextRequest) {
       data: {
         userId: auth.id,
         scheduleId,
-        shiftId: auth.shiftId || '',
+        shiftId: userShiftId,
         patrolDate,
         patrolNumber: schedule.patrolNumber,
         status: 'in_progress',
-        startedAt: new Date(),
+        startedAt: now,
+        notes: earlyNotes,
         sessionFloors: {
           create: floors.map(f => ({
             floorId: f.id,
