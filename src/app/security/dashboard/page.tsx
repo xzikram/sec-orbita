@@ -554,13 +554,15 @@ export default function SecurityDashboard() {
           </div>
         </div>
       ) : (
-        <div className="card animate-slide-up">
-          <div className="card-body" style={{ textAlign: 'center', padding: '2rem' }}>
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-400)" strokeWidth="1.5" style={{ margin: '0 auto 8px' }}>
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-            <h3 style={{ fontSize: '16px', color: 'var(--color-neutral-700)', margin: '0 0 4px' }}>Belum Ada Patroli</h3>
-            <p className="text-sm text-muted">Tidak ada sesi patroli aktif hari ini</p>
+        <div className={`card animate-slide-up ${styles.emptyPatrolCard}`}>
+          <div className={`card-body ${styles.emptyPatrolBody}`}>
+            <div className={styles.emptyPatrolIconCircle}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            </div>
+            <h3 className={styles.emptyPatrolTitle}>Belum Ada Patroli Aktif</h3>
+            <p className={styles.emptyPatrolDesc}>Tidak ada sesi patroli aktif saat ini</p>
           </div>
         </div>
       )}
@@ -568,63 +570,62 @@ export default function SecurityDashboard() {
       {/* Quick Stats */}
       <div className={`${styles.statsGrid} animate-slide-up stagger-1`}>
         <div className={`card ${styles.statCard}`}>
-          <div className="card-body">
-            <span className={`${styles.statIcon} ${styles.statIconSuccess}`}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 6px' }}>
+            <div className={`${styles.statIcon} ${styles.statIconSuccess}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-            </span>
-            <span className={styles.statValue}>{data?.floorsCompleted || 0}</span>
-            <span className={styles.statLabel}>Lantai Selesai</span>
+            </div>
+            <div className={styles.statValue}>{data?.floorsCompleted || 0}</div>
+            <div className={styles.statLabel}>Lantai Selesai</div>
           </div>
         </div>
         <div className={`card ${styles.statCard}`}>
-          <div className="card-body">
-            <span className={`${styles.statIcon} ${styles.statIconDanger}`}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 6px' }}>
+            <div className={`${styles.statIcon} ${styles.statIconDanger}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" />
                 <line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
-            </span>
-            <span className={styles.statValue}>{data?.findingsCount || 0}</span>
-            <span className={styles.statLabel}>Temuan</span>
+            </div>
+            <div className={styles.statValue}>{data?.findingsCount || 0}</div>
+            <div className={styles.statLabel}>Temuan</div>
           </div>
         </div>
         <div className={`card ${styles.statCard}`}>
-          <div className="card-body">
-            <span className={`${styles.statIcon} ${styles.statIconPrimary}`}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 6px' }}>
+            <div className={`${styles.statIcon} ${styles.statIconPrimary}`}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <rect x="3" y="3" width="7" height="7" />
                 <rect x="14" y="3" width="7" height="7" />
                 <rect x="14" y="14" width="7" height="7" />
                 <rect x="3" y="14" width="7" height="7" />
               </svg>
-            </span>
-            <span className={styles.statValue}>{data?.totalRooms || 0}</span>
-            <span className={styles.statLabel}>Total Ruangan</span>
+            </div>
+            <div className={styles.statValue}>{data?.totalRooms || 0}</div>
+            <div className={styles.statLabel}>Total Ruangan</div>
           </div>
         </div>
       </div>
 
       {/* Handover Submission Form */}
-      <div className="card animate-slide-up" style={{ marginTop: '16px' }}>
-        <div className="card-body">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                🤝 Serah Terima Akhir Shift
-              </h3>
-              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-                Serahkan laporan pos, inventaris, dan temuan kendala ke shift berikutnya
-              </p>
+      <div className={`card animate-slide-up ${styles.handoverCard}`}>
+        <div className="card-body" style={{ padding: '14px 16px' }}>
+          <div className={styles.handoverHeader}>
+            <div className={styles.handoverInfo}>
+              <div className={styles.handoverIconBadge}>🤝</div>
+              <div className={styles.handoverTitles}>
+                <h3 className={styles.handoverTitle}>Serah Terima Shift</h3>
+                <p className={styles.handoverSubtitle}>Oper laporan & inventaris ke shift berikutnya</p>
+              </div>
             </div>
             <button 
-              className="btn btn-outline btn-sm" 
+              type="button"
+              className={`btn btn-sm ${showHandoverForm ? 'btn-outline' : 'btn-primary'} ${styles.handoverActionBtn}`} 
               onClick={() => setShowHandoverForm(!showHandoverForm)}
-              style={{ height: '28px', padding: '0 10px', minHeight: 'auto', fontSize: '11px', fontWeight: 600 }}
             >
-              {showHandoverForm ? 'Batal' : 'Buat Serah Terima'}
+              {showHandoverForm ? '✕ Batal' : '+ Buat Laporan'}
             </button>
           </div>
           
