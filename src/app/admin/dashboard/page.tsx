@@ -2,38 +2,67 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { adminUsers, adminBuildings, adminFloors, adminRooms, adminSchedules, adminShifts, qrConfigs } from '@/lib/admin-data';
 import styles from './admin-dash.module.css';
 
 export default function AdminDashboard() {
-  const [floorCount, setFloorCount] = useState<number>(adminFloors.length);
-  const [roomCount, setRoomCount] = useState<number>(adminRooms.length);
+  const [userCount, setUserCount] = useState<number>(0);
+  const [buildingCount, setBuildingCount] = useState<number>(0);
+  const [floorCount, setFloorCount] = useState<number>(0);
+  const [roomCount, setRoomCount] = useState<number>(0);
+  const [scheduleCount, setScheduleCount] = useState<number>(0);
+  const [shiftCount, setShiftCount] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchStats() {
       try {
-        const res = await fetch('/api/floors');
-        if (res.ok) {
-          const floorsData = await res.json();
+        const [floorsRes, usersRes, buildingsRes, schedulesRes, shiftsRes] = await Promise.all([
+          fetch('/api/floors'),
+          fetch('/api/users'),
+          fetch('/api/buildings'),
+          fetch('/api/schedules'),
+          fetch('/api/shifts'),
+        ]);
+
+        if (floorsRes.ok) {
+          const floorsData = await floorsRes.json();
           setFloorCount(floorsData.length);
-          const totalRooms = floorsData.reduce((sum: number, f: any) => sum + f.rooms.length, 0);
+          const totalRooms = floorsData.reduce((sum: number, f: any) => sum + (f.rooms?.length || 0), 0);
           setRoomCount(totalRooms);
+        }
+        if (usersRes.ok) {
+          const usersData = await usersRes.json();
+          setUserCount(Array.isArray(usersData) ? usersData.length : (usersData.data?.length || 0));
+        }
+        if (buildingsRes.ok) {
+          const bData = await buildingsRes.json();
+          setBuildingCount(Array.isArray(bData) ? bData.length : 0);
+        }
+        if (schedulesRes.ok) {
+          const sData = await schedulesRes.json();
+          setScheduleCount(Array.isArray(sData) ? sData.length : 0);
+        }
+        if (shiftsRes.ok) {
+          const shData = await shiftsRes.json();
+          setShiftCount(Array.isArray(shData) ? shData.length : 0);
         }
       } catch (err) {
         console.error('Error loading dashboard stats:', err);
+      } finally {
+        setLoading(false);
       }
     }
     fetchStats();
   }, []);
 
   const menuCards = [
-    { href: '/admin/users', icon: '👥', label: 'User Management', count: adminUsers.length, desc: 'Kelola akun petugas' },
-    { href: '/admin/buildings', icon: '🏢', label: 'Master Gedung', count: adminBuildings.length, desc: 'Data gedung' },
-    { href: '/admin/floors', icon: '🏗️', label: 'Master Lantai', count: floorCount, desc: 'Data lantai' },
-    { href: '/admin/rooms', icon: '🚪', label: 'Master Ruangan', count: roomCount, desc: 'Data ruangan' },
-    { href: '/admin/schedules', icon: '📅', label: 'Jadwal Patroli', count: adminSchedules.length, desc: 'Jadwal 8 sesi' },
-    { href: '/admin/shifts', icon: '⏰', label: 'Shift', count: adminShifts.length, desc: 'Pengaturan shift' },
-    { href: '/admin/qr-codes', icon: '📱', label: 'Generate QR', count: floorCount, desc: 'QR per lantai' },
+    { href: '/admin/users', icon: '👥', label: 'User Management', count: loading ? '-' : userCount, desc: 'Kelola akun petugas' },
+    { href: '/admin/buildings', icon: '🏢', label: 'Master Gedung', count: loading ? '-' : buildingCount, desc: 'Data gedung' },
+    { href: '/admin/floors', icon: '🏗️', label: 'Master Lantai', count: loading ? '-' : floorCount, desc: 'Data lantai' },
+    { href: '/admin/rooms', icon: '🚪', label: 'Master Ruangan', count: loading ? '-' : roomCount, desc: 'Data ruangan' },
+    { href: '/admin/schedules', icon: '📅', label: 'Jadwal Patroli', count: loading ? '-' : scheduleCount, desc: `${scheduleCount} sesi patroli` },
+    { href: '/admin/shifts', icon: '⏰', label: 'Shift', count: loading ? '-' : shiftCount, desc: 'Pengaturan shift' },
+    { href: '/admin/qr-codes', icon: '📱', label: 'Generate QR', count: loading ? '-' : floorCount, desc: 'QR per lantai' },
     { href: '/admin/settings', icon: '⚙️', label: 'Pengaturan', count: null, desc: 'Konfigurasi sistem' },
   ];
 
@@ -53,12 +82,12 @@ export default function AdminDashboard() {
 
       {/* Quick stats */}
       <div className={styles.statsRow}>
-        <div className={styles.stat}><span className={styles.statNum}>{adminUsers.length}</span><span className={styles.statLabel}>User</span></div>
-        <div className={styles.stat}><span className={styles.statNum}>{floorCount}</span><span className={styles.statLabel}>Lantai</span></div>
-        <div className={styles.stat}><span className={styles.statNum}>{roomCount}</span><span className={styles.statLabel}>Ruangan</span></div>
-        <div className={styles.stat}><span className={styles.statNum}>{adminSchedules.length}</span><span className={styles.statLabel}>Jadwal</span></div>
-        <div className={styles.stat}><span className={styles.statNum}>{adminShifts.length}</span><span className={styles.statLabel}>Shift</span></div>
-        <div className={styles.stat}><span className={styles.statNum}>{floorCount}</span><span className={styles.statLabel}>QR</span></div>
+        <div className={styles.stat}><span className={styles.statNum}>{loading ? '-' : userCount}</span><span className={styles.statLabel}>User</span></div>
+        <div className={styles.stat}><span className={styles.statNum}>{loading ? '-' : floorCount}</span><span className={styles.statLabel}>Lantai</span></div>
+        <div className={styles.stat}><span className={styles.statNum}>{loading ? '-' : roomCount}</span><span className={styles.statLabel}>Ruangan</span></div>
+        <div className={styles.stat}><span className={styles.statNum}>{loading ? '-' : scheduleCount}</span><span className={styles.statLabel}>Jadwal</span></div>
+        <div className={styles.stat}><span className={styles.statNum}>{loading ? '-' : shiftCount}</span><span className={styles.statLabel}>Shift</span></div>
+        <div className={styles.stat}><span className={styles.statNum}>{loading ? '-' : floorCount}</span><span className={styles.statLabel}>QR</span></div>
       </div>
 
       {/* Menu grid */}
