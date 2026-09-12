@@ -25,6 +25,7 @@ export default function RoomsPage() {
   const [search, setSearch] = useState('');
   const [floorFilter, setFloorFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,6 +38,7 @@ export default function RoomsPage() {
     photoGuide: '',
     hasAc: true,
     hasLight: true,
+    isActive: true,
   });
 
   const fetchFloors = async () => {
@@ -60,8 +62,9 @@ export default function RoomsPage() {
     fetchFloors();
   }, []);
 
-  const handleOpenModal = () => {
+  const handleOpenAddModal = () => {
     setError('');
+    setEditingRoom(null);
     setFormData({
       floorId: floors[0]?.id || '',
       name: '',
@@ -70,6 +73,23 @@ export default function RoomsPage() {
       photoGuide: '',
       hasAc: true,
       hasLight: true,
+      isActive: true,
+    });
+    setShowModal(true);
+  };
+
+  const handleOpenEditModal = (r: any) => {
+    setError('');
+    setEditingRoom(r);
+    setFormData({
+      floorId: r.floorId,
+      name: r.name,
+      code: r.code,
+      patrolOrder: r.patrolOrder,
+      photoGuide: r.photoGuide || '',
+      hasAc: r.hasAc,
+      hasLight: r.hasLight,
+      isActive: r.isActive,
     });
     setShowModal(true);
   };
@@ -83,10 +103,15 @@ export default function RoomsPage() {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch('/api/rooms', {
-        method: 'POST',
+      const isEdit = Boolean(editingRoom);
+      const url = '/api/rooms';
+      const method = isEdit ? 'PUT' : 'POST';
+      const body = isEdit ? { id: editingRoom.id, ...formData } : formData;
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
@@ -95,6 +120,7 @@ export default function RoomsPage() {
       }
 
       setShowModal(false);
+      setEditingRoom(null);
       await fetchFloors();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Terjadi kesalahan sistem');
@@ -148,7 +174,7 @@ export default function RoomsPage() {
           <h1 className={s.pageTitle}>Master Ruangan</h1>
           <p className={s.pageSub}>{loading ? 'Memuat...' : `${floorsRooms.length} ruangan terdaftar`}</p>
         </div>
-        <button className="btn btn-primary" onClick={handleOpenModal}>
+        <button className="btn btn-primary" onClick={handleOpenAddModal}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
@@ -217,8 +243,23 @@ export default function RoomsPage() {
                     <td className={s.td}>
                       <div className={s.actionBtns}>
                         <button
+                          className={s.actionBtn}
+                          title="Edit Ruangan"
+                          onClick={() => handleOpenEditModal(r)}
+                          style={{
+                            marginRight: '4px',
+                            backgroundColor: 'var(--color-warning-50, #fffbeb)',
+                            color: 'var(--color-warning-700, #b45309)',
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
+                          </svg>
+                        </button>
+                        <button
                           className={`${s.actionBtn} ${s.actionBtnDanger}`}
-                          title="Hapus"
+                          title="Hapus / Nonaktifkan"
                           onClick={() => handleDeleteRoom(r.id, r.name)}
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -242,7 +283,9 @@ export default function RoomsPage() {
         <div className={s.modalOverlay} onClick={() => setShowModal(false)}>
           <div className={s.modal} onClick={e => e.stopPropagation()}>
             <div className={s.modalHeader}>
-              <h3 className={s.modalTitle}>Tambah Ruangan</h3>
+              <h3 className={s.modalTitle}>
+                {editingRoom ? `Edit Ruangan: ${editingRoom.name}` : 'Tambah Ruangan'}
+              </h3>
               <button className={s.modalClose} onClick={() => setShowModal(false)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -335,11 +378,26 @@ export default function RoomsPage() {
                   </label>
                 </div>
               </div>
+
+              {editingRoom && (
+                <div className={s.formGroup} style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)' }}>
+                  <label
+                    className={s.formToggle}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
+                  >
+                    <div className={`${s.toggleSwitch} ${formData.isActive ? s.toggleSwitchOn : ''}`} />
+                    <span className={s.formLabel} style={{ margin: 0 }}>
+                      Status Ruangan: <strong>{formData.isActive ? 'Aktif' : 'Nonaktif'}</strong>
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
             <div className={s.modalFooter}>
               <button className="btn btn-ghost" onClick={() => setShowModal(false)} disabled={saving}>Batal</button>
               <button className="btn btn-primary" onClick={handleSaveRoom} disabled={saving}>
-                {saving ? 'Menyimpan...' : 'Simpan Ruangan'}
+                {saving ? 'Menyimpan...' : (editingRoom ? 'Simpan Perubahan' : 'Simpan Ruangan')}
               </button>
             </div>
           </div>

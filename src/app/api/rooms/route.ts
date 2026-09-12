@@ -110,6 +110,83 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PUT /api/rooms - Update an existing room
+export async function PUT(request: NextRequest) {
+  const auth = await getAuthUser();
+  if (!auth || (auth.role !== 'admin' && auth.role !== 'supervisor')) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  try {
+    const body = await request.json();
+    const { id, floorId, code, name, patrolOrder, hasAc, hasLight, photoGuide, isActive } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID ruangan wajib disertakan' }, { status: 400 });
+    }
+
+    if (!floorId || !code || !name) {
+      return NextResponse.json(
+        { error: 'Lantai, kode ruangan, dan nama ruangan wajib diisi' },
+        { status: 400 }
+      );
+    }
+
+    // Check unique code against other rooms
+    const existing = await prisma.room.findFirst({
+      where: {
+        code: code.trim().toUpperCase(),
+        id: { not: id },
+      },
+    });
+
+    if (existing) {
+      return NextResponse.json(
+        { error: `Kode ruangan "${code}" sudah digunakan pada ruangan lain` },
+        { status: 400 }
+      );
+    }
+
+    const room = await prisma.room.update({
+      where: { id },
+      data: {
+        floorId,
+        code: code.trim().toUpperCase(),
+        name: name.trim(),
+        patrolOrder: Number(patrolOrder) || 0,
+        hasAc: hasAc !== undefined ? Boolean(hasAc) : true,
+        hasLight: hasLight !== undefined ? Boolean(hasLight) : true,
+        photoGuide: photoGuide ? photoGuide.trim() : null,
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
+      },
+      include: {
+        floor: {
+          select: { id: true, code: true, name: true },
+        },
+      },
+    });
+
+    // Log activity
+    await prisma.activityLog.create({
+      data: {
+        userId: auth.id,
+        action: 'update_room',
+        entityType: 'room',
+        entityId: room.id,
+        metadata: {
+          roomName: room.name,
+          roomCode: room.code,
+        },
+      },
+    });
+
+    return NextResponse.json(room);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Server error';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
 // DELETE /api/rooms - Soft-delete a room
 export async function DELETE(request: NextRequest) {
   const auth = await getAuthUser();
