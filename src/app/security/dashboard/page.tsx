@@ -45,6 +45,14 @@ export default function SecurityDashboard() {
   const [handoverSuccess, setHandoverSuccess] = useState(false);
   const [leaderboardInfo, setLeaderboardInfo] = useState<{ myRank: number; score: number } | null>(null);
 
+  // Handover Pilihan 1 states (Semua Shift vs Tunjuk Tertentu)
+  const [handoverRecipientType, setHandoverRecipientType] = useState<'all' | 'specific'>('all');
+  const [handoverToUserId, setHandoverToUserId] = useState('');
+  const [handoverTargetShiftId, setHandoverTargetShiftId] = useState('');
+  const [securityStaff, setSecurityStaff] = useState<any[]>([]);
+  const [shiftsList, setShiftsList] = useState<any[]>([]);
+  const [submittingHandover, setSubmittingHandover] = useState(false);
+
   // Collaborative & Override state
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [schedules, setSchedules] = useState<any[]>([]);
@@ -85,22 +93,39 @@ export default function SecurityDashboard() {
 
   const handleSubmitHandover = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (handoverRecipientType === 'specific' && !handoverToUserId) {
+      alert('Silakan pilih petugas security penerima serah terima');
+      return;
+    }
+    setSubmittingHandover(true);
     try {
       const res = await fetch('/api/handover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: handoverNotes }),
+        body: JSON.stringify({
+          notes: handoverNotes,
+          shiftId: handoverTargetShiftId || undefined,
+          toUserId: handoverRecipientType === 'specific' ? handoverToUserId : null,
+        }),
       });
       if (res.ok) {
         setHandoverSuccess(true);
         setHandoverNotes('');
+        setHandoverToUserId('');
+        setHandoverRecipientType('all');
         setTimeout(() => {
           setHandoverSuccess(false);
           setShowHandoverForm(false);
-        }, 2000);
+        }, 2200);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Gagal mengirim serah terima');
       }
     } catch (err) {
       console.error('Error submitting handover:', err);
+      alert('Terjadi kesalahan jaringan saat mengirim serah terima.');
+    } finally {
+      setSubmittingHandover(false);
     }
   };
 
@@ -180,17 +205,36 @@ export default function SecurityDashboard() {
     async function loadDashboard() {
       try {
         const today = new Date().toISOString().split('T')[0];
-        const [meRes, sessionsRes, findingsRes, floorsRes, schedRes] = await Promise.all([
+        const [meRes, sessionsRes, findingsRes, floorsRes, schedRes, staffRes, shiftsRes] = await Promise.all([
           fetch('/api/auth/me').catch(() => null),
           fetch(`/api/patrol/sessions?date=${today}`).catch(() => null),
           fetch('/api/findings?status=new&limit=100').catch(() => null),
           fetch('/api/floors').catch(() => null),
           fetch('/api/schedules').catch(() => null),
+          fetch('/api/users?role=security').catch(() => null),
+          fetch('/api/shifts').catch(() => null),
         ]);
 
+        let loggedInUser: any = null;
         if (meRes && meRes.ok) {
           const meData = await meRes.json();
-          setCurrentUser(meData.user || null);
+          loggedInUser = meData.user || null;
+          setCurrentUser(loggedInUser);
+        }
+
+        if (staffRes && staffRes.ok) {
+          const staff = await staffRes.json();
+          setSecurityStaff(Array.isArray(staff) ? staff : []);
+        }
+
+        if (shiftsRes && shiftsRes.ok) {
+          const shifts = await shiftsRes.json();
+          const activeShifts = Array.isArray(shifts) ? shifts : [];
+          setShiftsList(activeShifts);
+          if (activeShifts.length > 0) {
+            const oppShift = activeShifts.find((s: any) => loggedInUser?.shiftId && s.id !== loggedInUser.shiftId) || activeShifts[0];
+            setHandoverTargetShiftId(oppShift.id);
+          }
         }
 
         const schedList = schedRes && schedRes.ok ? await schedRes.json() : [];
@@ -311,14 +355,26 @@ export default function SecurityDashboard() {
     <div className="page-content">
       {/* Pending Handover Banner */}
       {pendingHandover && (
-        <div className="card animate-slide-up" style={{ marginBottom: '12px', borderLeft: '4px solid var(--color-warning-500)', background: 'var(--color-warning-50)', color: 'var(--color-neutral-900)' }}>
+        <div className="card animate-slide-up" style={{ marginBottom: '14px', borderLeft: '4px solid var(--color-warning-500)', background: 'var(--color-warning-50)', color: 'var(--color-neutral-900)' }}>
           <div className="card-body" style={{ padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '18px' }}>⚠️</span>
-              <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0, color: 'var(--color-warning-700)' }}>Serah Terima Shift Pending</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>⚠️</span>
+                <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0, color: 'var(--color-warning-700)' }}>
+                  {pendingHandover.toUser ? '🎯 Serah Terima Ditujukan Khusus Untuk Anda' : '📢 Serah Terima Shift (Seluruh Tim)'}
+                </h3>
+              </div>
+              <span className="badge badge-warning" style={{ fontSize: '10px' }}>
+                {pendingHandover.shift?.name || 'Shift'}
+              </span>
             </div>
             <p style={{ fontSize: '13px', margin: '0 0 8px', lineHeight: '1.4' }}>
-              Diterima dari <strong>{pendingHandover.fromUser?.name}</strong> ({pendingHandover.fromUser?.employeeId}):
+              Diserahkan oleh: <strong>{pendingHandover.fromUser?.name}</strong> ({pendingHandover.fromUser?.employeeId})
+              {pendingHandover.toUser && (
+                <span style={{ color: 'var(--color-primary-700)', marginLeft: '6px' }}>
+                  → Penerima: <strong>{pendingHandover.toUser.name}</strong>
+                </span>
+              )}
             </p>
             <div style={{ background: 'white', border: '1px solid var(--color-neutral-200)', borderRadius: '6px', padding: '10px', fontSize: '12px', color: 'var(--color-neutral-700)', marginBottom: '12px', fontStyle: 'italic' }}>
               "{pendingHandover.notes || 'Tidak ada catatan khusus.'}"
@@ -330,9 +386,9 @@ export default function SecurityDashboard() {
               <button 
                 onClick={handleAcknowledgeHandover} 
                 className="btn btn-warning btn-sm"
-                style={{ height: '32px', minHeight: 'auto', padding: '0 12px', fontSize: '12px' }}
+                style={{ height: '32px', minHeight: 'auto', padding: '0 12px', fontSize: '12px', fontWeight: 700 }}
               >
-                Saya Sudah Baca ✓
+                Saya Sudah Baca & Terima ✓
               </button>
             </div>
           </div>
@@ -555,40 +611,129 @@ export default function SecurityDashboard() {
       <div className="card animate-slide-up" style={{ marginTop: '16px' }}>
         <div className="card-body">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              🤝 Serah Terima Akhir Shift
-            </h3>
+            <div>
+              <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                🤝 Serah Terima Akhir Shift
+              </h3>
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+                Serahkan laporan pos, inventaris, dan temuan kendala ke shift berikutnya
+              </p>
+            </div>
             <button 
               className="btn btn-outline btn-sm" 
               onClick={() => setShowHandoverForm(!showHandoverForm)}
-              style={{ height: '28px', padding: '0 10px', minHeight: 'auto', fontSize: '11px' }}
+              style={{ height: '28px', padding: '0 10px', minHeight: 'auto', fontSize: '11px', fontWeight: 600 }}
             >
               {showHandoverForm ? 'Batal' : 'Buat Serah Terima'}
             </button>
           </div>
           
           {showHandoverForm && (
-            <form onSubmit={handleSubmitHandover} style={{ marginTop: '12px' }}>
+            <form onSubmit={handleSubmitHandover} style={{ marginTop: '14px' }}>
               {handoverSuccess ? (
-                <div style={{ background: 'var(--color-success-50)', color: 'var(--color-success-700)', border: '1px solid var(--color-success-200)', padding: '10px', borderRadius: '6px', fontSize: '12px', textAlign: 'center' }}>
+                <div style={{ background: 'var(--color-success-50)', color: 'var(--color-success-700)', border: '1px solid var(--color-success-200)', padding: '12px', borderRadius: '8px', fontSize: '13px', textAlign: 'center', fontWeight: 600 }}>
                   ✓ Catatan serah terima berhasil dikirim!
                 </div>
               ) : (
                 <>
-                  <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                    Tuliskan catatan penting mengenai kondisi area atau temuan yang perlu dipantau oleh shift berikutnya.
-                  </p>
-                  <textarea
-                    className="form-input form-textarea"
-                    placeholder="Contoh: Kunci pintu parkir timur rusak, tolong dipantau..."
-                    value={handoverNotes}
-                    onChange={(e) => setHandoverNotes(e.target.value)}
-                    required
-                    rows={3}
-                    style={{ marginBottom: '10px', fontSize: '13px' }}
-                  />
-                  <button type="submit" className="btn btn-primary btn-sm w-full">
-                    Kirim ke Shift Berikutnya →
+                  {/* Mode Penerima (Pilihan 1: Semua Shift vs Tunjuk Tertentu) */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
+                      Tujuan Penerima Serah Terima:
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setHandoverRecipientType('all')}
+                        className={`btn btn-sm ${handoverRecipientType === 'all' ? 'btn-primary' : 'btn-outline'}`}
+                        style={{ padding: '8px 6px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      >
+                        📢 Semua Petugas Shift
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHandoverRecipientType('specific')}
+                        className={`btn btn-sm ${handoverRecipientType === 'specific' ? 'btn-primary' : 'btn-outline'}`}
+                        style={{ padding: '8px 6px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      >
+                        👤 Tunjuk Petugas Tertentu
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dropdown Petugas Tertentu */}
+                  {handoverRecipientType === 'specific' && (
+                    <div style={{ marginBottom: '12px', background: 'var(--color-neutral-50, #f9fafb)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                        Pilih Rekan Security / Danru Penerima: <span style={{ color: '#dc2626' }}>*</span>
+                      </label>
+                      <select
+                        className="form-input form-select"
+                        value={handoverToUserId}
+                        onChange={(e) => setHandoverToUserId(e.target.value)}
+                        required={handoverRecipientType === 'specific'}
+                        style={{ fontSize: '12px', width: '100%' }}
+                      >
+                        <option value="">-- Pilih Petugas Security --</option>
+                        {securityStaff.filter((u: any) => u.id !== currentUser?.id).map((u: any) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} ({u.employeeId}) {u.shift?.name ? `• ${u.shift.name}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Shift Tujuan */}
+                  {shiftsList.length > 0 && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                        Shift Tujuan:
+                      </label>
+                      <select
+                        className="form-input form-select"
+                        value={handoverTargetShiftId}
+                        onChange={(e) => setHandoverTargetShiftId(e.target.value)}
+                        style={{ fontSize: '12px', width: '100%' }}
+                      >
+                        {shiftsList.map((s: any) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.startTime} - {s.endTime})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Catatan / Isi Pesan */}
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
+                      Catatan Serah Terima: <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <textarea
+                      className="form-input form-textarea"
+                      placeholder="Contoh: Posko timur aman, HT 4 unit lengkap di pos induk, kunci gembok genset dititip di meja Danru, ada titipan paket dari manajemen..."
+                      value={handoverNotes}
+                      onChange={(e) => setHandoverNotes(e.target.value)}
+                      required
+                      rows={3}
+                      style={{ fontSize: '12px', width: '100%', marginBottom: '10px' }}
+                    />
+                  </div>
+
+                  {/* Auto-attached findings info */}
+                  <div style={{ background: 'var(--color-neutral-100, #f3f4f6)', padding: '8px 12px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🚨</span>
+                    <span><strong>{data?.findingsCount || 0} temuan open</strong> otomatis dilampirkan dalam serah terima ini.</span>
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={submittingHandover}
+                    className="btn btn-primary btn-sm w-full"
+                    style={{ fontWeight: 700, padding: '10px' }}
+                  >
+                    {submittingHandover ? 'Mengirim...' : handoverRecipientType === 'specific' ? 'Kirim ke Petugas Tertentu →' : 'Kirim ke Seluruh Tim Shift →'}
                   </button>
                 </>
               )}

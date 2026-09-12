@@ -2,12 +2,39 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
 
-// GET /api/users - List all users (admin only)
-export async function GET() {
+// GET /api/users - List users
+export async function GET(request: NextRequest) {
   const auth = await getAuthUser();
-  if (!auth || auth.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const role = searchParams.get('role');
+
+  // If not admin, only return active security and supervisor staff for shift handover/collaboration
+  if (auth.role !== 'admin') {
+    const activeStaff = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        ...(role ? { role: role as any } : { role: { in: ['security', 'supervisor'] } }),
+      },
+      select: {
+        id: true,
+        employeeId: true,
+        name: true,
+        role: true,
+        shiftId: true,
+        shift: { select: { name: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return NextResponse.json(activeStaff);
+  }
+
+  const where: any = {};
+  if (role) where.role = role;
 
   const users = await prisma.user.findMany({
+    where,
     select: { id: true, employeeId: true, name: true, email: true, role: true, shiftId: true, isActive: true, createdAt: true, shift: { select: { name: true } } },
     orderBy: { createdAt: 'asc' },
   });

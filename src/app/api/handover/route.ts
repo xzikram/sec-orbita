@@ -13,17 +13,23 @@ export async function GET(request: NextRequest) {
     const handover = await prisma.shiftHandover.findFirst({
       where: {
         status: 'pending',
+        fromUserId: { not: auth.id }, // Don't show handovers sent by themselves
         OR: [
           { toUserId: auth.id },
           {
             toUserId: null,
-            shiftId: auth.shiftId || undefined
+            ...(auth.shiftId ? { shiftId: auth.shiftId } : {})
           }
         ],
-        fromUserId: { not: auth.id } // Don't show handovers sent by themselves
       },
       include: {
         fromUser: {
+          select: {
+            name: true,
+            employeeId: true
+          }
+        },
+        toUser: {
           select: {
             name: true,
             employeeId: true
@@ -56,7 +62,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { notes, shiftId } = body;
+    const { notes, shiftId, toUserId } = body;
 
     // Get open findings count
     const openFindingsCount = await prisma.finding.count({
@@ -67,9 +73,19 @@ export async function POST(request: NextRequest) {
 
     // Auto-detect target shift if not provided
     let targetShiftId = shiftId;
+    if (!targetShiftId && toUserId) {
+      const recipient = await prisma.user.findUnique({
+        where: { id: toUserId },
+        select: { shiftId: true }
+      });
+      if (recipient?.shiftId) {
+        targetShiftId = recipient.shiftId;
+      }
+    }
+
     if (!targetShiftId && auth.shiftId) {
       const otherShift = await prisma.shift.findFirst({
-        where: { id: { not: auth.shiftId } }
+        where: { id: { not: auth.shiftId }, isActive: true }
       });
       if (otherShift) {
         targetShiftId = otherShift.id;
@@ -77,17 +93,28 @@ export async function POST(request: NextRequest) {
     }
 
     if (!targetShiftId) {
-      return NextResponse.json({ error: 'Target shift not found' }, { status: 400 });
+      const anyShift = await prisma.shift.findFirst({ where: { isActive: true } });
+      targetShiftId = anyShift?.id;
+    }
+
+    if (!targetShiftId) {
+      return NextResponse.json({ error: 'Shift tujuan tidak ditemukan' }, { status: 400 });
     }
 
     const handover = await prisma.shiftHandover.create({
       data: {
         fromUserId: auth.id,
+        toUserId: toUserId || null,
         shiftId: targetShiftId,
         notes: notes || '',
         openFindings: openFindingsCount,
         handoverDate: new Date(),
         status: 'pending'
+      },
+      include: {
+        fromUser: { select: { name: true, employeeId: true } },
+        toUser: { select: { name: true, employeeId: true } },
+        shift: { select: { name: true } },
       }
     });
 
