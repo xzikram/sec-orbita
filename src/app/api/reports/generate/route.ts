@@ -11,50 +11,62 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'daily'; // daily, weekly, monthly
-    const dateParam = searchParams.get('date') || new Date().toISOString().split('T')[0];
+    const dateParam = searchParams.get('date') || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' });
+    const [year, month, day] = dateParam.split('-').map(Number);
 
-    const targetDate = new Date(dateParam);
-    targetDate.setHours(0, 0, 0, 0);
-
-    let startDate = new Date(targetDate);
-    let endDate = new Date(targetDate);
+    let startDate: Date;
+    let endDate: Date;
 
     if (type === 'daily') {
-      endDate.setDate(targetDate.getDate() + 1);
+      startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
     } else if (type === 'weekly') {
-      // Get start of week (Sunday)
-      startDate.setDate(targetDate.getDate() - targetDate.getDay());
+      // Get start of week (Sunday) in UTC
+      const target = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      const dayOfWeek = target.getUTCDay(); // 0 is Sunday
+      startDate = new Date(target);
+      startDate.setUTCDate(target.getUTCDate() - dayOfWeek);
+      startDate.setUTCHours(0, 0, 0, 0);
+
       endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 7);
+      endDate.setUTCDate(startDate.getUTCDate() + 6);
+      endDate.setUTCHours(23, 59, 59, 999);
     } else if (type === 'monthly') {
-      startDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
-      endDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1);
+      startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+      endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    } else {
+      startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+      endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
     }
 
-    // Fetch patrol sessions in range
+    // Fetch patrol sessions in range (patrolDate is stored as UTC date)
     const sessions = await prisma.patrolSession.findMany({
       where: {
         patrolDate: {
           gte: startDate,
-          lt: endDate
-        }
+          lte: endDate,
+        },
       },
       include: {
         user: { select: { name: true, employeeId: true } },
         schedule: { select: { name: true, startTime: true, endTime: true } },
         shift: { select: { name: true } },
-        sessionFloors: { include: { patrolChecks: true } }
+        sessionFloors: { include: { patrolChecks: true } },
       },
-      orderBy: { patrolNumber: 'asc' }
+      orderBy: { patrolNumber: 'asc' },
     });
+
+    // Timezone adjusted range for timestamp fields (createdAt) in Makassar (UTC+8)
+    const makassarStart = new Date(startDate.getTime() - 8 * 3600 * 1000);
+    const makassarEnd = new Date(endDate.getTime() - 8 * 3600 * 1000 + 86400000);
 
     // Fetch findings in range
     const findings = await prisma.finding.findMany({
       where: {
         createdAt: {
-          gte: startDate,
-          lt: endDate
-        }
+          gte: makassarStart,
+          lte: makassarEnd,
+        },
       },
       include: {
         user: { select: { name: true } },
@@ -69,7 +81,7 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'asc' },
     });
 
     // Aggregate statistics
@@ -83,14 +95,14 @@ export async function GET(request: NextRequest) {
 
     const summary = {
       periodType: type.toUpperCase(),
-      startDate: startDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-      endDate: new Date(endDate.getTime() - 86400000).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      startDate: startDate.toLocaleDateString('id-ID', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }),
+      endDate: endDate.toLocaleDateString('id-ID', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }),
       totalSessions,
       completedSessions,
       completionRate,
       totalFindings,
       resolvedFindings,
-      openFindings
+      openFindings,
     };
 
     return NextResponse.json({
