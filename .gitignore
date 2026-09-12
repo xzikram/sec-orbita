@@ -22,6 +22,7 @@
 
 # uploads (user-generated patrol photos)
 /public/uploads
+/uploads
 
 # misc
 .DS_Store
