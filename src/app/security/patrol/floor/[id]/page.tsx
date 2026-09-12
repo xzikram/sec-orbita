@@ -9,8 +9,6 @@ import {
   getRoomsByFloor,
   getFloorById,
 } from '@/lib/dummy-data';
-import { submitRoomCheck } from '@/lib/data-client';
-import QuickCheckCard from './QuickCheckCard';
 import styles from './floor.module.css';
 
 export default function FloorDetailPage({
@@ -25,7 +23,6 @@ export default function FloorDetailPage({
   const [floorRooms, setFloorRooms] = useState<Room[]>([]);
   const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [isQuickMode, setIsQuickMode] = useState(false);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -225,70 +222,6 @@ export default function FloorDetailPage({
     saveCustomOrder(newList);
   };
 
-  const handleSwipeLeft = (room: Room) => {
-    router.push(`/security/patrol/room/${room.id}?condition=finding`);
-  };
-
-  const handleSwipeRight = async (room: Room) => {
-    const sessionFloorId = sessionFloor?.id || `sf-${(floor?.code || 'dummy').toLowerCase()}`;
-    try {
-      await submitRoomCheck({
-        sessionFloorId,
-        roomId: room.id,
-        acStatus: room.hasAc ? 'on' : 'not_available',
-        lightStatus: room.hasLight ? 'on' : 'off',
-        condition: 'normal',
-        remarks: 'Pemeriksaan Cepat (Swipe)',
-        photoBase64: 'DUMMY_SWIPE',
-      });
-
-      // Update local state so UI updates immediately
-      const newCheck = {
-        id: `check-${Date.now()}`,
-        sessionFloorId,
-        roomId: room.id,
-        userId: currentUser?.id || 'guest',
-        roomNameSnapshot: room.name,
-        roomCodeSnapshot: room.code,
-        floorNameSnapshot: floor?.name || '',
-        roomOrderSnapshot: room.patrolOrder,
-        acStatus: room.hasAc ? 'on' : 'not_available' as any,
-        lightStatus: room.hasLight ? 'on' : 'off' as any,
-        condition: 'normal' as any,
-        remarks: 'Pemeriksaan Cepat (Swipe)',
-        checkedAt: new Date().toISOString(),
-      };
-      setOfflineChecks(prev => [...prev, newCheck]);
-
-      // Save resume state
-      const lastPatrolState = {
-        sessionId: sessionFloor?.sessionId || 'session-dummy',
-        floorId: room.floorId,
-        floorName: floor?.name || 'Lantai',
-        roomId: room.id,
-        roomName: room.name,
-        timestamp: new Date().toISOString(),
-      };
-      localStorage.setItem('lastPatrolState', JSON.stringify(lastPatrolState));
-
-      // Refresh cached session data asynchronously for next page
-      fetch('/api/patrol/sessions').then(res => {
-        if (res.ok) return res.json();
-        return null;
-      }).then(sessions => {
-        if (sessions) {
-          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
-          if (active) localStorage.setItem('cached-active-session', JSON.stringify(active));
-        }
-      }).catch(() => {});
-
-      // Re-trigger layout render
-      setFloorRooms([...floorRooms]);
-    } catch (e) {
-      console.error('Failed to swipe check room:', e);
-    }
-  };
-
   return (
     <div className="page-content" style={{ paddingBottom: '96px' }}>
       {/* Back button & header */}
@@ -309,16 +242,6 @@ export default function FloorDetailPage({
             <p className={styles.floorSubtitle} style={{ margin: 0 }}>{checked} dari {total} ruangan diperiksa</p>
           </div>
         </div>
-        {percent < 100 && (
-          <button
-            onClick={() => setIsQuickMode(!isQuickMode)}
-            className={`btn btn-sm ${isQuickMode ? 'btn-primary' : 'btn-outline'}`}
-            style={{ padding: '6px 10px', fontSize: '12px', height: '32px', minHeight: 'auto', fontWeight: 'bold' }}
-            id="btn-toggle-quick-mode"
-          >
-            ⚡ {isQuickMode ? 'Mode Biasa' : 'Mode Cepat'}
-          </button>
-        )}
       </div>
 
       {/* Progress */}
@@ -335,23 +258,8 @@ export default function FloorDetailPage({
         </div>
       </div>
 
-      {/* Quick Check Mode Stack vs Normal List */}
-      {isQuickMode && percent < 100 && nextRoom ? (
-        <div style={{ margin: '2rem 0', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center' }}>
-          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', fontWeight: 'bold' }}>
-            GESER KANAN JIKA NORMAL • GESER KIRI JIKA ADA TEMUAN
-          </p>
-          <QuickCheckCard
-            room={nextRoom}
-            onSwipeLeft={handleSwipeLeft}
-            onSwipeRight={handleSwipeRight}
-            onTap={(r) => router.push(`/security/patrol/room/${r.id}`)}
-          />
-        </div>
-      ) : (
-        <>
-          {/* Reorder controls header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
+      {/* Reorder controls header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
             <h3 className="section-title" style={{ margin: 0, fontSize: '15px' }}>Rute Pemeriksaan Ruangan</h3>
             <button 
               className="btn btn-ghost btn-sm" 
@@ -495,8 +403,6 @@ export default function FloorDetailPage({
               </Link>
             </div>
           )}
-        </>
-      )}
 
       {/* QR Validated or Scan CTA */}
       {(sessionFloor?.qrValidated && percent === 100) ? (
