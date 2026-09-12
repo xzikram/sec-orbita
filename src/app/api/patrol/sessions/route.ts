@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
+import { resolveShiftForSchedule } from '@/lib/shifts';
 
 // GET /api/patrol/sessions - Get patrol sessions
 export async function GET(request: NextRequest) {
@@ -130,11 +131,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(existingSession, { status: 200 });
     }
 
-    // Get default shift if not assigned to user
-    let userShiftId = auth.shiftId;
-    if (!userShiftId) {
-      const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });
-      userShiftId = defaultShift?.id || '';
+    // Resolve shift dynamically based on schedule and real-time clock
+    let sessionShiftId = auth.shiftId || '';
+    try {
+      const activeShifts = await prisma.shift.findMany({ where: { isActive: true } });
+      const resolved = resolveShiftForSchedule(schedule, activeShifts);
+      if (resolved && 'id' in resolved && resolved.id) {
+        sessionShiftId = resolved.id;
+      }
+    } catch {
+      if (!sessionShiftId) {
+        const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });
+        sessionShiftId = defaultShift?.id || '';
+      }
     }
 
     // Check if patrol started earlier than scheduled
@@ -157,7 +166,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: auth.id,
         scheduleId,
-        shiftId: userShiftId,
+        shiftId: sessionShiftId,
         patrolDate,
         patrolNumber: schedule.patrolNumber,
         status: 'in_progress',

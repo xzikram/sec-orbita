@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
+import { resolveShiftForSchedule } from '@/lib/shifts';
 
 // POST /api/patrol/sessions/override-next - Gracefully close an incomplete previous round and start the new round
 export async function POST(request: NextRequest) {
@@ -114,11 +115,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Determine shift
-    let userShiftId = auth.shiftId;
-    if (!userShiftId) {
-      const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });
-      userShiftId = defaultShift?.id || '';
+    // Determine shift dynamically based on schedule and real-time clock
+    let sessionShiftId = auth.shiftId || '';
+    try {
+      const activeShifts = await prisma.shift.findMany({ where: { isActive: true } });
+      const resolved = resolveShiftForSchedule(schedule, activeShifts);
+      if (resolved && 'id' in resolved && resolved.id) {
+        sessionShiftId = resolved.id;
+      }
+    } catch {
+      if (!sessionShiftId) {
+        const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });
+        sessionShiftId = defaultShift?.id || '';
+      }
     }
 
     // Get active floors
@@ -132,7 +141,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: auth.id,
         scheduleId: schedule.id,
-        shiftId: userShiftId,
+        shiftId: sessionShiftId,
         patrolDate,
         patrolNumber: schedule.patrolNumber,
         status: 'in_progress',

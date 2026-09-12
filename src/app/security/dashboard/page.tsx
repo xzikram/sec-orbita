@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { rooms } from '@/lib/dummy-data';
+import { getRealtimeShift, getOppositeShift } from '@/lib/shifts';
 import styles from './dashboard.module.css';
 
 interface SessionFloor {
@@ -232,8 +233,9 @@ export default function SecurityDashboard() {
           const activeShifts = Array.isArray(shifts) ? shifts : [];
           setShiftsList(activeShifts);
           if (activeShifts.length > 0) {
-            const oppShift = activeShifts.find((s: any) => loggedInUser?.shiftId && s.id !== loggedInUser.shiftId) || activeShifts[0];
-            setHandoverTargetShiftId(oppShift.id);
+            const currentShift = getRealtimeShift(activeShifts);
+            const oppShift = getOppositeShift(currentShift, activeShifts) || activeShifts[0];
+            setHandoverTargetShiftId(oppShift.id || '');
           }
         }
 

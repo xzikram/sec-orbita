@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
 import { rooms as mockRooms } from '@/lib/dummy-data';
+import { resolveShiftForSchedule } from '@/lib/shifts';
 
 // POST /api/patrol/checks - Submit a room check
 export async function POST(request: NextRequest) {
@@ -156,7 +157,20 @@ export async function POST(request: NextRequest) {
         });
 
         if (!session) {
-          const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });
+          let sessionShiftId = auth.shiftId || '';
+          try {
+            const activeShifts = await prisma.shift.findMany({ where: { isActive: true } });
+            const resolved = resolveShiftForSchedule(schedule, activeShifts);
+            if (resolved && 'id' in resolved && resolved.id) {
+              sessionShiftId = resolved.id;
+            }
+          } catch {
+            if (!sessionShiftId) {
+              const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });
+              sessionShiftId = defaultShift?.id || '';
+            }
+          }
+
           const floors = await prisma.floor.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
           
           let earlyNotes: string | null = null;
@@ -168,7 +182,7 @@ export async function POST(request: NextRequest) {
             data: {
               userId: auth.id,
               scheduleId: schedule.id,
-              shiftId: auth.shiftId || defaultShift?.id || '',
+              shiftId: sessionShiftId,
               patrolDate,
               patrolNumber: schedule.patrolNumber,
               status: 'in_progress',

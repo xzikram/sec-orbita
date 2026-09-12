@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import SyncStatus from '@/components/SyncStatus';
 import ConnectionStatus from '@/components/ConnectionStatus';
+import { getRealtimeShift, ShiftInfo } from '@/lib/shifts';
 import styles from './security.module.css';
 
 interface LayoutUser {
@@ -13,6 +14,7 @@ interface LayoutUser {
   name: string;
   role: string;
   shift?: { name: string; startTime: string; endTime: string } | null;
+  activeShift?: ShiftInfo | null;
 }
 
 function LiveClock() {
@@ -91,17 +93,31 @@ export default function SecurityLayout({
 }) {
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = useState<LayoutUser | null>(null);
+  const [liveShift, setLiveShift] = useState<ShiftInfo>(() => getRealtimeShift());
   const [darkMode, setDarkMode] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [offlineCount, setOfflineCount] = useState(0);
 
   useEffect(() => {
-    // Load dark mode preference
+    // Load dark mode preference or auto-detect from current real-time shift
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {
       setDarkMode(true);
       document.documentElement.setAttribute('data-theme', 'dark');
+    } else if (!savedTheme) {
+      const initialShift = getRealtimeShift();
+      if (initialShift.code === 'MALAM' || initialShift.name.toLowerCase().includes('malam')) {
+        setDarkMode(true);
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
     }
+
+    // Real-time shift update interval (updates dynamically as clock ticks)
+    const updateShiftTimer = () => {
+      setLiveShift(getRealtimeShift());
+    };
+    updateShiftTimer();
+    const shiftInterval = setInterval(updateShiftTimer, 10000);
 
     // Online/offline listeners with auto-sync on Wi-Fi reconnect
     const handleOnline = async () => {
@@ -146,18 +162,12 @@ export default function SecurityLayout({
       .then(data => {
         if (data.user) {
           setCurrentUser(data.user);
+          if (data.user.activeShift) {
+            setLiveShift(data.user.activeShift);
+          }
           try {
             localStorage.setItem('cached-user', JSON.stringify(data.user));
           } catch {}
-          // Auto dark mode for night shifts (endTime after 22:00 or startTime before 06:00)
-          if (!savedTheme && data.user.shift) {
-            const endH = parseInt(data.user.shift.endTime?.split(':')[0] || '0');
-            const startH = parseInt(data.user.shift.startTime?.split(':')[0] || '8');
-            if (endH >= 22 || endH <= 5 || startH >= 20) {
-              setDarkMode(true);
-              document.documentElement.setAttribute('data-theme', 'dark');
-            }
-          }
         }
       })
       .catch(err => console.error('Error fetching auth user:', err));
@@ -206,12 +216,12 @@ export default function SecurityLayout({
       window.removeEventListener('error', handleGlobalError);
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       clearInterval(offlineInterval);
+      clearInterval(shiftInterval);
     };
   }, []);
 
 
   const user = currentUser;
-  const shift = currentUser?.shift;
 
   const isNavActive = (path: string) => {
     if (path === '/security/dashboard') return pathname === '/security/dashboard';
@@ -259,7 +269,7 @@ export default function SecurityLayout({
             <span>👤</span> {user?.name || 'Loading...'}
           </div>
           <div className={styles.headerSubShift}>
-            <span>⏱️</span> {shift ? `${shift.name} • ${shift.startTime}-${shift.endTime}` : ''}
+            <span>⏱️</span> {liveShift ? `${liveShift.name} • ${liveShift.startTime}-${liveShift.endTime}` : ''}
           </div>
         </div>
       </header>

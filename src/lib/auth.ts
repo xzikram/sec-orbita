@@ -2,6 +2,7 @@ import { sign, verify, JwtPayload } from 'jsonwebtoken';
 import { compare, hash } from 'bcryptjs';
 import { cookies } from 'next/headers';
 import prisma from './prisma';
+import { getRealtimeShift, ShiftInfo } from './shifts';
 
 const _jwtSecret = process.env.JWT_SECRET;
 if (!_jwtSecret) {
@@ -21,10 +22,13 @@ export interface AuthUser {
   role: 'security' | 'supervisor' | 'admin';
   shiftId: string | null;
   shift?: {
+    id?: string;
     name: string;
+    code?: string;
     startTime: string;
     endTime: string;
   } | null;
+  activeShift?: ShiftInfo | null;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -72,7 +76,9 @@ export async function getAuthUser(): Promise<AuthUser | null> {
         isActive: true,
         shift: {
           select: {
+            id: true,
             name: true,
+            code: true,
             startTime: true,
             endTime: true,
           },
@@ -81,7 +87,19 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     });
 
     if (!user || !user.isActive) return null;
-    return user as unknown as AuthUser;
+
+    let activeShift = null;
+    try {
+      const allActiveShifts = await prisma.shift.findMany({ where: { isActive: true } });
+      activeShift = getRealtimeShift(allActiveShifts);
+    } catch {
+      activeShift = getRealtimeShift();
+    }
+
+    return {
+      ...user,
+      activeShift,
+    } as unknown as AuthUser;
   } catch {
     return null;
   }
