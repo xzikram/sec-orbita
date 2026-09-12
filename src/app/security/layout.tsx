@@ -103,8 +103,19 @@ export default function SecurityLayout({
       document.documentElement.setAttribute('data-theme', 'dark');
     }
 
-    // Online/offline listeners
-    const handleOnline = () => setIsOnline(true);
+    // Online/offline listeners with auto-sync on Wi-Fi reconnect
+    const handleOnline = async () => {
+      setIsOnline(true);
+      try {
+        const { syncOfflineData } = await import('@/lib/sync');
+        const res = await syncOfflineData();
+        if (res.checksSynced > 0 || res.findingsSynced > 0) {
+          checkOffline();
+        }
+      } catch (err) {
+        console.warn('Auto-sync on Wi-Fi reconnect:', err);
+      }
+    };
     const handleOffline = () => setIsOnline(false);
     setIsOnline(navigator.onLine);
     window.addEventListener('online', handleOnline);

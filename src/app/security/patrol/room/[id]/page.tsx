@@ -63,14 +63,26 @@ export default function RoomCheckPage({
   }, []);
 
   useEffect(() => {
+    // Reset room state for new room check
+    setShowSuccess(false);
+    setPhoto(null);
+    setPhotoFile(null);
+    setRemarks('');
+    setFindingCategory(null);
+    setFindingDescription('');
+
     // Read pre-selected condition if passed via query param (e.g. ?condition=finding)
     if (typeof window !== 'undefined') {
       try {
         const queryParams = new URLSearchParams(window.location.search);
         if (queryParams.get('condition') === 'finding') {
           setCondition('finding');
+        } else {
+          setCondition(null);
         }
-      } catch {}
+      } catch {
+        setCondition(null);
+      }
     }
 
     async function loadData() {
@@ -411,17 +423,17 @@ export default function RoomCheckPage({
           floorRooms.find(r => !updatedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code);
 
         if (nextRoom) {
-          // Use window.location for reliable navigation that fully re-initializes the page
-          window.location.href = `/security/patrol/room/${nextRoom.id}`;
+          // Seamless client-side SPA navigation — 100% offline in-memory routing
+          router.push(`/security/patrol/room/${nextRoom.id}`);
         } else {
-          // All rooms done, go to floor page for QR scan — use window.location to avoid stale state
+          // All rooms done, go to floor page for QR scan
           const floorTarget = floor ? floor.id : room.floorId;
-          window.location.href = `/security/patrol/floor/${floorTarget}`;
+          router.push(`/security/patrol/floor/${floorTarget}`);
         }
       } catch (navErr) {
         console.error('Navigation error after submit:', navErr);
         // Fallback: go to patrol route
-        window.location.href = '/security/patrol';
+        router.push('/security/patrol');
       }
     }, 1500);
   };

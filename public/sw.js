@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v5';
+const CACHE_NAME = 'sec-patrol-v6';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -35,16 +35,12 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
-  // Don't intercept non-GET, API requests, or Next.js internals
-  if (
-    e.request.method !== 'GET' ||
-    url.pathname.startsWith('/api/') ||
-    url.pathname.startsWith('/_next/')
-  ) {
+  // Don't intercept non-GET or API endpoints (API handled by data-client with IndexedDB fallback)
+  if (e.request.method !== 'GET' || url.pathname.startsWith('/api/')) {
     return;
   }
 
-  // Static assets (icons, manifest, offline page) — cache-first
+  // 1. Static assets (icons, manifest, offline page) — cache-first
   if (STATIC_ASSETS.some(asset => url.pathname === asset)) {
     e.respondWith(
       caches.match(e.request).then((cached) => {
@@ -58,26 +54,72 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // HTML navigation pages — network-first with cache and offline fallback
-  if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
+  // 2. Next.js static JS/CSS chunks — cache-first with background network update
+  if (url.pathname.startsWith('/_next/static/')) {
     e.respondWith(
-      fetch(e.request)
-        .then((response) => {
+      caches.match(e.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(e.request).then((response) => {
           if (response.status === 200) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
           }
           return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(e.request);
-          if (cached) return cached;
-          const offlinePage = await caches.match('/offline.html');
-          if (offlinePage) return offlinePage;
-          return new Response('Server RS Mata JEC ORBITA tidak dapat dijangkau. Pastikan HP terhubung ke Wi-Fi RS.', {
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
+      })
+    );
+    return;
+  }
+
+  // 3. HTML navigation pages — network-first with fast 3s timeout for Wi-Fi roaming resilience
+  if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
+    e.respondWith(
+      new Promise((resolve) => {
+        let isResolved = false;
+        const timeoutId = setTimeout(async () => {
+          if (!isResolved) {
+            isResolved = true;
+            const cached = await caches.match(e.request);
+            if (cached) {
+              resolve(cached);
+            } else {
+              const offlinePage = await caches.match('/offline.html');
+              if (offlinePage) resolve(offlinePage);
+              else {
+                resolve(new Response('Server RS Mata JEC ORBITA tidak dapat dijangkau. Pastikan HP terhubung ke Wi-Fi RS.', {
+                  headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+                }));
+              }
+            }
+          }
+        }, 3000);
+
+        fetch(e.request)
+          .then((response) => {
+            clearTimeout(timeoutId);
+            if (!isResolved) {
+              isResolved = true;
+              if (response.status === 200) {
+                const clone = response.clone();
+                caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+              }
+              resolve(response);
+            }
+          })
+          .catch(async () => {
+            clearTimeout(timeoutId);
+            if (!isResolved) {
+              isResolved = true;
+              const cached = await caches.match(e.request);
+              if (cached) return resolve(cached);
+              const offlinePage = await caches.match('/offline.html');
+              if (offlinePage) return resolve(offlinePage);
+              resolve(new Response('Server RS Mata JEC ORBITA tidak dapat dijangkau. Pastikan HP terhubung ke Wi-Fi RS.', {
+                headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+              }));
+            }
           });
-        })
+      })
     );
     return;
   }

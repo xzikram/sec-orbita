@@ -42,13 +42,18 @@ export async function submitRoomCheck(payload: RoomCheckPayload): Promise<{ succ
     }
   }
 
-  // Attempt API post
+  // Fast-timeout (3.5s) for Wi-Fi handover resilience across floors
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
+
   try {
     const res = await fetch('/api/patrol/checks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (res.ok) {
       const data = await res.json().catch(() => null);
@@ -58,14 +63,16 @@ export async function submitRoomCheck(payload: RoomCheckPayload): Promise<{ succ
     const data = await res.json();
     throw new Error(data.error || 'API response error');
   } catch (error) {
-    // Fallback to offline store
+    clearTimeout(timeoutId);
+    // Wi-Fi handover, packet drop, or timeout: Fallback to offline store instantly
     try {
+      const offlineId = `check-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       await saveOfflineCheck({
-        id: `check-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        id: offlineId,
         ...payload,
         checkedAt: new Date().toISOString(),
       });
-      return { success: true, mode: 'offline' };
+      return { success: true, mode: 'offline', checkId: offlineId };
     } catch (err) {
       return { success: false, mode: 'offline', error: 'Gagal menyimpan data ke local storage.' };
     }
@@ -88,12 +95,17 @@ export async function submitFinding(payload: FindingPayload): Promise<{ success:
     }
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3500);
+
   try {
     const res = await fetch('/api/findings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (res.ok) {
       return { success: true, mode: 'online' };
@@ -102,6 +114,7 @@ export async function submitFinding(payload: FindingPayload): Promise<{ success:
     const data = await res.json();
     throw new Error(data.error || 'API response error');
   } catch (error) {
+    clearTimeout(timeoutId);
     try {
       await saveOfflineFinding({
         id: `find-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
