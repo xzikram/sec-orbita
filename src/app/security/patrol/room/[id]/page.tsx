@@ -87,10 +87,11 @@ export default function RoomCheckPage({
 
     async function loadData() {
       try {
-        // If room not found in static catalog, attempt lookup
+        // If room not found in initial state, attempt resilient lookup (IndexedDB / static)
         let resolvedRoom = room;
         if (!resolvedRoom) {
-          resolvedRoom = getRoomById(id);
+          const { getResilientRoomById } = await import('@/lib/offline-cache');
+          resolvedRoom = await getResilientRoomById(id);
           if (resolvedRoom) {
             setRoom(resolvedRoom);
             if (!resolvedRoom.hasAc) {

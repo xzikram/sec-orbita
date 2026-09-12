@@ -6,7 +6,7 @@ import { syncOfflineData } from '@/lib/sync';
 import styles from './sync-status.module.css';
 
 export default function SyncStatus() {
-  const [counts, setCounts] = useState({ checks: 0, findings: 0 });
+  const [counts, setCounts] = useState({ checks: 0, findings: 0, qrScans: 0 });
   const [isOnline, setIsOnline] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState('');
@@ -23,7 +23,8 @@ export default function SyncStatus() {
     setSyncing(false);
 
     if (result.success) {
-      setMessage(`Sukses menyinkronkan ${result.checksSynced} data.`);
+      const totalSynced = result.checksSynced + result.findingsSynced + result.qrScansSynced;
+      setMessage(`Sukses menyinkronkan ${totalSynced} data.`);
       setTimeout(() => setMessage(''), 3000);
     } else {
       setMessage(result.error || 'Gagal menyinkronkan data.');
@@ -34,7 +35,7 @@ export default function SyncStatus() {
 
   const autoSync = async () => {
     const c = await getOfflineCount();
-    if (c.checks > 0 || c.findings > 0) {
+    if (c.checks > 0 || c.findings > 0 || c.qrScans > 0) {
       handleSync();
     }
   };
@@ -62,7 +63,7 @@ export default function SyncStatus() {
     };
   }, []);
 
-  const totalOffline = counts.checks + counts.findings;
+  const totalOffline = counts.checks + counts.findings + (counts.qrScans || 0);
 
   if (totalOffline === 0 && isOnline && !message) return null;
 

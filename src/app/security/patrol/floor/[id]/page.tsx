@@ -93,7 +93,8 @@ export default function FloorDetailPage({
             return match ? (getFloorById(match.floorCodeSnapshot) || getFloorById(match.floorId) || getFloorById(match.floor?.code)) : undefined;
           })();
 
-        const defaultRooms = getRoomsByFloor(resolvedFloor ? resolvedFloor.id : id);
+        const { getResilientRoomsForFloor } = await import('@/lib/offline-cache');
+        const defaultRooms = await getResilientRoomsForFloor(resolvedFloor ? resolvedFloor.id : id);
 
         const savedOrder = localStorage.getItem(`patrol-order-${empId}-${id}`);
         if (savedOrder) {

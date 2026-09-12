@@ -32,6 +32,7 @@ export default function QRScanPage({
   const [errorMsg, setErrorMsg] = useState('Titik validasi tidak sesuai dengan lantai yang sedang diperiksa.');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
+  const [isOfflineScan, setIsOfflineScan] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualToken, setManualToken] = useState('');
   const [submittingManual, setSubmittingManual] = useState(false);
@@ -153,6 +154,7 @@ export default function QRScanPage({
     const { isOfficialQrValidForFloor } = await import('@/lib/qr-constants');
     const floorCode = floor ? floor.code : '';
     const isPhysicalValid = isOfficialQrValidForFloor(floorCode, tokenValue);
+    const sfId = sessionFloor?.id || (floor ? `sf-${floor.code.toLowerCase()}` : id);
 
     // If device is offline, allow offline verification using official wall token
     if (!navigator.onLine) {
@@ -162,13 +164,39 @@ export default function QRScanPage({
         return;
       }
 
+      setIsOfflineScan(true);
+
+      // Save offline scan record into IndexedDB
       try {
-        const pendingKey = `pending_qr_${sessionFloor?.id || id}`;
-        localStorage.setItem(pendingKey, JSON.stringify({
-          token: tokenValue,
+        const { saveOfflineQrScan } = await import('@/lib/db');
+        await saveOfflineQrScan({
+          id: `qr-scan-${Date.now()}-${floorCode}`,
+          sessionFloorId: sfId,
           floorCode,
-          scannedAt: new Date().toISOString()
-        }));
+          qrToken: tokenValue,
+          scannedAt: new Date().toISOString(),
+        });
+      } catch (dbErr) {
+        console.warn('Save offline QR scan notice:', dbErr);
+      }
+
+      // Mark floor completed in cached active session
+      try {
+        const cached = localStorage.getItem('cached-active-session');
+        if (cached) {
+          const sess = JSON.parse(cached);
+          if (Array.isArray(sess.sessionFloors)) {
+            const sf = sess.sessionFloors.find((f: any) => 
+              f.floorCodeSnapshot === floorCode || f.id === sfId || f.floorId === id || f.floor?.code === floorCode
+            );
+            if (sf) {
+              sf.status = 'completed';
+              sf.qrValidated = true;
+              sf.completedAt = new Date().toISOString();
+              localStorage.setItem('cached-active-session', JSON.stringify(sess));
+            }
+          }
+        }
       } catch {}
 
       setScanState('success');
@@ -180,7 +208,7 @@ export default function QRScanPage({
         } else {
           router.push('/security/patrol/summary');
         }
-      }, 2200);
+      }, 2400);
       return;
     }
 
@@ -196,8 +224,6 @@ export default function QRScanPage({
         console.warn('Pre-validation sync notice:', syncErr);
       }
 
-      const sfId = sessionFloor?.id || (floor ? `sf-${floor.code.toLowerCase()}` : id);
-
       const res = await fetch('/api/patrol/qr-validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -210,8 +236,15 @@ export default function QRScanPage({
       const data = await res.json();
 
       if (res.ok && data.valid) {
+        setIsOfflineScan(false);
         setScanState('success');
         try { localStorage.removeItem('lastPatrolState'); } catch {}
+
+        // Post-validation memory wipe: ensure phone memory is immediately freed
+        try {
+          const { syncOfflineData } = await import('@/lib/sync');
+          await syncOfflineData();
+        } catch {}
 
         setTimeout(() => {
           if (nextFloor) {
@@ -227,14 +260,18 @@ export default function QRScanPage({
     } catch {
       // If server unreachable despite navigator.onLine, fallback to physical token check
       if (isPhysicalValid) {
+        setIsOfflineScan(true);
         try {
-          const pendingKey = `pending_qr_${sessionFloor?.id || id}`;
-          localStorage.setItem(pendingKey, JSON.stringify({
-            token: tokenValue,
+          const { saveOfflineQrScan } = await import('@/lib/db');
+          await saveOfflineQrScan({
+            id: `qr-scan-${Date.now()}-${floorCode}`,
+            sessionFloorId: sfId,
             floorCode,
-            scannedAt: new Date().toISOString()
-          }));
+            qrToken: tokenValue,
+            scannedAt: new Date().toISOString(),
+          });
         } catch {}
+
         setScanState('success');
         setTimeout(() => {
           if (nextFloor) {
@@ -242,7 +279,7 @@ export default function QRScanPage({
           } else {
             router.push('/security/patrol/summary');
           }
-        }, 2200);
+        }, 2400);
       } else {
         setScanState('error');
         setErrorMsg('Gagal memvalidasi ke server. Pastikan koneksi internet stabil.');
@@ -270,11 +307,20 @@ export default function QRScanPage({
           <h2 className={styles.resultTitle}>Verifikasi Berhasil!</h2>
           <p className={styles.resultText}>{floor?.name} telah selesai dipatroli</p>
           <div className={styles.resultMeta} style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
-            <span className="badge badge-success badge-lg">✓ QR Code Tervalidasi Fisik</span>
-            {syncedCount !== null && syncedCount > 0 && (
-              <span style={{ fontSize: '12px', color: 'var(--color-success-700)', fontWeight: '600' }}>
-                ☁️ {syncedCount} pemeriksaan ruangan berhasil disinkronkan ke server
-              </span>
+            {isOfflineScan ? (
+              <>
+                <span className="badge badge-warning badge-lg">⚡ QR Tervalidasi Fisik (Mode Offline)</span>
+                <span style={{ fontSize: '12px', color: 'var(--color-warning-700)', fontWeight: '600', textAlign: 'center', maxWidth: '320px' }}>
+                  Data tersimpan di HP • Otomatis diunggah ke server & memori dibersihkan saat ada sinyal
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="badge badge-success badge-lg">✓ QR Code Tervalidasi Online</span>
+                <span style={{ fontSize: '12px', color: 'var(--color-success-700)', fontWeight: '600', textAlign: 'center', maxWidth: '320px' }}>
+                  ☁️ Seluruh pemeriksaan ruangan & foto telah diterima server. Memori HP telah dibersihkan.
+                </span>
+              </>
             )}
           </div>
 

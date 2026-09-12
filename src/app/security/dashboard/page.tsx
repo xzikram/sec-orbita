@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { rooms } from '@/lib/dummy-data';
 import { getRealtimeShift, getOppositeShift } from '@/lib/shifts';
 import styles from './dashboard.module.css';
@@ -63,6 +64,40 @@ export default function SecurityDashboard() {
   const [overrideReason, setOverrideReason] = useState('Petugas sebelumnya lupa checkout / pergantian giliran');
   const [overrideCustomNotes, setOverrideCustomNotes] = useState('');
   const [submittingOverride, setSubmittingOverride] = useState(false);
+
+  // Router & Offline pre-caching state (Option A)
+  const router = useRouter();
+  const [isPreparingOffline, setIsPreparingOffline] = useState(false);
+  const [prepareProgress, setPrepareProgress] = useState(0);
+  const [prepareStatusText, setPrepareStatusText] = useState('');
+
+  const handleNavigateToPatrolWithPreDownload = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    setIsPreparingOffline(true);
+    setPrepareProgress(20);
+    setPrepareStatusText('Menyiapkan koneksi data...');
+
+    try {
+      setPrepareProgress(45);
+      setPrepareStatusText('Mengunduh katalog 12 Lantai & 133 Ruangan...');
+      const { downloadPatrolPackage } = await import('@/lib/offline-cache');
+      const res = await downloadPatrolPackage();
+
+      setPrepareProgress(85);
+      setPrepareStatusText(`Menyimpan ${res.roomsCount || 133} ruangan & token QR fisik di HP...`);
+      await new Promise(r => setTimeout(r, 450));
+
+      setPrepareProgress(100);
+      setPrepareStatusText('Data offline siap! Masuk ke rute patroli...');
+      await new Promise(r => setTimeout(r, 350));
+
+      router.push('/security/patrol');
+    } catch {
+      router.push('/security/patrol');
+    } finally {
+      setIsPreparingOffline(false);
+    }
+  };
 
   const fetchHandover = async () => {
     try {
@@ -299,6 +334,11 @@ export default function SecurityDashboard() {
 
     loadDashboard();
     fetchHandover();
+
+    // Background pre-download of offline patrol package
+    import('@/lib/offline-cache').then(({ downloadPatrolPackage }) => {
+      downloadPatrolPackage().catch(() => {});
+    }).catch(() => {});
 
     // Fetch leaderboard stats
     fetch('/api/leaderboard')
@@ -750,12 +790,18 @@ export default function SecurityDashboard() {
         {data?.session && data.session.status === 'in_progress' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
             {isParticipating ? (
-              <Link href="/security/patrol" className="btn btn-primary btn-xl" id="btn-start-patrol">
+              <button
+                type="button"
+                onClick={handleNavigateToPatrolWithPreDownload}
+                disabled={isPreparingOffline}
+                className="btn btn-primary btn-xl"
+                id="btn-start-patrol"
+              >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 </svg>
                 Lanjutkan Patroli (Ronda #{data.session.patrolNumber})
-              </Link>
+              </button>
             ) : (
               <button
                 onClick={handleJoinActiveRound}
@@ -792,12 +838,18 @@ export default function SecurityDashboard() {
             </button>
           </div>
         ) : (
-          <Link href="/security/patrol" className="btn btn-primary btn-xl" id="btn-start-patrol">
+          <button
+            type="button"
+            onClick={handleNavigateToPatrolWithPreDownload}
+            disabled={isPreparingOffline}
+            className="btn btn-primary btn-xl"
+            id="btn-start-patrol"
+          >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             Mulai Patroli
-          </Link>
+          </button>
         )}
       </div>
 
@@ -932,6 +984,80 @@ export default function SecurityDashboard() {
                 Batal
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Offline Patrol Pre-Download Modal (Option A) */}
+      {isPreparingOffline && (
+        <div
+          className="modal-backdrop animate-fade-in"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.78)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '16px',
+          }}
+        >
+          <div
+            className="card animate-scale-up"
+            style={{
+              width: '100%',
+              maxWidth: '340px',
+              background: 'var(--card-bg, #ffffff)',
+              borderRadius: '20px',
+              padding: '24px',
+              textAlign: 'center',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
+              border: '1px solid var(--border-light, rgba(255,255,255,0.2))',
+            }}
+          >
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                boxShadow: '0 8px 20px rgba(37, 99, 235, 0.35)',
+              }}
+            >
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 3s linear infinite' }}>
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            </div>
+            <h3 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 6px', color: 'var(--text-primary)' }}>
+              Menyiapkan Patroli Offline
+            </h3>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 20px', lineHeight: 1.5 }}>
+              Menyimpan 12 Lantai, 133 Ruangan, dan QR Code agar patroli tetap aktif walau tanpa Wi-Fi.
+            </p>
+
+            {/* Progress Bar */}
+            <div style={{ width: '100%', background: 'var(--color-neutral-200, #e2e8f0)', height: '8px', borderRadius: '4px', overflow: 'hidden', marginBottom: '10px' }}>
+              <div
+                style={{
+                  width: `${prepareProgress}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #2563eb 0%, #10b981 100%)',
+                  transition: 'width 0.3s ease',
+                }}
+              />
+            </div>
+
+            <p style={{ fontSize: '11px', color: 'var(--color-primary-600, #2563eb)', fontWeight: 600, margin: 0 }}>
+              {prepareStatusText}
+            </p>
           </div>
         </div>
       )}
