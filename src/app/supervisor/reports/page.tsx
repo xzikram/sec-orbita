@@ -237,13 +237,13 @@ export default function ReportsPage() {
             <option value="malam">Shift Malam (23:00 - 07:00)</option>
           </select>
 
-          {/* Export PDF Button */}
+          {/* Report Button */}
           <Link
             href="/supervisor/reports/export"
             className="btn btn-primary btn-sm"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
           >
-            📄 Rekap PDF
+            📄 Report
           </Link>
         </div>
       </div>

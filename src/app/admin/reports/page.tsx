@@ -237,25 +237,13 @@ export default function AdminReportsPage() {
             <option value="malam">Shift Malam (23:00 - 07:00)</option>
           </select>
 
-          {/* Export Excel Button */}
-          <a
-            href={`/api/reports/excel?type=daily&date=${selectedDate}&shift=${shiftFilter}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-secondary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, background: '#107c41', color: '#fff', borderColor: '#0b592e' }}
-            title="Unduh laporan patroli harian ini ke Microsoft Excel (.xlsx)"
-          >
-            📊 Unduh Excel
-          </a>
-
-          {/* Export PDF Button */}
+          {/* Report Button */}
           <Link
             href="/admin/reports/export"
             className="btn btn-primary btn-sm"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
           >
-            📄 Cetak / PDF
+            📄 Report
           </Link>
         </div>
       </div>
