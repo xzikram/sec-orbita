@@ -97,12 +97,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Jadwal patroli tidak ditemukan di database' }, { status: 400 });
       }
 
-      // Find or create active PatrolSession for today
+      // Find or create active PatrolSession for today strictly for this user (Option C)
       const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
       const patrolDate = new Date(todayStr);
 
       let session = await prisma.patrolSession.findFirst({
-        where: { status: 'in_progress' },
+        where: {
+          userId: auth.id,
+          patrolDate,
+          status: 'in_progress',
+        },
         include: { sessionFloors: { include: { floor: true } } },
         orderBy: { startedAt: 'desc' },
       });
@@ -162,8 +166,28 @@ export async function POST(request: NextRequest) {
       if (!sessionFloor) {
         return NextResponse.json({ error: 'Session floor tidak ditemukan' }, { status: 404 });
       }
-      if (auth.role !== 'security' && auth.role !== 'admin') {
-        return NextResponse.json({ error: 'Anda tidak memiliki akses ke sesi ini' }, { status: 403 });
+
+      // In Option C: If session floor belongs to another officer (e.g. from cached state),
+      // re-route check to current authenticated officer's own session floor
+      if (auth.role === 'security' && sessionFloor.session.userId !== auth.id) {
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+        const patrolDate = new Date(todayStr);
+
+        let userSession = await prisma.patrolSession.findFirst({
+          where: {
+            userId: auth.id,
+            patrolDate,
+            status: 'in_progress',
+          },
+          include: { sessionFloors: true },
+        });
+
+        if (userSession) {
+          const matchingSf = userSession.sessionFloors.find(sf => sf.floorId === room.floorId);
+          if (matchingSf) {
+            realSessionFloorId = matchingSf.id;
+          }
+        }
       }
     }
 

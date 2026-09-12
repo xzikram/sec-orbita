@@ -13,6 +13,7 @@ export interface SyncResult {
   success: boolean;
   checksSynced: number;
   findingsSynced: number;
+  memoryCleared?: boolean;
   error?: string;
 }
 
@@ -82,6 +83,16 @@ export async function syncOfflineData(): Promise<SyncResult> {
       }
     }
 
+    // 3. Complete wipe if all items synced to guarantee zero storage footprint
+    if (checksSynced === checks.length && findingsSynced === findings.length && (checks.length > 0 || findings.length > 0)) {
+      try {
+        const { clearOfflineData } = await import('./db');
+        await clearOfflineData();
+      } catch (clearErr) {
+        console.warn('Post-sync clear notice:', clearErr);
+      }
+    }
+
     const hasErrors = checkErrors.length > 0 || findingErrors.length > 0;
     const errorSummary = hasErrors
       ? [...checkErrors, ...findingErrors].slice(0, 2).join('; ')
@@ -91,6 +102,7 @@ export async function syncOfflineData(): Promise<SyncResult> {
       success: !hasErrors || (checksSynced > 0 || findingsSynced > 0),
       checksSynced,
       findingsSynced,
+      memoryCleared: checksSynced === checks.length && findingsSynced === findings.length,
       error: errorSummary,
     };
   } catch (err) {

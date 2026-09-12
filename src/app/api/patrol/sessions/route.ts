@@ -11,6 +11,26 @@ export async function GET(request: NextRequest) {
   const id = searchParams.get('id');
   const userId = searchParams.get('userId');
 
+  const todayMakassarStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+  const todayDate = new Date(todayMakassarStr);
+
+  // Auto-close dangling sessions from past dates that are still in_progress
+  try {
+    await prisma.patrolSession.updateMany({
+      where: {
+        status: 'in_progress',
+        patrolDate: { lt: todayDate },
+      },
+      data: {
+        status: 'incomplete',
+        notes: 'Otomatis ditutup: sesi melewati batas tanggal operasional.',
+        completedAt: new Date(),
+      },
+    });
+  } catch (autoCloseErr) {
+    console.error('Auto-close past sessions error:', autoCloseErr);
+  }
+
   const where: Record<string, any> = {};
   if (id) {
     where.id = id;
@@ -19,11 +39,7 @@ export async function GET(request: NextRequest) {
     if (date) {
       where.patrolDate = new Date(date);
     } else {
-      const today = new Date().toISOString().split('T')[0];
-      where.OR = [
-        { status: 'in_progress' },
-        { patrolDate: new Date(today) }
-      ];
+      where.patrolDate = todayDate;
     }
   }
 
@@ -72,16 +88,34 @@ export async function POST(request: NextRequest) {
     const schedule = await prisma.patrolSchedule.findUnique({ where: { id: scheduleId } });
     if (!schedule) return NextResponse.json({ error: 'Jadwal tidak ditemukan' }, { status: 404 });
 
+    const todayMakassarStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+    const patrolDate = new Date(todayMakassarStr);
+
+    // Check if a session already exists for this user, schedule, and date
+    let existingSession = await prisma.patrolSession.findUnique({
+      where: {
+        userId_scheduleId_patrolDate: {
+          userId: auth.id,
+          scheduleId,
+          patrolDate,
+        },
+      },
+      include: { sessionFloors: true },
+    });
+
+    if (existingSession) {
+      return NextResponse.json(existingSession, { status: 200 });
+    }
+
     // Get all active floors and create session floors
     const floors = await prisma.floor.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
-    const today = new Date().toISOString().split('T')[0];
 
     const session = await prisma.patrolSession.create({
       data: {
         userId: auth.id,
         scheduleId,
         shiftId: auth.shiftId || '',
-        patrolDate: new Date(today),
+        patrolDate,
         patrolNumber: schedule.patrolNumber,
         status: 'in_progress',
         startedAt: new Date(),

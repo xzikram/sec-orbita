@@ -60,6 +60,10 @@ export default function PatrolPage() {
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showEarlyFinishModal, setShowEarlyFinishModal] = useState(false);
+  const [earlyReason, setEarlyReason] = useState('Panggilan Darurat / Insiden IGD');
+  const [earlyNotes, setEarlyNotes] = useState('');
+  const [submittingEarly, setSubmittingEarly] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -123,6 +127,33 @@ export default function PatrolPage() {
         })
         .catch(() => {});
     } catch {}
+  };
+
+  const handleEarlyFinish = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentSession?.id) return;
+    setSubmittingEarly(true);
+    try {
+      const res = await fetch('/api/patrol/sessions/early-finish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: currentSession.id,
+          reason: earlyReason,
+          notes: earlyNotes,
+        }),
+      });
+      if (res.ok) {
+        window.location.href = '/security/patrol/summary';
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Gagal mengakhiri patroli');
+      }
+    } catch {
+      alert('Terjadi kesalahan jaringan saat mengakhiri patroli.');
+    } finally {
+      setSubmittingEarly(false);
+    }
   };
 
   const currentSession = session || activeSession;
@@ -249,6 +280,27 @@ export default function PatrolPage() {
           <p className="text-xs text-muted mt-1">
             {checkedRooms} dari {totalRooms} ruangan • {floorProgress.filter((f: any) => f.status === 'completed').length} dari {floors.length} lantai
           </p>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--border-light)' }}>
+            {offlineChecks.length > 0 ? (
+              <span style={{ fontSize: '11px', color: 'var(--color-warning-700)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                📱 <strong>{offlineChecks.length} titik tersimpan lokal</strong> (auto-sync saat scan QR)
+              </span>
+            ) : (
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Memori HP: 0 KB (Lega)
+              </span>
+            )}
+            <button
+              type="button"
+              className="btn btn-outline btn-xs"
+              onClick={() => setShowEarlyFinishModal(true)}
+              style={{ color: '#dc2626', borderColor: 'rgba(220, 38, 38, 0.3)', padding: '3px 8px', fontSize: '11px', fontWeight: 600 }}
+              id="btn-early-finish"
+            >
+              ⏹️ Selesaikan Sebagian
+            </button>
+          </div>
         </div>
       </div>
 
@@ -416,6 +468,90 @@ export default function PatrolPage() {
           </Link>
         ))}
       </div>
+
+      {/* Modal Akhiri Patroli Lebih Awal */}
+      {showEarlyFinishModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.65)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '16px',
+          backdropFilter: 'blur(3px)'
+        }}>
+          <div className="card animate-scale-in" style={{ width: '100%', maxWidth: '400px', padding: '20px', borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '20px' }}>⚠️</span>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Akhiri Patroli Lebih Awal?</h3>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 14px 0', lineHeight: 1.4 }}>
+              Patroli ini belum selesai 100%. Pilih alasan resmi di bawah ini agar tercatat transparan di laporan supervisor:
+            </p>
+
+            <form onSubmit={handleEarlyFinish}>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px', color: 'var(--text-primary)' }}>
+                  Alasan Berhenti:
+                </label>
+                <select
+                  className="form-input"
+                  style={{ width: '100%', fontSize: '12px', padding: '8px' }}
+                  value={earlyReason}
+                  onChange={(e) => setEarlyReason(e.target.value)}
+                  required
+                >
+                  <option value="Panggilan Darurat / Insiden IGD">🚨 Panggilan Darurat / Insiden IGD</option>
+                  <option value="Lantai / Area Steril (Tindakan Pasien/Operasi)">🏥 Lantai / Area Steril (Tindakan Pasien/Operasi)</option>
+                  <option value="Waktu Shift Berakhir / Apel & Serah Terima">⏰ Waktu Shift Berakhir / Apel & Serah Terima</option>
+                  <option value="Pintu / Akses Area Terkunci">🚪 Pintu / Akses Area Terkunci</option>
+                  <option value="Instruksi Komandan Regu (Danru)">👮 Instruksi Komandan Regu (Danru)</option>
+                  <option value="Lainnya">📝 Lainnya (Isi catatan di bawah)</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px', color: 'var(--text-primary)' }}>
+                  Catatan Tambahan (Opsional):
+                </label>
+                <textarea
+                  className="form-input"
+                  rows={2}
+                  style={{ width: '100%', fontSize: '12px', resize: 'none' }}
+                  placeholder="Contoh: Dipanggil penanganan pasien gaduh gelisah di lobi..."
+                  value={earlyNotes}
+                  onChange={(e) => setEarlyNotes(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowEarlyFinishModal(false)}
+                  disabled={submittingEarly}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-danger btn-sm"
+                  style={{ background: '#dc2626', color: '#fff', border: 'none' }}
+                  disabled={submittingEarly}
+                >
+                  {submittingEarly ? 'Menyimpan...' : 'Konfirmasi Selesai'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

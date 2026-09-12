@@ -42,7 +42,7 @@ export default function RootLayout({
   return (
     <html lang="id">
       <head>
-        <link rel="icon" href="/Logo RS JEC ORBITA.png" type="image/png" />
+        <link rel="icon" href="/icons/icon-192.png" type="image/png" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />

@@ -40,6 +40,7 @@ export default function SecurityDashboard() {
   const [showHandoverForm, setShowHandoverForm] = useState(false);
   const [handoverNotes, setHandoverNotes] = useState('');
   const [handoverSuccess, setHandoverSuccess] = useState(false);
+  const [leaderboardInfo, setLeaderboardInfo] = useState<{ myRank: number; score: number } | null>(null);
 
   const fetchHandover = async () => {
     try {
@@ -172,6 +173,18 @@ export default function SecurityDashboard() {
 
     loadDashboard();
     fetchHandover();
+
+    // Fetch leaderboard stats
+    fetch('/api/leaderboard')
+      .then(res => (res.ok ? res.json() : null))
+      .then(lb => {
+        if (lb && lb.myRank) {
+          const myUser = lb.leaderboard?.[lb.myRank - 1];
+          setLeaderboardInfo({ myRank: lb.myRank, score: myUser?.score || 0 });
+        }
+      })
+      .catch(() => {});
+
     return () => clearInterval(interval);
   }, []);
 
@@ -261,6 +274,24 @@ export default function SecurityDashboard() {
       <p className={`text-sm text-secondary mb-3 ${styles.dateText}`}>
         {currentTime ? formatDate(currentTime) : ''}
       </p>
+
+      {/* Motivating Leaderboard Widget */}
+      <Link href="/security/leaderboard" style={{ textDecoration: 'none', display: 'block', marginBottom: '14px' }} id="widget-leaderboard">
+        <div className="card animate-slide-up" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)', color: '#fff', padding: '12px 16px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 12px rgba(30, 58, 138, 0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '24px' }}>🏆</span>
+            <div>
+              <p style={{ margin: 0, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.85, fontWeight: 700 }}>Papan Peringkat Security</p>
+              <p style={{ margin: '2px 0 0', fontSize: '13px', fontWeight: 600 }}>
+                {leaderboardInfo ? `Peringkat #${leaderboardInfo.myRank} • ${leaderboardInfo.score} Poin Disiplin` : 'Cek Klasemen Tim & Peringkat Anda →'}
+              </p>
+            </div>
+          </div>
+          <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.2)', padding: '5px 10px', borderRadius: '20px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+            Lihat Ranking →
+          </span>
+        </div>
+      </Link>
 
       {/* Active Patrol Card */}
       {data?.session ? (

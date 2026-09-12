@@ -91,12 +91,45 @@ export default function QRScanPage({
   }
 
   const handleScanSuccess = async (scannedText: string) => {
+    const rawTrimmed = scannedText.trim();
+    let tokenValue = rawTrimmed;
+    try {
+      const parsed = JSON.parse(rawTrimmed);
+      if (parsed.token) tokenValue = String(parsed.token).trim();
+    } catch {}
+
+    const { isOfficialQrValidForFloor } = await import('@/lib/qr-constants');
+    const floorCode = floor ? floor.code : '';
+    const isPhysicalValid = isOfficialQrValidForFloor(floorCode, tokenValue);
+
+    // If device is offline, allow offline verification using official wall token
     if (!navigator.onLine) {
-      setScanState('error');
-      setErrorMsg('Verifikasi scan QR lantai membutuhkan jaringan internet. Silakan hubungkan HP ke Wi-Fi / Data Seluler.');
+      if (!isPhysicalValid) {
+        setScanState('error');
+        setErrorMsg('QR Code tidak sesuai dengan stiker fisik di lantai ini.');
+        return;
+      }
+
+      try {
+        // Save pending floor validation locally
+        const pendingKey = `pending_qr_${sessionFloor?.id || id}`;
+        localStorage.setItem(pendingKey, JSON.stringify({
+          token: tokenValue,
+          floorCode,
+          scannedAt: new Date().toISOString()
+        }));
+      } catch {}
+
+      setScanState('success');
+      try { localStorage.removeItem('lastPatrolState'); } catch {}
+
+      setTimeout(() => {
+        router.push('/security/patrol');
+      }, 2200);
       return;
     }
 
+    // Online verification
     try {
       const sfId = sessionFloor?.id || (floor ? `sf-${floor.code.toLowerCase()}` : id);
 
@@ -105,14 +138,14 @@ export default function QRScanPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionFloorId: sfId,
-          qrToken: scannedText.trim(),
+          qrToken: tokenValue,
         }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.valid) {
-        // Trigger background sync for any remaining offline checks
+        // Trigger background sync for any remaining offline checks + flush IndexedDB
         try {
           const { syncOfflineData } = await import('@/lib/sync');
           const syncRes = await syncOfflineData();
@@ -142,8 +175,22 @@ export default function QRScanPage({
         setErrorMsg(data.error || 'QR Code tidak cocok untuk lantai ini.');
       }
     } catch {
-      setScanState('error');
-      setErrorMsg('Gagal memvalidasi ke server. Pastikan koneksi internet stabil.');
+      // If server unreachable despite navigator.onLine, fallback to physical token check
+      if (isPhysicalValid) {
+        try {
+          const pendingKey = `pending_qr_${sessionFloor?.id || id}`;
+          localStorage.setItem(pendingKey, JSON.stringify({
+            token: tokenValue,
+            floorCode,
+            scannedAt: new Date().toISOString()
+          }));
+        } catch {}
+        setScanState('success');
+        setTimeout(() => router.push('/security/patrol'), 2200);
+      } else {
+        setScanState('error');
+        setErrorMsg('Gagal memvalidasi ke server. Pastikan koneksi internet stabil.');
+      }
     }
   };
 
@@ -155,41 +202,8 @@ export default function QRScanPage({
     setSubmittingManual(false);
   };
 
-  // Offline barrier screen
-  if (!isOnline && scanState !== 'success') {
-    return (
-      <div className="page-content">
-        <div className={styles.header}>
-          <button className="btn btn-ghost btn-icon" onClick={() => router.back()} aria-label="Kembali">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
-          </button>
-          <div>
-            <h1 className={styles.title}>Verifikasi Lantai</h1>
-            <p className={styles.subtitle}>{floor?.name}</p>
-          </div>
-        </div>
+  // Note: Offline scanning is allowed and validated against official stickers
 
-        <div className="card" style={{ textAlign: 'center', padding: '32px 20px', marginTop: '20px' }}>
-          <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--color-warning-50)', color: 'var(--color-warning-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', fontSize: '28px' }}>
-            📶
-          </div>
-          <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>Koneksi Jaringan Diperlukan</h2>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '20px' }}>
-            Seluruh pemeriksaan ruangan di <strong>{floor?.name}</strong> telah tersimpan aman di HP Anda secara lokal.
-            Untuk menyelesaikan verifikasi QR lantai dan mengirim data ke server, hubungkan HP Anda ke Wi-Fi atau data seluler.
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button className="btn btn-primary" onClick={() => setIsOnline(navigator.onLine)}>
-              🔄 Coba Sambungkan Kembali
-            </button>
-            <button className="btn btn-outline" onClick={() => router.push('/security/patrol')}>
-              Kembali ke Daftar Lantai
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (scanState === 'success') {
     return (

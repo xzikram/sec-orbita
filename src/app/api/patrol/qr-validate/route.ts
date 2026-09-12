@@ -21,10 +21,14 @@ export async function POST(request: NextRequest) {
     let sessionFloor = null;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionFloorId);
     if (isUuid) {
-      sessionFloor = await prisma.patrolSessionFloor.findUnique({
+      const foundSf = await prisma.patrolSessionFloor.findUnique({
         where: { id: sessionFloorId },
-        include: { floor: { include: { qrCode: true } } },
+        include: { floor: { include: { qrCode: true } }, session: true },
       });
+      // In Option C: ensure session floor belongs to current user
+      if (foundSf && (auth.role !== 'security' || foundSf.session.userId === auth.id)) {
+        sessionFloor = foundSf;
+      }
     }
 
     if (!sessionFloor) {
@@ -52,6 +56,7 @@ export async function POST(request: NextRequest) {
       }) || await prisma.patrolSession.findFirst({
         where: {
           ...(auth.role === 'security' ? { userId: auth.id } : {}),
+          status: 'in_progress',
         },
         include: {
           sessionFloors: {
