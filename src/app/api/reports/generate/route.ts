@@ -51,7 +51,20 @@ export async function GET(request: NextRequest) {
         user: { select: { name: true, employeeId: true } },
         schedule: { select: { name: true, startTime: true, endTime: true } },
         shift: { select: { name: true } },
-        sessionFloors: { include: { patrolChecks: true } },
+        sessionFloors: {
+          include: {
+            patrolChecks: {
+              include: {
+                user: { select: { name: true, employeeId: true } },
+              },
+              orderBy: [
+                { floorNameSnapshot: 'asc' },
+                { roomOrderSnapshot: 'asc' },
+                { checkedAt: 'asc' },
+              ],
+            },
+          },
+        },
       },
       orderBy: { patrolNumber: 'asc' },
     });
@@ -105,6 +118,44 @@ export async function GET(request: NextRequest) {
       openFindings,
     };
 
+    // Flatten all checks for checklist reports
+    const checks: any[] = [];
+    for (const s of sessions) {
+      const sessionDate = s.patrolDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+      const rawDate = s.patrolDate.toISOString().split('T')[0];
+      const shiftName = s.shift?.name || s.schedule?.name || `Patroli #${s.patrolNumber}`;
+      for (const sf of s.sessionFloors) {
+        for (const c of sf.patrolChecks) {
+          checks.push({
+            id: c.id,
+            sessionId: s.id,
+            sessionNumber: s.patrolNumber,
+            date: sessionDate,
+            rawDate,
+            shiftName,
+            officer: c.user?.name || s.user?.name || 'Petugas',
+            officerEmployeeId: c.user?.employeeId || s.user?.employeeId || '-',
+            floor: c.floorNameSnapshot,
+            room: c.roomNameSnapshot,
+            code: c.roomCodeSnapshot,
+            acStatus: c.acStatus,
+            lightStatus: c.lightStatus,
+            condition: c.condition,
+            remarks: c.remarks || null,
+            time: new Date(c.checkedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' }),
+            checkedAt: c.checkedAt,
+          });
+        }
+      }
+    }
+
+    // Sort checks by date, floor, room
+    checks.sort((a, b) => {
+      if (a.rawDate !== b.rawDate) return a.rawDate.localeCompare(b.rawDate);
+      if (a.floor !== b.floor) return a.floor.localeCompare(b.floor, undefined, { numeric: true });
+      return a.room.localeCompare(b.room);
+    });
+
     return NextResponse.json({
       summary,
       sessions: sessions.map(s => {
@@ -129,6 +180,7 @@ export async function GET(request: NextRequest) {
           findingCount: findingChecks,
         };
       }),
+      checks,
       findings: findings.map(f => ({
         id: f.id,
         number: f.findingNumber,
