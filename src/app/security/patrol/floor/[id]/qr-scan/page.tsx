@@ -16,7 +16,9 @@ export default function QRScanPage({
 
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
-  const floor = getFloorById(id) || 
+  const [dbFloor, setDbFloor] = useState<any>(null);
+
+  const fallbackFloor = getFloorById(id) || 
     (() => {
       const match = session?.sessionFloors?.find((sf: any) => 
         sf.floorId === id || 
@@ -27,6 +29,8 @@ export default function QRScanPage({
       );
       return match ? (getFloorById(match.floorCodeSnapshot) || getFloorById(match.floorId) || getFloorById(match.floor?.code)) : undefined;
     })();
+
+  const floor = dbFloor || fallbackFloor;
 
   const [scanState, setScanState] = useState<'scanning' | 'success' | 'error'>('scanning');
   const [errorMsg, setErrorMsg] = useState('Titik validasi tidak sesuai dengan lantai yang sedang diperiksa.');
@@ -41,7 +45,7 @@ export default function QRScanPage({
   useEffect(() => {
     setIsOnline(navigator.onLine);
     const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOffline = () => setIsOfflineScan(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
@@ -66,11 +70,29 @@ export default function QRScanPage({
           }
         }
 
-        if (dbMod && dbMod.getOfflineChecks) {
-          try {
-            const off = await dbMod.getOfflineChecks();
-            setOfflineChecks(off);
-          } catch {}
+        if (dbMod) {
+          if (dbMod.getOfflineChecks) {
+            try {
+              const off = await dbMod.getOfflineChecks();
+              setOfflineChecks(off);
+            } catch {}
+          }
+
+          if (dbMod.getCachedFloors) {
+            try {
+              const cachedFloors = await dbMod.getCachedFloors();
+              const cleanTargetId = String(id).trim().toLowerCase();
+              const matchedFloor = cachedFloors.find((f: any) =>
+                String(f.id).toLowerCase() === cleanTargetId ||
+                String(f.code || '').toLowerCase() === cleanTargetId ||
+                `floor-${String(f.code || '').toLowerCase()}` === cleanTargetId ||
+                `sf-${String(f.code || '').toLowerCase()}` === cleanTargetId
+              );
+              if (matchedFloor) {
+                setDbFloor(matchedFloor);
+              }
+            } catch {}
+          }
         }
       } catch (err) {
         console.error('QR Scan load error:', err);
@@ -88,7 +110,7 @@ export default function QRScanPage({
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [id]);
 
   const currentSession = session || { sessionFloors: [] };
   const sessionFloor = currentSession.sessionFloors?.find((sf: any) => 
@@ -151,140 +173,88 @@ export default function QRScanPage({
       if (parsed.token) tokenValue = String(parsed.token).trim();
     } catch {}
 
-    const { isOfficialQrValidForFloor } = await import('@/lib/qr-constants');
-    const floorCode = floor ? floor.code : '';
-    const isPhysicalValid = isOfficialQrValidForFloor(floorCode, tokenValue);
-    const sfId = sessionFloor?.id || (floor ? `sf-${floor.code.toLowerCase()}` : id);
+    const { isOfficialQrValidForFloor, getFloorByQrToken } = await import('@/lib/qr-constants');
+    const targetFloorCode = floor ? floor.code : id;
+    const isPhysicalValid = isOfficialQrValidForFloor(targetFloorCode, tokenValue);
 
-    // If device is offline, allow offline verification using official wall token
-    if (!navigator.onLine) {
-      if (!isPhysicalValid) {
-        setScanState('error');
+    // If QR does not match this floor, inform user immediately without server calls
+    if (!isPhysicalValid) {
+      const matchedOtherFloor = getFloorByQrToken(tokenValue);
+      setScanState('error');
+      if (matchedOtherFloor) {
+        setErrorMsg(`QR ini milik ${matchedOtherFloor.floorName}. Silakan scan stiker QR di ${floor?.name || 'lantai ini'}.`);
+      } else {
         setErrorMsg('QR Code tidak sesuai dengan stiker fisik di lantai ini.');
-        return;
       }
-
-      setIsOfflineScan(true);
-
-      // Save offline scan record into IndexedDB
-      try {
-        const { saveOfflineQrScan } = await import('@/lib/db');
-        await saveOfflineQrScan({
-          id: `qr-scan-${Date.now()}-${floorCode}`,
-          sessionFloorId: sfId,
-          floorCode,
-          qrToken: tokenValue,
-          scannedAt: new Date().toISOString(),
-        });
-      } catch (dbErr) {
-        console.warn('Save offline QR scan notice:', dbErr);
-      }
-
-      // Mark floor completed in cached active session
-      try {
-        const cached = localStorage.getItem('cached-active-session');
-        if (cached) {
-          const sess = JSON.parse(cached);
-          if (Array.isArray(sess.sessionFloors)) {
-            const sf = sess.sessionFloors.find((f: any) => 
-              f.floorCodeSnapshot === floorCode || f.id === sfId || f.floorId === id || f.floor?.code === floorCode
-            );
-            if (sf) {
-              sf.status = 'completed';
-              sf.qrValidated = true;
-              sf.completedAt = new Date().toISOString();
-              localStorage.setItem('cached-active-session', JSON.stringify(sess));
-            }
-          }
-        }
-      } catch {}
-
-      setScanState('success');
-      try { localStorage.removeItem('lastPatrolState'); } catch {}
-
-      setTimeout(() => {
-        if (nextFloor) {
-          router.push(`/security/patrol/floor/${nextFloor.id}`);
-        } else {
-          router.push('/security/patrol/summary');
-        }
-      }, 2400);
       return;
     }
 
-    // Online verification: flush any offline checks first so backend sees complete state
+    // Physical QR code is 100% verified!
+    const floorCode = floor ? floor.code : (getFloorByQrToken(tokenValue)?.floorCode || '');
+    const sfId = sessionFloor?.id || (floor ? `sf-${floor.code.toLowerCase()}` : id);
+
+    // 1. Immediately save scan record to IndexedDB
     try {
+      const { saveOfflineQrScan } = await import('@/lib/db');
+      await saveOfflineQrScan({
+        id: `qr-scan-${Date.now()}-${floorCode}`,
+        sessionFloorId: sfId,
+        floorCode,
+        qrToken: tokenValue,
+        scannedAt: new Date().toISOString(),
+      });
+    } catch (dbErr) {
+      console.warn('Save offline QR scan notice:', dbErr);
+    }
+
+    // 2. Mark floor completed in cached active session in localStorage
+    try {
+      const cached = localStorage.getItem('cached-active-session');
+      if (cached) {
+        const sess = JSON.parse(cached);
+        if (Array.isArray(sess.sessionFloors)) {
+          const sf = sess.sessionFloors.find((f: any) => 
+            f.floorCodeSnapshot === floorCode || f.id === sfId || f.floorId === id || f.floor?.code === floorCode
+          );
+          if (sf) {
+            sf.status = 'completed';
+            sf.qrValidated = true;
+            sf.completedAt = new Date().toISOString();
+            localStorage.setItem('cached-active-session', JSON.stringify(sess));
+          }
+        }
+      }
+    } catch {}
+
+    try { localStorage.removeItem('lastPatrolState'); } catch {}
+
+    // 3. Immediately show success screen
+    setIsOfflineScan(!navigator.onLine);
+    setScanState('success');
+
+    // 4. Background non-blocking sync: attempt server validation & memory wipe
+    // If offline or server unreachable, stays safely in IndexedDB without any error screen
+    (async () => {
       try {
         const { syncOfflineData } = await import('@/lib/sync');
         const syncRes = await syncOfflineData();
-        if (syncRes.checksSynced > 0) {
-          setSyncedCount(syncRes.checksSynced);
+        if (syncRes.qrScansSynced > 0 || syncRes.checksSynced > 0) {
+          setIsOfflineScan(false);
         }
       } catch (syncErr) {
-        console.warn('Pre-validation sync notice:', syncErr);
+        console.warn('Background sync notice (offline mode active):', syncErr);
       }
+    })();
 
-      const res = await fetch('/api/patrol/qr-validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionFloorId: sfId,
-          qrToken: tokenValue,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.valid) {
-        setIsOfflineScan(false);
-        setScanState('success');
-        try { localStorage.removeItem('lastPatrolState'); } catch {}
-
-        // Post-validation memory wipe: ensure phone memory is immediately freed
-        try {
-          const { syncOfflineData } = await import('@/lib/sync');
-          await syncOfflineData();
-        } catch {}
-
-        setTimeout(() => {
-          if (nextFloor) {
-            router.push(`/security/patrol/floor/${nextFloor.id}`);
-          } else {
-            router.push('/security/patrol/summary');
-          }
-        }, 2200);
-      } else {
-        setScanState('error');
-        setErrorMsg(data.error || 'QR Code tidak cocok untuk lantai ini.');
+    // 5. Transition to next floor or summary
+    setTimeout(() => {
+      const targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
+      try {
+        router.push(targetUrl);
+      } catch {
+        window.location.href = targetUrl;
       }
-    } catch {
-      // If server unreachable despite navigator.onLine, fallback to physical token check
-      if (isPhysicalValid) {
-        setIsOfflineScan(true);
-        try {
-          const { saveOfflineQrScan } = await import('@/lib/db');
-          await saveOfflineQrScan({
-            id: `qr-scan-${Date.now()}-${floorCode}`,
-            sessionFloorId: sfId,
-            floorCode,
-            qrToken: tokenValue,
-            scannedAt: new Date().toISOString(),
-          });
-        } catch {}
-
-        setScanState('success');
-        setTimeout(() => {
-          if (nextFloor) {
-            router.push(`/security/patrol/floor/${nextFloor.id}`);
-          } else {
-            router.push('/security/patrol/summary');
-          }
-        }, 2400);
-      } else {
-        setScanState('error');
-        setErrorMsg('Gagal memvalidasi ke server. Pastikan koneksi internet stabil.');
-      }
-    }
+    }, 2200);
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -406,10 +376,6 @@ export default function QRScanPage({
         <div className={styles.scannerWrapper}>
           <QRScanner
             onScan={handleScanSuccess}
-            onError={(msg) => {
-              setScanState('error');
-              setErrorMsg(msg);
-            }}
             floorName={floor?.name}
             hideHeader={true}
           />

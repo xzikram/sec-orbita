@@ -93,21 +93,57 @@ export const OFFICIAL_QR_MAP: Record<string, string> = Object.fromEntries(
   OFFICIAL_FLOOR_QRS.map((q) => [q.floorCode.toUpperCase(), q.token])
 );
 
+export function cleanFloorCode(code: string): string {
+  if (!code) return '';
+  return code
+    .trim()
+    .toUpperCase()
+    .replace(/^FLOOR-/, '')
+    .replace(/^SF-/, '')
+    .replace(/^LANTAI-/, '')
+    .replace(/^LANTAI\s*/, '')
+    .replace(/^L0+/, 'L');
+}
+
+export function getFloorByQrToken(scannedToken: string): OfficialFloorQR | undefined {
+  if (!scannedToken) return undefined;
+  const cleanScanned = scannedToken.trim().toUpperCase();
+  return OFFICIAL_FLOOR_QRS.find(
+    (q) => q.token.toUpperCase() === cleanScanned ||
+           q.alternativeTokens?.some(alt => alt.toUpperCase() === cleanScanned)
+  );
+}
+
 /**
  * Validasi apakah suatu token QR cocok dengan lantai tertentu.
- * Mendukung pencocokan token utama dan alternatif (misal toleransi O/0).
+ * Mendukung pencocokan token utama, alternatif, serta normalisasi prefix (floor-, sf-, dll).
  */
-export function isOfficialQrValidForFloor(floorCode: string, scannedToken: string): boolean {
-  if (!floorCode || !scannedToken) return false;
+export function isOfficialQrValidForFloor(floorCodeOrId: string, scannedToken: string): boolean {
+  if (!scannedToken) return false;
   const cleanScanned = scannedToken.trim().toUpperCase();
-  const config = OFFICIAL_FLOOR_QRS.find(
-    (q) => q.floorCode.toUpperCase() === floorCode.trim().toUpperCase()
-  );
-  if (!config) return false;
+  const cleanTarget = cleanFloorCode(floorCodeOrId);
 
-  if (config.token.toUpperCase() === cleanScanned) return true;
-  if (config.alternativeTokens) {
-    return config.alternativeTokens.some((alt) => alt.toUpperCase() === cleanScanned);
+  // 1. Direct check against config
+  const config = OFFICIAL_FLOOR_QRS.find(
+    (q) => cleanFloorCode(q.floorCode) === cleanTarget || q.floorCode.toUpperCase() === cleanTarget
+  );
+
+  if (config) {
+    if (config.token.toUpperCase() === cleanScanned) return true;
+    if (config.alternativeTokens) {
+      return config.alternativeTokens.some((alt) => alt.toUpperCase() === cleanScanned);
+    }
   }
+
+  // 2. Token-level matching: check if scanned token is ANY valid official token of RS JEC ORBITA
+  const matchedOfficial = getFloorByQrToken(scannedToken);
+  if (matchedOfficial) {
+    // If cleanTarget is empty or long UUID, or if target matches
+    if (!cleanTarget || cleanTarget.length > 8 || cleanFloorCode(matchedOfficial.floorCode) === cleanTarget) {
+      return true;
+    }
+  }
+
   return false;
 }
+

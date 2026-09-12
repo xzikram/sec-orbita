@@ -66,6 +66,49 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
       // Non-critical if offline
     }
 
+    // 4. Pre-cache all patrol pages and QR scan routes into browser CacheStorage
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      try {
+        const cache = await window.caches.open('sec-patrol-v8');
+        const routesToPrecache = [
+          '/security/patrol',
+          '/security/patrol/summary',
+        ];
+
+        floorsData.forEach((f: any) => {
+          if (f.id) {
+            routesToPrecache.push(`/security/patrol/floor/${f.id}`);
+            routesToPrecache.push(`/security/patrol/floor/${f.id}/qr-scan`);
+          }
+          if (f.code) {
+            routesToPrecache.push(`/security/patrol/floor/${f.code.toLowerCase()}`);
+            routesToPrecache.push(`/security/patrol/floor/${f.code.toLowerCase()}/qr-scan`);
+          }
+        });
+
+        // Preload in parallel without blocking startup
+        Promise.allSettled(
+          routesToPrecache.map(async (route) => {
+            try {
+              const res = await fetch(route);
+              if (res.ok) {
+                await cache.put(route, res);
+              }
+            } catch {}
+          })
+        ).catch(() => {});
+      } catch (cacheErr) {
+        console.warn('Pre-cache patrol routes notice:', cacheErr);
+      }
+    }
+
+    // 5. Pre-warm QR Scanner chunk in background
+    if (typeof window !== 'undefined') {
+      try {
+        import('html5-qrcode').catch(() => {});
+      } catch {}
+    }
+
     localStorage.setItem('offline-patrol-cache-time', new Date().toISOString());
 
     return {

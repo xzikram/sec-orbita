@@ -1,7 +1,9 @@
-const CACHE_NAME = 'sec-patrol-v6';
+const CACHE_NAME = 'sec-patrol-v8';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
+  '/security/patrol',
+  '/security/patrol/summary',
   '/Logo RS JEC ORBITA.png',
   '/apple-touch-icon.png',
   '/icons/icon-192.png',
@@ -40,13 +42,15 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // 1. Static assets (icons, manifest, offline page) — cache-first
+  // 1. Static assets (icons, manifest, offline page, core shells) — cache-first
   if (STATIC_ASSETS.some(asset => url.pathname === asset)) {
     e.respondWith(
       caches.match(e.request).then((cached) => {
         return cached || fetch(e.request).then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+          if (response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+          }
           return response;
         });
       })
@@ -71,28 +75,77 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // 3. HTML navigation pages — network-first with fast 3s timeout for Wi-Fi roaming resilience
+  // 3. Next.js RSC requests (_rsc query or RSC header) — cache with network fallback
+  const isRscRequest = url.searchParams.has('_rsc') || 
+                       e.request.headers.get('RSC') === '1' || 
+                       e.request.headers.get('accept')?.includes('text/x-component');
+
+  if (isRscRequest) {
+    e.respondWith(
+      caches.match(e.request).then((cached) => {
+        if (cached) {
+          // Serve cached RSC immediately, update cache in background if online
+          fetch(e.request)
+            .then(res => {
+              if (res.status === 200) {
+                const clone = res.clone();
+                caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+              }
+            })
+            .catch(() => {});
+          return cached;
+        }
+
+        return fetch(e.request)
+          .then((response) => {
+            if (response.status === 200) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+            }
+            return response;
+          })
+          .catch(() => {
+            // If offline and RSC not cached, return 503 so client-side router falls back to hard navigation
+            // Hard navigation will be seamlessly handled by our patrol app shell!
+            return new Response('Offline RSC', { status: 503, statusText: 'Offline' });
+          });
+      })
+    );
+    return;
+  }
+
+  // 4. HTML navigation pages — network-first with 1.5s timeout for fast offline fallback
   if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
     e.respondWith(
       new Promise((resolve) => {
         let isResolved = false;
-        const timeoutId = setTimeout(async () => {
-          if (!isResolved) {
-            isResolved = true;
-            const cached = await caches.match(e.request);
-            if (cached) {
-              resolve(cached);
-            } else {
-              const offlinePage = await caches.match('/offline.html');
-              if (offlinePage) resolve(offlinePage);
-              else {
-                resolve(new Response('Server RS Mata JEC ORBITA tidak dapat dijangkau. Pastikan HP terhubung ke Wi-Fi RS.', {
-                  headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-                }));
-              }
-            }
+
+        const handleOfflineOrTimeout = async () => {
+          if (isResolved) return;
+          isResolved = true;
+
+          // A. Try exact URL match in cache
+          const exactCached = await caches.match(e.request);
+          if (exactCached) return resolve(exactCached);
+
+          // B. If navigating anywhere inside /security/patrol/**, fallback to ANY cached patrol page shell!
+          // This ensures guards NEVER see "Server Tidak Dijangkau" during offline patrol rounds!
+          if (url.pathname.startsWith('/security/patrol')) {
+            const patrolShell = (await caches.match('/security/patrol')) ||
+                                (await caches.match('/security/patrol/summary'));
+            if (patrolShell) return resolve(patrolShell);
           }
-        }, 3000);
+
+          // C. Fallback to offline notice page only for non-patrol routes (admin/supervisor)
+          const offlinePage = await caches.match('/offline.html');
+          if (offlinePage) return resolve(offlinePage);
+
+          resolve(new Response('Server RS Mata JEC ORBITA tidak dapat dijangkau. Pastikan HP terhubung ke Wi-Fi RS.', {
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          }));
+        };
+
+        const timeoutId = setTimeout(handleOfflineOrTimeout, 1500);
 
         fetch(e.request)
           .then((response) => {
@@ -106,18 +159,9 @@ self.addEventListener('fetch', (e) => {
               resolve(response);
             }
           })
-          .catch(async () => {
+          .catch(() => {
             clearTimeout(timeoutId);
-            if (!isResolved) {
-              isResolved = true;
-              const cached = await caches.match(e.request);
-              if (cached) return resolve(cached);
-              const offlinePage = await caches.match('/offline.html');
-              if (offlinePage) return resolve(offlinePage);
-              resolve(new Response('Server RS Mata JEC ORBITA tidak dapat dijangkau. Pastikan HP terhubung ke Wi-Fi RS.', {
-                headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-              }));
-            }
+            handleOfflineOrTimeout();
           });
       })
     );
