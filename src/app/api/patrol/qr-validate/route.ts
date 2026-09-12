@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
         where: { id: sessionFloorId },
         include: { floor: { include: { qrCode: true } }, session: true },
       });
-      // In Option C: ensure session floor belongs to current user
-      if (foundSf && (auth.role !== 'security' || foundSf.session.userId === auth.id)) {
+      // Allow if admin, if session owner, or if session is active (collaborative)
+      if (foundSf && (auth.role !== 'security' || foundSf.session.userId === auth.id || foundSf.session.status === 'in_progress')) {
         sessionFloor = foundSf;
       }
     }
@@ -44,7 +44,6 @@ export async function POST(request: NextRequest) {
       const activeSession = await prisma.patrolSession.findFirst({
         where: {
           patrolDate,
-          ...(auth.role === 'security' ? { userId: auth.id } : {}),
           status: 'in_progress',
         },
         include: {
@@ -55,7 +54,6 @@ export async function POST(request: NextRequest) {
         orderBy: { startedAt: 'desc' }
       }) || await prisma.patrolSession.findFirst({
         where: {
-          ...(auth.role === 'security' ? { userId: auth.id } : {}),
           status: 'in_progress',
         },
         include: {

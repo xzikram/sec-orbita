@@ -26,12 +26,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Sesi patroli tidak ditemukan' }, { status: 404 });
     }
 
-    if (auth.role === 'security' && session.userId !== auth.id) {
-      return NextResponse.json({ error: 'Anda hanya dapat mengakhiri sesi patroli milik Anda sendiri' }, { status: 403 });
-    }
+    const isOwner = session.userId === auth.id;
+    const actorNote = isOwner
+      ? ''
+      : `[DITUTUP OLEH REKAN: ${auth.name} (${auth.employeeId || 'Petugas'})]`;
 
     const formattedNotes = [
       reason ? `[ALASAN BERAKHIR LEBIH AWAL: ${reason}]` : '[SELESAI SEBAGIAN]',
+      actorNote,
       notes ? notes.trim() : '',
       session.notes || '',
     ].filter(Boolean).join('\n');

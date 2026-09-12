@@ -262,6 +262,16 @@ export default function PatrolPage() {
             <p className={styles.patrolPeriod}>
               {schedule?.startTime} - {schedule?.endTime}
             </p>
+            {currentSession.user?.name && (
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '3px 0 0' }}>
+                Petugas: <strong>{currentSession.user.name}</strong>
+                {currentSession.notes?.includes('[BERGABUNG:') && (
+                  <span style={{ marginLeft: '6px', background: 'rgba(16, 185, 129, 0.15)', color: '#059669', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                    🤝 Tim Kolaboratif
+                  </span>
+                )}
+              </p>
+            )}
           </div>
           <span className="badge badge-info badge-lg">Sedang Berjalan</span>
         </div>

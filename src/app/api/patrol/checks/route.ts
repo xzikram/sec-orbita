@@ -71,10 +71,9 @@ export async function POST(request: NextRequest) {
       const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
       const patrolDate = new Date(todayStr);
 
-      // Check if user already has an in_progress session today
+      // Check if there is an in_progress session today (collaborative team round)
       let session = await prisma.patrolSession.findFirst({
         where: {
-          userId: auth.id,
           patrolDate,
           status: 'in_progress',
         },
@@ -93,10 +92,9 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Jadwal patroli belum dikonfigurasi' }, { status: 400 });
         }
 
-        // Check which schedules this user already completed today
+        // Check which schedules already completed today
         const completedSessions = await prisma.patrolSession.findMany({
           where: {
-            userId: auth.id,
             patrolDate,
             status: { in: ['completed', 'incomplete'] },
           },
@@ -148,14 +146,11 @@ export async function POST(request: NextRequest) {
 
         const schedule = selectedSchedule;
 
-        // Check if session for this schedule already exists
-        session = await prisma.patrolSession.findUnique({
+        // Check if session for this schedule already exists today (collaborative round)
+        session = await prisma.patrolSession.findFirst({
           where: {
-            userId_scheduleId_patrolDate: {
-              userId: auth.id,
-              scheduleId: schedule.id,
-              patrolDate,
-            },
+            scheduleId: schedule.id,
+            patrolDate,
           },
           include: { sessionFloors: { include: { floor: true } } },
         });

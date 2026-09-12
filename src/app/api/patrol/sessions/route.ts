@@ -31,6 +31,24 @@ export async function GET(request: NextRequest) {
     console.error('Auto-close past sessions error:', autoCloseErr);
   }
 
+  // Auto-close dangling sessions started > 4 hours ago without activity
+  try {
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    await prisma.patrolSession.updateMany({
+      where: {
+        status: 'in_progress',
+        startedAt: { lt: fourHoursAgo },
+      },
+      data: {
+        status: 'incomplete',
+        notes: 'Otomatis ditutup: sesi melewati batas waktu operasional (inactivity timeout > 4 jam).',
+        completedAt: new Date(),
+      },
+    });
+  } catch (timeoutErr) {
+    console.error('Auto-close timeout sessions error:', timeoutErr);
+  }
+
   const where: Record<string, any> = {};
   if (id) {
     where.id = id;
@@ -43,13 +61,17 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (userId) where.userId = userId;
-  if (auth.role === 'security') where.userId = auth.id;
+  const personal = searchParams.get('personal');
+  if (userId) {
+    where.userId = userId;
+  } else if (personal === 'true' && auth.role === 'security') {
+    where.userId = auth.id;
+  }
 
   const sessions = await prisma.patrolSession.findMany({
     where,
     include: {
-      user: { select: { name: true, employeeId: true } },
+      user: { select: { id: true, name: true, employeeId: true } },
       schedule: true,
       shift: { select: { name: true } },
       sessionFloors: {
@@ -57,6 +79,7 @@ export async function GET(request: NextRequest) {
           floor: true,
           patrolChecks: {
             include: {
+              user: { select: { id: true, name: true, employeeId: true } },
               findings: true
             }
           },
@@ -91,16 +114,16 @@ export async function POST(request: NextRequest) {
     const todayMakassarStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
     const patrolDate = new Date(todayMakassarStr);
 
-    // Check if a session already exists for this user, schedule, and date
-    let existingSession = await prisma.patrolSession.findUnique({
+    // Check if an in_progress session already exists for this schedule today (team collaborative round)
+    let existingSession = await prisma.patrolSession.findFirst({
       where: {
-        userId_scheduleId_patrolDate: {
-          userId: auth.id,
-          scheduleId,
-          patrolDate,
-        },
+        scheduleId,
+        patrolDate,
       },
-      include: { sessionFloors: true },
+      include: {
+        user: { select: { id: true, name: true, employeeId: true } },
+        sessionFloors: true,
+      },
     });
 
     if (existingSession) {
