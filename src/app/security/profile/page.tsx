@@ -24,6 +24,9 @@ export default function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -264,33 +267,101 @@ export default function ProfilePage() {
             
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Password Saat Ini</label>
-              <input
-                type="password"
-                className={styles.formInput}
-                value={currentPassword}
-                onChange={e => setCurrentPassword(e.target.value)}
-                placeholder="Masukkan password saat ini"
-              />
+              <div className={styles.passwordWrapper}>
+                <input
+                  type={showCurrentPw ? 'text' : 'password'}
+                  className={`${styles.formInput} ${styles.passwordInput}`}
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  placeholder="Masukkan password saat ini"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className={styles.passwordToggle}
+                  onClick={() => setShowCurrentPw(!showCurrentPw)}
+                  aria-label={showCurrentPw ? 'Sembunyikan password saat ini' : 'Tampilkan password saat ini'}
+                  tabIndex={-1}
+                >
+                  {showCurrentPw ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
+
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Password Baru</label>
-              <input
-                type="password"
-                className={styles.formInput}
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                placeholder="Minimal 6 karakter"
-              />
+              <div className={styles.passwordWrapper}>
+                <input
+                  type={showNewPw ? 'text' : 'password'}
+                  className={`${styles.formInput} ${styles.passwordInput}`}
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className={styles.passwordToggle}
+                  onClick={() => setShowNewPw(!showNewPw)}
+                  aria-label={showNewPw ? 'Sembunyikan password baru' : 'Tampilkan password baru'}
+                  tabIndex={-1}
+                >
+                  {showNewPw ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
+
             <div className={styles.formGroup}>
               <label className={styles.formLabel}>Konfirmasi Password Baru</label>
-              <input
-                type="password"
-                className={styles.formInput}
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Ulangi password baru"
-              />
+              <div className={styles.passwordWrapper}>
+                <input
+                  type={showConfirmPw ? 'text' : 'password'}
+                  className={`${styles.formInput} ${styles.passwordInput}`}
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Ulangi password baru"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className={styles.passwordToggle}
+                  onClick={() => setShowConfirmPw(!showConfirmPw)}
+                  aria-label={showConfirmPw ? 'Sembunyikan konfirmasi password' : 'Tampilkan konfirmasi password'}
+                  tabIndex={-1}
+                >
+                  {showConfirmPw ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
             <button
               type="submit"

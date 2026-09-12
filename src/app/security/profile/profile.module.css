@@ -159,6 +159,41 @@
   transition: border-color 0.2s;
 }
 
+.passwordInput {
+  padding-right: 44px;
+}
+
+.passwordWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.passwordToggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--color-neutral-400);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.passwordToggle:hover {
+  background: var(--color-neutral-100);
+  color: var(--text-primary);
+}
+
 .formInput:focus {
   outline: none;
   border-color: var(--color-primary-500);
@@ -177,3 +212,4 @@
 .successText {
   color: var(--color-success-600);
 }
+
