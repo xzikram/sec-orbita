@@ -99,6 +99,27 @@ export async function POST(request: NextRequest) {
 
     const tokenToSave = OFFICIAL_QR_MAP[floorCode.toUpperCase()] || dbToken || rawToken;
 
+    // Verify that all active rooms on this floor have been inspected before allowing QR seal completion
+    const totalFloorRooms = await prisma.room.count({
+      where: { floorId: sessionFloor.floorId, isActive: true },
+    });
+
+    const existingChecks = await prisma.patrolCheck.findMany({
+      where: { sessionFloorId: sessionFloor.id },
+      select: { roomId: true, roomCodeSnapshot: true },
+    });
+    const uniqueCheckedRooms = new Set(existingChecks.map(c => c.roomId || c.roomCodeSnapshot));
+
+    if (totalFloorRooms > 0 && uniqueCheckedRooms.size < totalFloorRooms) {
+      return NextResponse.json({
+        error: `Pemeriksaan ruangan belum selesai (${uniqueCheckedRooms.size}/${totalFloorRooms} ruangan). Selesaikan seluruh ceklist & foto ruangan terlebih dahulu sebelum scan QR lantai.`,
+        valid: false,
+        incompleteRooms: true,
+        checkedRooms: uniqueCheckedRooms.size,
+        totalRooms: totalFloorRooms,
+      }, { status: 400 });
+    }
+
     // Update session floor as validated
     await prisma.patrolSessionFloor.update({
       where: { id: sessionFloor.id },

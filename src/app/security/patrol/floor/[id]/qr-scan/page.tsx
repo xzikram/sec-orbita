@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import QRScanner from '@/components/QRScanner';
-import { getFloorById } from '@/lib/dummy-data';
+import { getFloorById, getRoomsByFloor, floors } from '@/lib/dummy-data';
 import styles from './qrscan.module.css';
 
 export default function QRScanPage({
@@ -15,6 +15,7 @@ export default function QRScanPage({
   const router = useRouter();
 
   const [session, setSession] = useState<any>(null);
+  const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
   const floor = getFloorById(id) || 
     (() => {
       const match = session?.sessionFloors?.find((sf: any) => 
@@ -45,9 +46,13 @@ export default function QRScanPage({
 
     async function loadData() {
       try {
-        const res = await fetch('/api/patrol/sessions').catch(() => null);
-        if (res && res.ok) {
-          const sessions = await res.json();
+        const [sessionsRes, dbMod] = await Promise.all([
+          fetch('/api/patrol/sessions').catch(() => null),
+          import('@/lib/db').catch(() => null),
+        ]);
+
+        if (sessionsRes && sessionsRes.ok) {
+          const sessions = await sessionsRes.json();
           const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
           setSession(active);
           if (active) {
@@ -58,6 +63,13 @@ export default function QRScanPage({
           if (cached) {
             try { setSession(JSON.parse(cached)); } catch {}
           }
+        }
+
+        if (dbMod && dbMod.getOfflineChecks) {
+          try {
+            const off = await dbMod.getOfflineChecks();
+            setOfflineChecks(off);
+          } catch {}
         }
       } catch (err) {
         console.error('QR Scan load error:', err);
@@ -82,10 +94,50 @@ export default function QRScanPage({
     (floor && sf.floorCodeSnapshot === floor.code) || sf.id === id || sf.floorId === id
   );
 
+  // Check if all rooms on this floor are checked before scanning QR
+  const floorRooms = floor ? getRoomsByFloor(floor.id) : [];
+  const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
+  const offCheckedRoomCodes = offlineChecks
+    .filter((c: any) => c.sessionFloorId === sessionFloor?.id || (floor?.code && c.sessionFloorId === `sf-${floor.code.toLowerCase()}`))
+    .map((c: any) => {
+      const r = floorRooms.find(rm => rm.id === c.roomId);
+      return r ? r.code : c.roomId;
+    });
+  const uniqueChecked = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
+  const isAllRoomsChecked = floorRooms.length === 0 || uniqueChecked.size >= floorRooms.length;
+
+  // Calculate next floor based on user route direction
+  const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
+  const sortedFloors = [...floors].sort((a, b) => isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder);
+  const currentIdx = sortedFloors.findIndex(f => f.id === floor?.id || f.code === floor?.code);
+  const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
+
   if (loading) {
     return (
       <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}>
         <p className="text-sm text-muted">Memuat data scanner...</p>
+      </div>
+    );
+  }
+
+  // Pre-scan guard: block scanner if rooms are incomplete
+  if (!isAllRoomsChecked && floor) {
+    return (
+      <div className="page-content" style={{ textAlign: 'center', padding: '3rem 1.25rem', paddingBottom: '96px' }}>
+        <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: '#fef2f2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '28px', border: '1px solid #fecaca' }}>
+          ⚠️
+        </div>
+        <h2 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '8px', color: 'var(--text-primary)' }}>Pemeriksaan Ruangan Belum Lengkap</h2>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '24px', lineHeight: 1.5 }}>
+          Anda baru memeriksa <strong>{uniqueChecked.size} dari {floorRooms.length} ruangan</strong> di {floor.name}. Selesaikan seluruh ceklist & foto ruangan terlebih dahulu sebelum melakukan scan QR lantai.
+        </p>
+        <button
+          className="btn btn-primary btn-lg"
+          onClick={() => router.push(`/security/patrol/floor/${floor.id}`)}
+          style={{ fontWeight: 700 }}
+        >
+          ← Selesaikan Pemeriksaan Ruangan
+        </button>
       </div>
     );
   }
@@ -111,7 +163,6 @@ export default function QRScanPage({
       }
 
       try {
-        // Save pending floor validation locally
         const pendingKey = `pending_qr_${sessionFloor?.id || id}`;
         localStorage.setItem(pendingKey, JSON.stringify({
           token: tokenValue,
@@ -124,13 +175,27 @@ export default function QRScanPage({
       try { localStorage.removeItem('lastPatrolState'); } catch {}
 
       setTimeout(() => {
-        router.push('/security/patrol');
+        if (nextFloor) {
+          router.push(`/security/patrol/floor/${nextFloor.id}`);
+        } else {
+          router.push('/security/patrol/summary');
+        }
       }, 2200);
       return;
     }
 
-    // Online verification
+    // Online verification: flush any offline checks first so backend sees complete state
     try {
+      try {
+        const { syncOfflineData } = await import('@/lib/sync');
+        const syncRes = await syncOfflineData();
+        if (syncRes.checksSynced > 0) {
+          setSyncedCount(syncRes.checksSynced);
+        }
+      } catch (syncErr) {
+        console.warn('Pre-validation sync notice:', syncErr);
+      }
+
       const sfId = sessionFloor?.id || (floor ? `sf-${floor.code.toLowerCase()}` : id);
 
       const res = await fetch('/api/patrol/qr-validate', {
@@ -145,29 +210,14 @@ export default function QRScanPage({
       const data = await res.json();
 
       if (res.ok && data.valid) {
-        // Trigger background sync for any remaining offline checks + flush IndexedDB
-        try {
-          const { syncOfflineData } = await import('@/lib/sync');
-          const syncRes = await syncOfflineData();
-          if (syncRes.checksSynced > 0) {
-            setSyncedCount(syncRes.checksSynced);
-          }
-        } catch (syncErr) {
-          console.warn('Post-validation sync notice:', syncErr);
-        }
-
         setScanState('success');
         try { localStorage.removeItem('lastPatrolState'); } catch {}
 
-        // Check if all floors are completed
-        const otherFloors = currentSession.sessionFloors?.filter((sf: any) => sf.id !== (sessionFloor?.id || sfId)) || [];
-        const isAllDone = otherFloors.length > 0 && otherFloors.every((sf: any) => sf.status === 'completed' || sf.qrValidated);
-
         setTimeout(() => {
-          if (isAllDone) {
-            router.push('/security/patrol/summary');
+          if (nextFloor) {
+            router.push(`/security/patrol/floor/${nextFloor.id}`);
           } else {
-            router.push('/security/patrol');
+            router.push('/security/patrol/summary');
           }
         }, 2200);
       } else {
@@ -186,7 +236,13 @@ export default function QRScanPage({
           }));
         } catch {}
         setScanState('success');
-        setTimeout(() => router.push('/security/patrol'), 2200);
+        setTimeout(() => {
+          if (nextFloor) {
+            router.push(`/security/patrol/floor/${nextFloor.id}`);
+          } else {
+            router.push('/security/patrol/summary');
+          }
+        }, 2200);
       } else {
         setScanState('error');
         setErrorMsg('Gagal memvalidasi ke server. Pastikan koneksi internet stabil.');
@@ -202,12 +258,9 @@ export default function QRScanPage({
     setSubmittingManual(false);
   };
 
-  // Note: Offline scanning is allowed and validated against official stickers
-
-
   if (scanState === 'success') {
     return (
-      <div className="page-content">
+      <div className="page-content" style={{ paddingBottom: '96px' }}>
         <div className={styles.resultScreen}>
           <div className={`${styles.resultIcon} ${styles.resultSuccess}`}>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -218,10 +271,41 @@ export default function QRScanPage({
           <p className={styles.resultText}>{floor?.name} telah selesai dipatroli</p>
           <div className={styles.resultMeta} style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
             <span className="badge badge-success badge-lg">✓ QR Code Tervalidasi Fisik</span>
-            {syncedCount !== null && (
+            {syncedCount !== null && syncedCount > 0 && (
               <span style={{ fontSize: '12px', color: 'var(--color-success-700)', fontWeight: '600' }}>
                 ☁️ {syncedCount} pemeriksaan ruangan berhasil disinkronkan ke server
               </span>
+            )}
+          </div>
+
+          <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', maxWidth: '300px', margin: '24px auto 0' }}>
+            {nextFloor ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-lg"
+                  onClick={() => router.push(`/security/patrol/floor/${nextFloor.id}`)}
+                  style={{ fontWeight: 700 }}
+                >
+                  Lanjut ke {nextFloor.name} →
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={() => router.push('/security/patrol')}
+                >
+                  Lihat Rute Patroli
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary btn-lg"
+                onClick={() => router.push('/security/patrol/summary')}
+                style={{ fontWeight: 700 }}
+              >
+                Lihat Ringkasan Patroli 🎉
+              </button>
             )}
           </div>
         </div>

@@ -290,7 +290,7 @@ export default function FloorDetailPage({
   };
 
   return (
-    <div className="page-content">
+    <div className="page-content" style={{ paddingBottom: '96px' }}>
       {/* Back button & header */}
       <div className={styles.header} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
@@ -499,7 +499,7 @@ export default function FloorDetailPage({
       )}
 
       {/* QR Validated or Scan CTA */}
-      {(sessionFloor?.qrValidated || sessionFloor?.status === 'completed') ? (
+      {(sessionFloor?.qrValidated && percent === 100) ? (
         <div className="card animate-scale-in" style={{ marginTop: '1.5rem', background: 'var(--color-success-50)', border: '1px solid var(--color-success-200)', textAlign: 'center', padding: '1.5rem 1.25rem', borderRadius: '12px' }}>
           <div style={{ color: 'var(--color-success-700)', fontWeight: 800, fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '50%', background: 'var(--color-success-600)', color: '#fff', fontSize: '15px' }}>✓</span>
@@ -525,7 +525,7 @@ export default function FloorDetailPage({
             </div>
             <h3 className={styles.qrCtaTitle}>Semua Ruangan Selesai!</h3>
             <p className={styles.qrCtaText}>
-              Menuju titik validasi QR untuk menyelesaikan lantai ini
+              Langkah Terakhir: Scan QR fisik di dinding untuk menutup lantai ini
             </p>
             <Link
               href={`/security/patrol/floor/${floor.id}/qr-scan`}

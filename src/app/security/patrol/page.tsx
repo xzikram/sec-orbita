@@ -184,7 +184,19 @@ export default function PatrolPage() {
   const checkedRooms = checkedRoomCodesSet.size;
   const overallProgress = totalRooms > 0 ? Math.round((checkedRooms / totalRooms) * 100) : 0;
 
-  const rawFloorProgress = (currentSession.sessionFloors || activeSessionFloors).map((sf: any) => {
+  const sessionFloorsSource = (currentSession.sessionFloors && currentSession.sessionFloors.length > 0)
+    ? currentSession.sessionFloors
+    : floors.map(f => ({
+        id: `sf-${f.code.toLowerCase()}`,
+        floorId: f.id,
+        floorNameSnapshot: f.name,
+        floorCodeSnapshot: f.code,
+        status: 'pending',
+        qrValidated: false,
+        patrolChecks: [],
+      }));
+
+  const rawFloorProgress = sessionFloorsSource.map((sf: any) => {
     const floor = floors.find(f => 
       f.id === sf.floorId || 
       f.code.toUpperCase() === String(sf.floorCodeSnapshot || '').toUpperCase() ||
@@ -203,13 +215,29 @@ export default function PatrolPage() {
     const combinedFloorChecked = new Set([...dbCheckedCodes, ...offCheckedCodes]);
     
     const checked = combinedFloorChecked.size;
+    const total = floorRooms.length;
+    const percent = total > 0 ? Math.round((checked / total) * 100) : 0;
+
+    // Strict status: only completed if ALL rooms checked AND QR validated
+    let computedStatus: 'completed' | 'waiting_qr' | 'in_progress' | 'pending' = 'pending';
+    if (sf.qrValidated && percent === 100) {
+      computedStatus = 'completed';
+    } else if (percent === 100 && !sf.qrValidated) {
+      computedStatus = 'waiting_qr';
+    } else if (checked > 0 || sf.status === 'in_progress') {
+      computedStatus = 'in_progress';
+    } else {
+      computedStatus = 'pending';
+    }
+
     return {
       ...sf,
       floor,
       sortOrder: getFloorSortOrder(floor),
-      total: floorRooms.length,
+      total,
       checked,
-      percent: floorRooms.length > 0 ? Math.round((checked / floorRooms.length) * 100) : 0,
+      percent,
+      computedStatus,
     };
   });
 
@@ -222,8 +250,8 @@ export default function PatrolPage() {
     return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat progress patroli...</p></div>;
   }
 
-  const getStatusIcon = (status: string, percent: number) => {
-    if (status === 'completed' || percent === 100) {
+  const getStatusIcon = (computedStatus: string, index: number) => {
+    if (computedStatus === 'completed') {
       return (
         <div className={`${styles.statusCircle} ${styles.statusCompleted}`}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -232,7 +260,19 @@ export default function PatrolPage() {
         </div>
       );
     }
-    if (status === 'in_progress') {
+    if (computedStatus === 'waiting_qr') {
+      return (
+        <div className={`${styles.statusCircle}`} style={{ background: '#fef3c7', borderColor: '#f59e0b', color: '#d97706' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+          </svg>
+        </div>
+      );
+    }
+    if (computedStatus === 'in_progress') {
       return (
         <div className={`${styles.statusCircle} ${styles.statusActive}`}>
           <span className={styles.statusActiveInner} />
@@ -241,7 +281,7 @@ export default function PatrolPage() {
     }
     return (
       <div className={`${styles.statusCircle} ${styles.statusPending}`}>
-        <span className={styles.statusNumber}>{floorProgress.findIndex((f: any) => f.floorId === status) + 1}</span>
+        <span className={styles.statusNumber}>{index + 1}</span>
       </div>
     );
   };
@@ -253,7 +293,7 @@ export default function PatrolPage() {
   };
 
   return (
-    <div className="page-content">
+    <div className="page-content" style={{ paddingBottom: '96px' }}>
       {/* Patrol Header */}
       <div className={`${styles.patrolInfo} animate-slide-up`}>
         <div className={styles.patrolInfoHeader}>
@@ -288,7 +328,7 @@ export default function PatrolPage() {
             />
           </div>
           <p className="text-xs text-muted mt-1">
-            {checkedRooms} dari {totalRooms} ruangan • {floorProgress.filter((f: any) => f.status === 'completed').length} dari {floors.length} lantai
+            {checkedRooms} dari {totalRooms} ruangan • {floorProgress.filter((f: any) => f.computedStatus === 'completed').length} dari {floors.length} lantai
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--border-light)' }}>
@@ -315,7 +355,7 @@ export default function PatrolPage() {
       </div>
 
       {/* Completed Patrol Summary Banner */}
-      {(overallProgress === 100 || floorProgress.every((f: any) => f.status === 'completed' || f.percent === 100)) && (
+      {(overallProgress === 100 && floorProgress.every((f: any) => f.computedStatus === 'completed')) && (
         <div className="card animate-scale-in" style={{ marginTop: '1rem', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', padding: '16px', borderRadius: '12px', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
             <div>
@@ -396,28 +436,14 @@ export default function PatrolPage() {
           >
             {/* Timeline connector */}
             {index < floorProgress.length - 1 && (
-              <div className={`${styles.timelineConnector} ${fp.status === 'completed' ? styles.connectorCompleted : ''}`} />
+              <div className={`${styles.timelineConnector} ${fp.computedStatus === 'completed' ? styles.connectorCompleted : ''}`} />
             )}
 
             {/* Status icon */}
-            {fp.status === 'completed' ? (
-              <div className={`${styles.statusCircle} ${styles.statusCompleted}`}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-            ) : fp.status === 'in_progress' ? (
-              <div className={`${styles.statusCircle} ${styles.statusActive}`}>
-                <span className={styles.statusActiveInner} />
-              </div>
-            ) : (
-              <div className={`${styles.statusCircle} ${styles.statusPending}`}>
-                <span className={styles.statusNumber}>{index + 1}</span>
-              </div>
-            )}
+            {getStatusIcon(fp.computedStatus, index)}
 
             {/* Floor card */}
-            <div className={`card ${styles.timelineCard} ${fp.status === 'in_progress' ? styles.timelineCardActive : ''}`}>
+            <div className={`card ${styles.timelineCard} ${fp.computedStatus === 'in_progress' ? styles.timelineCardActive : ''}`}>
               <div className="card-body">
                 <div className={styles.floorCardHeader}>
                   <div>
@@ -427,7 +453,7 @@ export default function PatrolPage() {
                     </p>
                   </div>
                   <div className={styles.floorPercent}>
-                    <span className={`${styles.percentValue} ${fp.status === 'completed' ? 'text-success' : ''}`}>
+                    <span className={`${styles.percentValue} ${fp.computedStatus === 'completed' ? 'text-success' : ''}`}>
                       {fp.percent}%
                     </span>
                   </div>
@@ -440,7 +466,7 @@ export default function PatrolPage() {
                   />
                 </div>
 
-                {fp.status === 'completed' && fp.completedAt && (
+                {fp.computedStatus === 'completed' && fp.completedAt && (
                   <p className={styles.completedTime} suppressHydrationWarning>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <circle cx="12" cy="12" r="10" />
@@ -463,14 +489,21 @@ export default function PatrolPage() {
                   </p>
                 )}
 
-                {fp.status === 'in_progress' && (
-                  <div className={styles.activeHint}>
-                    <span className="status-dot status-dot-info" />
-                    <span>Sedang diperiksa — Tap untuk lanjut</span>
+                {fp.computedStatus === 'waiting_qr' && (
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#b45309', background: '#fef3c7', padding: '5px 9px', borderRadius: '6px', fontWeight: 600 }}>
+                    <span>📱</span>
+                    <span>Semua Ruangan Selesai — Wajib Scan QR Lantai</span>
                   </div>
                 )}
 
-                {fp.status === 'pending' && (
+                {fp.computedStatus === 'in_progress' && (
+                  <div className={styles.activeHint}>
+                    <span className="status-dot status-dot-info" />
+                    <span>Sedang diperiksa ({fp.checked}/{fp.total}) — Tap untuk lanjut</span>
+                  </div>
+                )}
+
+                {fp.computedStatus === 'pending' && (
                   <p className={styles.pendingHint}>Belum dimulai</p>
                 )}
               </div>

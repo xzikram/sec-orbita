@@ -529,15 +529,13 @@ export const activeSession: PatrolSession = {
 export const activeSessionFloors: PatrolSessionFloor[] = [
   {
     id: 'sf-1', sessionId: 'session-today-3', floorId: 'floor-sb',
-    floorNameSnapshot: 'Semi Basement', status: 'completed',
-    qrValidated: true, qrScannedAt: '2026-07-08T15:42:00',
-    startedAt: '2026-07-08T15:12:00', completedAt: '2026-07-08T15:42:00',
+    floorNameSnapshot: 'Semi Basement', status: 'pending',
+    qrValidated: false,
   },
   {
     id: 'sf-2', sessionId: 'session-today-3', floorId: 'floor-1',
-    floorNameSnapshot: 'Lantai 1', status: 'in_progress',
+    floorNameSnapshot: 'Lantai 1', status: 'pending',
     qrValidated: false,
-    startedAt: '2026-07-08T15:45:00',
   },
   {
     id: 'sf-3', sessionId: 'session-today-3', floorId: 'floor-2',
