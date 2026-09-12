@@ -64,18 +64,64 @@ interface ReportCheck {
   checkedAt: string;
 }
 
+interface ScheduleMatrixItem {
+  id: string;
+  patrolNumber: number;
+  name: string;
+  startTime: string;
+  endTime: string;
+  shiftName: string;
+  shiftCode: string;
+  isRun: boolean;
+  status: string;
+  officer: string;
+  officerId: string;
+  checkedCount: number;
+  startedAt: string | null;
+  notes: string | null;
+}
+
+interface MatrixRoomItem {
+  id: string;
+  code: string;
+  name: string;
+  p1?: { condition: string; remarks: string | null; time: string; officer: string } | null;
+  p2?: { condition: string; remarks: string | null; time: string; officer: string } | null;
+  p3?: { condition: string; remarks: string | null; time: string; officer: string } | null;
+  p4?: { condition: string; remarks: string | null; time: string; officer: string } | null;
+  p5?: { condition: string; remarks: string | null; time: string; officer: string } | null;
+  p6?: { condition: string; remarks: string | null; time: string; officer: string } | null;
+  p7?: { condition: string; remarks: string | null; time: string; officer: string } | null;
+  p8?: { condition: string; remarks: string | null; time: string; officer: string } | null;
+}
+
+interface MatrixFloorItem {
+  id: string;
+  name: string;
+  code: string;
+  rooms: MatrixRoomItem[];
+}
+
 interface ReportData {
   summary: ReportSummary;
   sessions: ReportSession[];
   checks: ReportCheck[];
   findings: ReportFinding[];
+  matrix?: {
+    schedules: ScheduleMatrixItem[];
+    floors: MatrixFloorItem[];
+    totalSchedules: number;
+    runCount: number;
+    skippedCount: number;
+  };
 }
 
 export default function ExportReportPage() {
-  const [activeTab, setActiveTab] = useState<'checklist' | 'summary'>('checklist');
+  const [activeTab, setActiveTab] = useState<'checklist' | 'matrix' | 'summary'>('checklist');
   const [type, setType] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [date, setDate] = useState('');
   const [shiftFilter, setShiftFilter] = useState<'all' | 'pagi' | 'siang' | 'malam'>('all');
+  const [floorFilter, setFloorFilter] = useState<string>('all');
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -141,6 +187,16 @@ export default function ExportReportPage() {
     return `Bulanan • Periode ${data.summary.startDate} s/d ${data.summary.endDate}`;
   };
 
+  // Matrix schedules divided by shift
+  const pagiSchedules = (data?.matrix?.schedules || []).filter(s => s.patrolNumber <= 4);
+  const malamSchedules = (data?.matrix?.schedules || []).filter(s => s.patrolNumber > 4);
+
+  // Filter matrix floors
+  const filteredMatrixFloors = (data?.matrix?.floors || []).filter(fl => {
+    if (floorFilter === 'all') return true;
+    return fl.id === floorFilter || fl.code.toLowerCase() === floorFilter.toLowerCase();
+  });
+
   return (
     <div className={styles.container}>
       {/* Top Bar with Back Navigation */}
@@ -178,19 +234,35 @@ export default function ExportReportPage() {
           />
         </div>
 
-        <div className={styles.formGroup}>
-          <label className={styles.label}>Filter Shift</label>
-          <select 
-            className={styles.select}
-            value={shiftFilter}
-            onChange={(e) => setShiftFilter(e.target.value as any)}
-          >
-            <option value="all">Semua Shift</option>
-            <option value="pagi">Shift Pagi (07:00 - 15:00)</option>
-            <option value="siang">Shift Siang (15:00 - 23:00)</option>
-            <option value="malam">Shift Malam (23:00 - 07:00)</option>
-          </select>
-        </div>
+        {activeTab !== 'matrix' ? (
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Filter Shift</label>
+            <select 
+              className={styles.select}
+              value={shiftFilter}
+              onChange={(e) => setShiftFilter(e.target.value as any)}
+            >
+              <option value="all">Semua Shift</option>
+              <option value="pagi">Shift Pagi (07:00 - 15:00)</option>
+              <option value="siang">Shift Siang (15:00 - 23:00)</option>
+              <option value="malam">Shift Malam (23:00 - 07:00)</option>
+            </select>
+          </div>
+        ) : (
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Filter Lantai</label>
+            <select 
+              className={styles.select}
+              value={floorFilter}
+              onChange={(e) => setFloorFilter(e.target.value)}
+            >
+              <option value="all">Semua Lantai (12 Lantai)</option>
+              {data?.matrix?.floors?.map(fl => (
+                <option key={fl.id} value={fl.id}>{fl.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className={styles.actionBtns}>
           <button 
@@ -208,7 +280,7 @@ export default function ExportReportPage() {
             className="btn btn-primary"
             style={{ height: '42px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}
             disabled={loading || !data}
-            title="Cetak atau simpan sebagai dokumen PDF siap print A4"
+            title="Cetak atau simpan sebagai dokumen PDF siap print"
           >
             🖨️ Cetak / Simpan PDF
           </button>
@@ -221,13 +293,19 @@ export default function ExportReportPage() {
           className={`${styles.tabBtn} ${activeTab === 'checklist' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('checklist')}
         >
-          📋 Lembar Ceklistan Ruangan (Checklist Sheet)
+          📋 Lembar Ceklistan Ruangan
+        </button>
+        <button
+          className={`${styles.tabBtn} ${activeTab === 'matrix' ? styles.tabBtnActive : ''}`}
+          onClick={() => setActiveTab('matrix')}
+        >
+          📅 Matriks Kontrol 8 Patroli (Shift Pagi & Malam)
         </button>
         <button
           className={`${styles.tabBtn} ${activeTab === 'summary' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('summary')}
         >
-          📊 Ringkasan Eksekutif & Temuan (Executive Summary)
+          📊 Ringkasan Eksekutif & Temuan
         </button>
       </div>
 
@@ -245,12 +323,14 @@ export default function ExportReportPage() {
           <div className={styles.header}>
             <h1 className={styles.hospitalTitle}>RS MATA JEC ORBITA @ MAKASSAR</h1>
             <h2 className={styles.reportTitle}>
-              {activeTab === 'checklist'
-                ? 'LEMBAR BUKTI CEKLIST FISIK PEMERIKSAAN RUANGAN & FASILITAS'
-                : 'LAPORAN REKAPITULASI PATROLI SECURITY DIGITAL'}
+              {activeTab === 'checklist' && 'LEMBAR BUKTI CEKLIST FISIK PEMERIKSAAN RUANGAN & FASILITAS'}
+              {activeTab === 'matrix' && 'MATRIKS KONTROL 8 SESI PATROLI KEAMANAN RUANGAN (SHIFT PAGI & SHIFT MALAM)'}
+              {activeTab === 'summary' && 'LAPORAN REKAPITULASI PATROLI SECURITY DIGITAL'}
             </h2>
             <p className={styles.reportMeta}>
-              {getPeriodLabel()} {shiftFilter !== 'all' && `• Shift: ${shiftFilter.toUpperCase()}`}
+              {getPeriodLabel()} 
+              {activeTab === 'checklist' && shiftFilter !== 'all' && ` • Shift: ${shiftFilter.toUpperCase()}`}
+              {activeTab === 'matrix' && floorFilter !== 'all' && ` • Filter: ${data.matrix?.floors?.find(f => f.id === floorFilter)?.name}`}
             </p>
           </div>
 
@@ -351,7 +431,207 @@ export default function ExportReportPage() {
           )}
 
           {/* ==================================================== */}
-          {/* TAB 2: RINGKASAN EKSEKUTIF & TEMUAN                  */}
+          {/* TAB 2: MATRIKS KONTROL 8 PATROLI (SHIFT PAGI & MALAM)*/}
+          {/* ==================================================== */}
+          {activeTab === 'matrix' && data.matrix && (
+            <div>
+              {/* Overview 8 Patrol Cards */}
+              <div className={styles.matrixOverview}>
+                {/* Shift Pagi (P1 - P4) */}
+                <div className={styles.shiftGroupHeader}>
+                  <span>☀️ SHIFT PAGI (07:00 - 19:00 WITA)</span>
+                  <span>{pagiSchedules.filter(s => s.isRun).length} dari 4 Sesi Terlaksana</span>
+                </div>
+                <div className={styles.cardsGrid}>
+                  {pagiSchedules.map(sc => (
+                    <div key={sc.id} className={`${styles.pCard} ${sc.isRun ? styles.pCardRun : styles.pCardSkipped}`}>
+                      <div className={styles.pCardHeader}>
+                        <span className={styles.pCardTitle}>P{sc.patrolNumber} ({sc.name})</span>
+                        <span className={sc.isRun ? styles.pCardStatusRun : styles.pCardStatusSkipped}>
+                          {sc.isRun ? '✓ JALAN' : '✗ TIDAK JALAN'}
+                        </span>
+                      </div>
+                      <div className={styles.pCardTime}>{sc.startTime} - {sc.endTime} WITA</div>
+                      <div className={styles.pCardMeta}>
+                        {sc.isRun ? (
+                          <>
+                            <strong>{sc.checkedCount} Ruang</strong> • {sc.officer}
+                          </>
+                        ) : (
+                          <span style={{ color: '#c53030' }}>Tidak ada patroli</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Shift Malam (P5 - P8) */}
+                <div className={styles.shiftGroupHeader}>
+                  <span>🌙 SHIFT MALAM (19:00 - 07:00 WITA)</span>
+                  <span>{malamSchedules.filter(s => s.isRun).length} dari 4 Sesi Terlaksana</span>
+                </div>
+                <div className={styles.cardsGrid}>
+                  {malamSchedules.map(sc => (
+                    <div key={sc.id} className={`${styles.pCard} ${sc.isRun ? styles.pCardRun : styles.pCardSkipped}`}>
+                      <div className={styles.pCardHeader}>
+                        <span className={styles.pCardTitle}>P{sc.patrolNumber} ({sc.name})</span>
+                        <span className={sc.isRun ? styles.pCardStatusRun : styles.pCardStatusSkipped}>
+                          {sc.isRun ? '✓ JALAN' : '✗ TIDAK JALAN'}
+                        </span>
+                      </div>
+                      <div className={styles.pCardTime}>{sc.startTime} - {sc.endTime} WITA</div>
+                      <div className={styles.pCardMeta}>
+                        {sc.isRun ? (
+                          <>
+                            <strong>{sc.checkedCount} Ruang</strong> • {sc.officer}
+                          </>
+                        ) : (
+                          <span style={{ color: '#c53030' }}>Tidak ada patroli</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Matrix Table (CS Style) */}
+              <div className={styles.section}>
+                <div className={styles.sectionTitle}>
+                  <span>Matriks Detail Pemeriksaan Ruangan x 8 Patroli</span>
+                  <span className={styles.badgeTotal}>
+                    {data.matrix.runCount} / 8 Sesi Jalan ({Math.round((data.matrix.runCount / 8) * 100)}% Kepatuhan)
+                  </span>
+                </div>
+
+                <table className={styles.matrixTable}>
+                  <thead>
+                    <tr>
+                      <th rowSpan={2} style={{ width: '4%', background: '#edf2f7' }}>No</th>
+                      <th rowSpan={2} style={{ width: '12%', background: '#edf2f7' }}>Lantai</th>
+                      <th rowSpan={2} style={{ width: '22%', background: '#edf2f7', textAlign: 'left' }}>Nama Ruangan</th>
+                      <th colSpan={4} className={styles.thShiftPagi}>☀️ SHIFT PAGI (07:00 - 19:00 WITA)</th>
+                      <th colSpan={4} className={styles.thShiftMalam}>🌙 SHIFT MALAM (19:00 - 07:00 WITA)</th>
+                      <th rowSpan={2} style={{ width: '8%', background: '#edf2f7' }}>Total</th>
+                    </tr>
+                    <tr>
+                      <th className={styles.thShiftPagi}>P1<br/>07-10</th>
+                      <th className={styles.thShiftPagi}>P2<br/>10-13</th>
+                      <th className={styles.thShiftPagi}>P3<br/>13-16</th>
+                      <th className={styles.thShiftPagi}>P4<br/>16-19</th>
+                      <th className={styles.thShiftMalam}>P5<br/>19-22</th>
+                      <th className={styles.thShiftMalam}>P6<br/>22-01</th>
+                      <th className={styles.thShiftMalam}>P7<br/>01-04</th>
+                      <th className={styles.thShiftMalam}>P8<br/>04-07</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      let counter = 1;
+                      return filteredMatrixFloors.flatMap(fl =>
+                        fl.rooms.map(rm => {
+                          const pChecks = [rm.p1, rm.p2, rm.p3, rm.p4, rm.p5, rm.p6, rm.p7, rm.p8];
+                          const checkedCount = pChecks.filter(Boolean).length;
+                          return (
+                            <tr key={rm.id}>
+                              <td style={{ color: '#718096' }}>{counter++}</td>
+                              <td style={{ fontWeight: 600, color: '#4a5568' }}>{fl.name}</td>
+                              <td style={{ textAlign: 'left' }}>
+                                <strong>{rm.name}</strong>
+                                <span style={{ fontSize: '10px', color: '#a0aec0', marginLeft: '6px' }}>({rm.code})</span>
+                              </td>
+                              {pChecks.map((chk, pIdx) => {
+                                const sc = data.matrix?.schedules?.[pIdx];
+                                const isSessionRun = sc?.isRun;
+                                if (chk) {
+                                  return (
+                                    <td 
+                                      key={pIdx} 
+                                      className={chk.condition === 'normal' ? styles.checkCellOk : styles.checkCellFinding}
+                                      title={chk.remarks ? `Temuan: ${chk.remarks} (${chk.time})` : `Aman (${chk.time} - ${chk.officer})`}
+                                    >
+                                      {chk.condition === 'normal' ? '✓' : '!'}
+                                    </td>
+                                  );
+                                }
+                                return (
+                                  <td 
+                                    key={pIdx} 
+                                    className={!isSessionRun ? styles.checkCellSkipped : styles.checkCellEmpty}
+                                    title={!isSessionRun ? 'Patroli Tidak Jalan' : 'Ruangan Tidak Dicek'}
+                                  >
+                                    —
+                                  </td>
+                                );
+                              })}
+                              <td style={{ fontWeight: 700, color: checkedCount === 8 ? '#2f855a' : '#4a5568' }}>
+                                {checkedCount}/8
+                              </td>
+                            </tr>
+                          );
+                        })
+                      );
+                    })()}
+                  </tbody>
+                  <tfoot>
+                    {/* Summary Row for 8 Sessions */}
+                    <tr style={{ background: '#edf2f7', fontWeight: 700 }}>
+                      <td colSpan={3} style={{ textAlign: 'right', paddingRight: '12px' }}>
+                        STATUS SESI PATROLI:
+                      </td>
+                      {data.matrix.schedules.map(sc => (
+                        <td 
+                          key={sc.id} 
+                          style={{
+                            fontSize: '9px',
+                            color: sc.isRun ? '#22543d' : '#742a2a',
+                            background: sc.isRun ? '#c6f6d5' : '#fed7d7',
+                            padding: '6px 2px',
+                          }}
+                        >
+                          {sc.isRun ? '✓ JALAN' : '✗ TIDAK'}
+                        </td>
+                      ))}
+                      <td>{data.matrix.runCount} Sesi</td>
+                    </tr>
+                    <tr style={{ background: '#f7fafc', fontSize: '10px' }}>
+                      <td colSpan={3} style={{ textAlign: 'right', paddingRight: '12px' }}>
+                        PETUGAS SECURITY:
+                      </td>
+                      {data.matrix.schedules.map(sc => (
+                        <td key={sc.id} style={{ fontSize: '9px', color: '#4a5568', padding: '4px 2px' }}>
+                          {sc.isRun ? sc.officer.split(' ')[0] : '—'}
+                        </td>
+                      ))}
+                      <td>—</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Signatures */}
+              <div className={styles.signatureSection}>
+                <div className={styles.signatureBox}>
+                  <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Security Shift Pagi,</p>
+                  <div className={styles.signatureLine}>Petugas Bertugas</div>
+                </div>
+                <div className={styles.signatureBox}>
+                  <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Security Shift Malam,</p>
+                  <div className={styles.signatureLine}>Petugas Bertugas</div>
+                </div>
+                <div className={styles.signatureBox}>
+                  <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Diperiksa oleh,</p>
+                  <div className={styles.signatureLine}>Komandan Regu (Danru)</div>
+                </div>
+                <div className={styles.signatureBox}>
+                  <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Menyetujui,</p>
+                  <div className={styles.signatureLine}>Supervisor Keamanan / GA</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ==================================================== */}
+          {/* TAB 3: RINGKASAN EKSEKUTIF & TEMUAN                  */}
           {/* ==================================================== */}
           {activeTab === 'summary' && (
             <div>

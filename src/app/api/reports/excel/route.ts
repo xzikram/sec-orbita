@@ -368,6 +368,120 @@ export async function GET(request: NextRequest) {
     ];
     XLSX.utils.book_append_sheet(wb, wsFindings, 'Temuan Kendala');
 
+    // ----------------------------------------------------
+    // SHEET 4: MATRIKS 8 SESI PATROLI (SHIFT PAGI & MALAM)
+    // ----------------------------------------------------
+    const allFloorsWithRooms = await prisma.floor.findMany({
+      where: { isActive: true },
+      include: {
+        rooms: {
+          where: { isActive: true },
+          orderBy: { patrolOrder: 'asc' },
+        },
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    // Lookup of checks by roomId_p{patrolNumber} and roomCode_p{patrolNumber}
+    const matrixCheckMap: Record<string, { condition: string; remarks: string | null }> = {};
+    for (const s of sessions) {
+      for (const sf of s.sessionFloors) {
+        for (const c of sf.patrolChecks) {
+          matrixCheckMap[`${c.roomId}_p${s.patrolNumber}`] = { condition: c.condition, remarks: c.remarks || null };
+          matrixCheckMap[`${c.roomCodeSnapshot}_p${s.patrolNumber}`] = { condition: c.condition, remarks: c.remarks || null };
+        }
+      }
+    }
+
+    const matrixRows: any[][] = [
+      ['RS MATA JEC ORBITA @ MAKASSAR'],
+      ['MATRIKS KONTROL 8 SESI PATROLI KEAMANAN (SHIFT PAGI: P1-P4 | SHIFT MALAM: P5-P8)'],
+      ['Periode:', periodLabel],
+      ['Tanggal Unduh:', new Date().toLocaleString('id-ID', { timeZone: 'Asia/Makassar' }) + ' WITA'],
+      [],
+      [
+        'No',
+        'Lantai',
+        'Kode',
+        'Nama Ruangan',
+        'P1 (07:00-10:00) [Shift Pagi]',
+        'P2 (10:00-13:00) [Shift Pagi]',
+        'P3 (13:00-16:00) [Shift Pagi]',
+        'P4 (16:00-19:00) [Shift Pagi]',
+        'P5 (19:00-22:00) [Shift Malam]',
+        'P6 (22:00-01:00) [Shift Malam]',
+        'P7 (01:00-04:00) [Shift Malam]',
+        'P8 (04:00-07:00) [Shift Malam]',
+        'Total Sesi Diperiksa',
+      ],
+    ];
+
+    let roomCounter = 1;
+    for (const fl of allFloorsWithRooms) {
+      for (const rm of fl.rooms) {
+        const row: any[] = [
+          roomCounter++,
+          fl.name,
+          rm.code,
+          rm.name,
+        ];
+        let checkedCountForRoom = 0;
+        for (let p = 1; p <= 8; p++) {
+          const chk = matrixCheckMap[`${rm.id}_p${p}`] || matrixCheckMap[`${rm.code}_p${p}`];
+          if (chk) {
+            checkedCountForRoom++;
+            row.push(chk.condition === 'normal' ? '✓' : '! Temuan');
+          } else {
+            row.push('—');
+          }
+        }
+        row.push(`${checkedCountForRoom}/8`);
+        matrixRows.push(row);
+      }
+    }
+
+    // Summary footer for the 8 patrols
+    const roomsCheckedRow: any[] = ['REKAP', 'TOTAL CEK', 'RUANGAN', '->'];
+    const scheduleStatusRow: any[] = ['STATUS', 'SESI PATROLI', 'STATUS JALAN', '->'];
+    const officerRow: any[] = ['PETUGAS', 'SECURITY', 'BERTUGAS', '->'];
+
+    for (let p = 1; p <= 8; p++) {
+      const matchSess = sessions.find(s => s.patrolNumber === p);
+      const totalChecksInP = matchSess
+        ? matchSess.sessionFloors.reduce((sum, sf) => sum + sf.patrolChecks.length, 0)
+        : 0;
+
+      roomsCheckedRow.push(`${totalChecksInP} Ruangan`);
+      scheduleStatusRow.push(totalChecksInP > 0 ? '✓ JALAN' : '✗ TIDAK JALAN');
+      officerRow.push(matchSess?.user?.name || '—');
+    }
+    roomsCheckedRow.push('');
+    scheduleStatusRow.push('');
+    officerRow.push('');
+
+    matrixRows.push([]);
+    matrixRows.push(roomsCheckedRow);
+    matrixRows.push(scheduleStatusRow);
+    matrixRows.push(officerRow);
+
+    const wsMatrix = XLSX.utils.aoa_to_sheet(matrixRows);
+    wsMatrix['!cols'] = [
+      { wch: 6 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 26 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 16 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsMatrix, 'Matriks 8 Patroli');
+
     // Write to buffer
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     const filename = `Laporan_Patroli_JEC_ORBITA_${filenameSuffix}.xlsx`;

@@ -301,6 +301,145 @@
   color: #1a202c;
 }
 
+/* 8-Patrol Matrix Styles */
+.matrixOverview {
+  margin-bottom: var(--space-6);
+}
+
+.shiftGroupHeader {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #2d3748;
+  padding: 6px 12px;
+  background: #edf2f7;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.cardsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.pCardRun {
+  border-left: 4px solid #38a169;
+  background: #f0fff4;
+}
+
+.pCardSkipped {
+  border-left: 4px solid #e53e3e;
+  background: #fff5f5;
+}
+
+.pCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.pCardTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a202c;
+}
+
+.pCardTime {
+  font-size: 11px;
+  color: #718096;
+}
+
+.pCardMeta {
+  font-size: 11px;
+  color: #4a5568;
+  margin-top: 4px;
+}
+
+.pCardStatusRun {
+  font-size: 10px;
+  font-weight: 700;
+  color: #22543d;
+  background: #c6f6d5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.pCardStatusSkipped {
+  font-size: 10px;
+  font-weight: 700;
+  color: #742a2a;
+  background: #fed7d7;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.matrixTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.matrixTable th {
+  border: 1px solid #cbd5e0;
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.matrixTable td {
+  border: 1px solid #e2e8f0;
+  padding: 5px 6px;
+  text-align: center;
+}
+
+.thShiftPagi {
+  background: #ebf8ff;
+  color: #2b6cb0;
+}
+
+.thShiftMalam {
+  background: #faf5ff;
+  color: #6b46c1;
+}
+
+.checkCellOk {
+  color: #22543d;
+  font-weight: 700;
+  background: #f0fff4;
+}
+
+.checkCellFinding {
+  color: #975a16;
+  font-weight: 700;
+  background: #fefcbf;
+}
+
+.checkCellEmpty {
+  color: #a0aec0;
+}
+
+.checkCellSkipped {
+  background: #fff5f5;
+  color: #e53e3e;
+}
+
 /* Print Media Query */
 @media print {
   @page {

@@ -156,6 +156,93 @@ export async function GET(request: NextRequest) {
       return a.room.localeCompare(b.room);
     });
 
+    // Fetch all active floors and schedules for 8-patrol matrix
+    const [allFloorsWithRooms, dbSchedules] = await Promise.all([
+      prisma.floor.findMany({
+        where: { isActive: true },
+        include: {
+          rooms: {
+            where: { isActive: true },
+            orderBy: { patrolOrder: 'asc' },
+          },
+        },
+        orderBy: { sortOrder: 'asc' },
+      }),
+      prisma.patrolSchedule.findMany({
+        where: { isActive: true },
+        orderBy: { patrolNumber: 'asc' },
+      }),
+    ]);
+
+    // Build lookup for 8-patrol matrix
+    const checkLookup: Record<string, { condition: string; remarks: string | null; time: string; officer: string }> = {};
+    for (const s of sessions) {
+      for (const sf of s.sessionFloors) {
+        for (const c of sf.patrolChecks) {
+          const keyId = `${c.roomId}_p${s.patrolNumber}`;
+          const keyCode = `${c.roomCodeSnapshot}_p${s.patrolNumber}`;
+          const info = {
+            condition: c.condition,
+            remarks: c.remarks || null,
+            time: new Date(c.checkedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' }),
+            officer: c.user?.name || s.user?.name || 'Petugas',
+          };
+          checkLookup[keyId] = info;
+          checkLookup[keyCode] = info;
+        }
+      }
+    }
+
+    // Schedule run statuses (P1 to P8)
+    const scheduleMatrix = dbSchedules.map(sch => {
+      const matchSess = sessions.find(s => s.scheduleId === sch.id || s.patrolNumber === sch.patrolNumber);
+      const checkedRoomsCount = matchSess
+        ? matchSess.sessionFloors.reduce((sum, sf) => sum + sf.patrolChecks.length, 0)
+        : 0;
+      const isRun = matchSess !== undefined && checkedRoomsCount > 0;
+      return {
+        id: sch.id,
+        patrolNumber: sch.patrolNumber,
+        name: sch.name,
+        startTime: sch.startTime,
+        endTime: sch.endTime,
+        shiftName: sch.patrolNumber <= 4 ? 'Shift Pagi' : 'Shift Malam',
+        shiftCode: sch.patrolNumber <= 4 ? 'PAGI' : 'MALAM',
+        isRun,
+        status: matchSess ? matchSess.status : 'not_run',
+        officer: matchSess?.user?.name || '-',
+        officerId: matchSess?.user?.employeeId || '-',
+        checkedCount: checkedRoomsCount,
+        startedAt: matchSess?.startedAt || null,
+        notes: matchSess?.notes || null,
+      };
+    });
+
+    // Floor & Room matrix with P1..P8 check status
+    const matrixFloors = allFloorsWithRooms.map(fl => {
+      return {
+        id: fl.id,
+        name: fl.name,
+        code: fl.code,
+        rooms: fl.rooms.map(rm => {
+          const pStatus: Record<string, any> = {};
+          for (let p = 1; p <= 8; p++) {
+            const info = checkLookup[`${rm.id}_p${p}`] || checkLookup[`${rm.code}_p${p}`] || null;
+            pStatus[`p${p}`] = info;
+          }
+          return {
+            id: rm.id,
+            code: rm.code,
+            name: rm.name,
+            ...pStatus,
+          };
+        }),
+      };
+    });
+
+    const runCount = scheduleMatrix.filter(s => s.isRun).length;
+    const skippedCount = scheduleMatrix.length - runCount;
+
     return NextResponse.json({
       summary,
       sessions: sessions.map(s => {
@@ -192,7 +279,14 @@ export async function GET(request: NextRequest) {
         officer: f.user?.name || 'Petugas',
         date: f.createdAt.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
         photoUrl: f.check?.photos?.[0]?.filePath || null,
-      }))
+      })),
+      matrix: {
+        schedules: scheduleMatrix,
+        floors: matrixFloors,
+        totalSchedules: scheduleMatrix.length,
+        runCount,
+        skippedCount,
+      }
     });
   } catch (error) {
     console.error('Failed to generate report:', error);
