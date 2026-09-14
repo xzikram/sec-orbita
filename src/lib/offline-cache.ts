@@ -17,6 +17,8 @@ export interface PreDownloadResult {
   error?: string;
 }
 
+export const CATALOG_CACHE_VERSION = 'sec-patrol-v15-20260915';
+
 /**
  * Downloads and caches all active floors, 133 rooms, and official QR tokens to IndexedDB.
  * Called automatically when security presses "Mulai Patroli" or starts a round.
@@ -82,7 +84,7 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
     // 4. Pre-cache all patrol pages and QR scan routes into browser CacheStorage
     if (typeof window !== 'undefined' && 'caches' in window) {
       try {
-        const cache = await window.caches.open('sec-patrol-v12');
+        const cache = await window.caches.open('sec-patrol-v15');
         const routesToPrecache = [
           '/security/dashboard',
           '/security/patrol',
@@ -133,6 +135,7 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
     const nowIso = new Date().toISOString();
     localStorage.setItem('offline-patrol-cache-time', nowIso);
     localStorage.setItem('offline-patrol-start-time', nowIso);
+    localStorage.setItem('patrol-catalog-version', CATALOG_CACHE_VERSION);
     if (typeof performance !== 'undefined') {
       localStorage.setItem('offline-patrol-perf-baseline', String(performance.now()));
     }
@@ -164,6 +167,23 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
 }
 
 /**
+ * Ensures the device has the latest rooms and floors catalog.
+ * If the device has an outdated catalog version, it re-downloads fresh data immediately.
+ */
+export async function ensureFreshPatrolCatalog(force: boolean = false): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const currentVer = localStorage.getItem('patrol-catalog-version');
+    if (force || currentVer !== CATALOG_CACHE_VERSION) {
+      console.log('[OfflineCache] Catalog version mismatch detected. Refreshing master catalog...');
+      await downloadPatrolPackage();
+    }
+  } catch (err) {
+    console.warn('[OfflineCache] ensureFreshPatrolCatalog notice:', err);
+  }
+}
+
+/**
  * Resolves rooms for a floor with 3-tier resilience:
  * 1. IndexedDB master_rooms (dynamic from database)
  * 2. Active Session snapshot
@@ -171,6 +191,13 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
  */
 export async function getResilientRoomsForFloor(floorIdOrCode: string): Promise<any[]> {
   try {
+    // If client has stale catalog version in localStorage, ensure we refresh it
+    if (typeof window !== 'undefined') {
+      const currentVer = localStorage.getItem('patrol-catalog-version');
+      if (currentVer !== CATALOG_CACHE_VERSION) {
+        ensureFreshPatrolCatalog().catch(() => {});
+      }
+    }
     const cached = await getCachedRoomsByFloor(floorIdOrCode);
     if (cached && cached.length > 0) return cached;
   } catch {}

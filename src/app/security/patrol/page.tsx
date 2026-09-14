@@ -161,9 +161,9 @@ export default function PatrolPage() {
     }
     loadData();
 
-    // Pre-cache patrol package in background for zero-drop offline rounds
-    import('@/lib/offline-cache').then(({ downloadPatrolPackage }) => {
-      downloadPatrolPackage().catch(() => {});
+    // Pre-cache patrol package and auto-heal stale catalog in background
+    import('@/lib/offline-cache').then(({ ensureFreshPatrolCatalog }) => {
+      ensureFreshPatrolCatalog().catch(() => {});
     }).catch(() => {});
   }, []);
 

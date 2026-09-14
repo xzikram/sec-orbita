@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v14';
+const CACHE_NAME = 'sec-patrol-v15';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -255,15 +255,17 @@ self.addEventListener('fetch', (e) => {
                 }
               }
 
-              // 3. Floor page: find cached floor HTML
+              // 3. Floor page: find exact cached floor HTML or fallback to patrol shell
               if (url.pathname.includes('/floor/')) {
-                const floorKey = validHtmlKeys.find(k => k.url.includes('/security/patrol/floor/') && !k.url.includes('/qr-scan'));
-                if (floorKey) {
-                  const floorRes = await cache.match(floorKey);
+                const exactFloorKey = validHtmlKeys.find(k => k.url.endsWith(url.pathname) || k.url.includes(url.pathname));
+                if (exactFloorKey) {
+                  const floorRes = await cache.match(exactFloorKey);
                   if (floorRes && !floorRes.headers.get('content-type')?.includes('text/x-component')) {
                     return resolve(floorRes);
                   }
                 }
+                const patrolShell = await cache.match('/security/patrol');
+                if (patrolShell) return resolve(patrolShell);
               }
 
               // 4. Default patrol shell (Guaranteed pure HTML) — ONLY for patrol route or summary

@@ -424,7 +424,27 @@ export function getFloorById(floorId: string): Floor | undefined {
 export function getRoomsByFloor(floorId: string): Room[] {
   const floor = getFloorById(floorId);
   const targetId = floor ? floor.id : floorId;
-  const targetCode = floor?.code?.toUpperCase();
+  let targetCode = floor?.code?.toUpperCase();
+
+  if (!targetCode) {
+    const clean = String(floorId).trim().toLowerCase().replace(/^floor-/, '').replace(/^sf-/, '');
+    const aliasMap: Record<string, string> = {
+      '0': 'SB', 'sb': 'SB', 'semi basement': 'SB',
+      '1': 'L1', 'l1': 'L1',
+      '2': 'P2', 'p2': 'P2',
+      '3': 'P3', 'p3': 'P3',
+      '4': 'P4', 'p4': 'P4',
+      '5': 'L5', 'l5': 'L5',
+      '6': 'L6', 'l6': 'L6',
+      '7': 'L7', 'l7': 'L7',
+      '8': 'L8', 'l8': 'L8',
+      '9': 'L9', 'l9': 'L9',
+      '10': 'L10', 'l10': 'L10',
+      '11': 'L11', 'l11': 'L11',
+    };
+    if (aliasMap[clean]) targetCode = aliasMap[clean];
+    else if (/^[lp]?\d+$/i.test(clean)) targetCode = clean.toUpperCase();
+  }
 
   return rooms
     .filter(r => {

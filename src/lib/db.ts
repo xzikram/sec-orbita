@@ -242,7 +242,30 @@ export async function getCachedRoomsByFloor(floorIdOrCode: string): Promise<Cach
     const matchedFloor = allFloors.find(f => matchFloor(f, floorIdOrCode));
 
     const targetFloorId = matchedFloor ? matchedFloor.id : floorIdOrCode;
-    const targetFloorCode = matchedFloor ? matchedFloor.code.toUpperCase() : null;
+    let targetFloorCode = matchedFloor ? matchedFloor.code.toUpperCase() : null;
+
+    if (!targetFloorCode) {
+      const clean = String(floorIdOrCode).trim().toLowerCase().replace(/^floor-/, '').replace(/^sf-/, '');
+      const aliasMap: Record<string, string> = {
+        '0': 'SB', 'sb': 'SB', 'semi basement': 'SB',
+        '1': 'L1', 'l1': 'L1',
+        '2': 'P2', 'p2': 'P2',
+        '3': 'P3', 'p3': 'P3',
+        '4': 'P4', 'p4': 'P4',
+        '5': 'L5', 'l5': 'L5',
+        '6': 'L6', 'l6': 'L6',
+        '7': 'L7', 'l7': 'L7',
+        '8': 'L8', 'l8': 'L8',
+        '9': 'L9', 'l9': 'L9',
+        '10': 'L10', 'l10': 'L10',
+        '11': 'L11', 'l11': 'L11',
+      };
+      if (aliasMap[clean]) {
+        targetFloorCode = aliasMap[clean];
+      } else if (/^[lp]?\d+$/i.test(clean)) {
+        targetFloorCode = clean.toUpperCase();
+      }
+    }
 
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_MASTER_ROOMS, 'readonly');
