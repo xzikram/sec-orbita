@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { allFindings as mockFindings } from '@/lib/supervisor-data';
 import { findingCategoryLabels } from '@/lib/dummy-data';
 import styles from './findings.module.css';
 

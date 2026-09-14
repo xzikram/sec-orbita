@@ -2,7 +2,6 @@
 
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { allFindings, findingUpdates as mockUpdates } from '@/lib/supervisor-data';
 import { findingCategoryLabels } from '@/lib/dummy-data';
 import styles from './finding-detail.module.css';
 
@@ -24,9 +23,14 @@ export default function FindingDetailPage({
     async function loadFinding() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/findings/${id}`);
+        const res = await fetch(`/api/findings?id=${id}`);
         if (res.ok) {
-          const data = await res.json();
+          const json = await res.json();
+          const data = Array.isArray(json.data) ? json.data[0] : (json.data || json);
+          if (!data) {
+            setFinding(null);
+            return;
+          }
           setFinding({
             ...data,
             userName: data.user?.name || 'Petugas',
@@ -41,21 +45,10 @@ export default function FindingDetailPage({
             }))
           );
         } else {
-          // Fallback to mock data if not in DB
-          const mock = allFindings.find(f => f.id === id);
-          if (mock) {
-            setFinding(mock);
-            const mockUpds = mockUpdates.filter(u => u.findingId === id);
-            setUpdates(mockUpds);
-          }
+          setFinding(null);
         }
       } catch {
-        const mock = allFindings.find(f => f.id === id);
-        if (mock) {
-          setFinding(mock);
-          const mockUpds = mockUpdates.filter(u => u.findingId === id);
-          setUpdates(mockUpds);
-        }
+        setFinding(null);
       } finally {
         setLoading(false);
       }

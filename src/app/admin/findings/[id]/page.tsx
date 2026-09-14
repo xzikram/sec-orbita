@@ -2,7 +2,6 @@
 
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { allFindings, findingUpdates as mockUpdates } from '@/lib/supervisor-data';
 import { findingCategoryLabels } from '@/lib/dummy-data';
 import styles from './finding-detail.module.css';
 
@@ -41,21 +40,10 @@ export default function FindingDetailPage({
             }))
           );
         } else {
-          // Fallback to mock data if not in DB
-          const mock = allFindings.find(f => f.id === id);
-          if (mock) {
-            setFinding(mock);
-            const mockUpds = mockUpdates.filter(u => u.findingId === id);
-            setUpdates(mockUpds);
-          }
+          setFinding(null);
         }
       } catch {
-        const mock = allFindings.find(f => f.id === id);
-        if (mock) {
-          setFinding(mock);
-          const mockUpds = mockUpdates.filter(u => u.findingId === id);
-          setUpdates(mockUpds);
-        }
+        setFinding(null);
       } finally {
         setLoading(false);
       }

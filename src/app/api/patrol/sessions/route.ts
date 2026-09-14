@@ -15,39 +15,33 @@ export async function GET(request: NextRequest) {
   const todayMakassarStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
   const todayDate = new Date(todayMakassarStr);
 
-  // Auto-close dangling sessions from past dates that are still in_progress
-  try {
-    await prisma.patrolSession.updateMany({
-      where: {
-        status: 'in_progress',
-        patrolDate: { lt: todayDate },
-      },
-      data: {
-        status: 'incomplete',
-        notes: 'Otomatis ditutup: sesi melewati batas tanggal operasional.',
-        completedAt: new Date(),
-      },
-    });
-  } catch (autoCloseErr) {
-    console.error('Auto-close past sessions error:', autoCloseErr);
-  }
-
-  // Auto-close dangling sessions started > 4 hours ago without activity
+  // Auto-close dangling sessions from past dates or inactive > 4 hours
   try {
     const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
-    await prisma.patrolSession.updateMany({
+    const staleSessions = await prisma.patrolSession.findMany({
       where: {
         status: 'in_progress',
-        startedAt: { lt: fourHoursAgo },
+        OR: [
+          { patrolDate: { lt: todayDate }, startedAt: { lt: fourHoursAgo } },
+          { startedAt: { lt: fourHoursAgo } },
+        ],
       },
-      data: {
-        status: 'incomplete',
-        notes: 'Otomatis ditutup: sesi melewati batas waktu operasional (inactivity timeout > 4 jam).',
-        completedAt: new Date(),
-      },
+      select: { id: true },
     });
-  } catch (timeoutErr) {
-    console.error('Auto-close timeout sessions error:', timeoutErr);
+
+    if (staleSessions.length > 0) {
+      const staleIds = staleSessions.map(s => s.id);
+      await prisma.patrolSession.updateMany({
+        where: { id: { in: staleIds } },
+        data: {
+          status: 'incomplete',
+          notes: 'Otomatis ditutup: sesi terhenti di tengah jalan dan telah melewati batas hari/waktu operasional.',
+          completedAt: new Date(),
+        },
+      });
+    }
+  } catch (autoCloseErr) {
+    console.error('Auto-close past sessions error:', autoCloseErr);
   }
 
   const where: Record<string, any> = {};
@@ -115,20 +109,60 @@ export async function POST(request: NextRequest) {
     const todayMakassarStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
     const patrolDate = new Date(todayMakassarStr);
 
-    // Check if an in_progress session already exists for this schedule today (team collaborative round)
-    let existingSession = await prisma.patrolSession.findFirst({
+    // 1. Auto-close dangling sessions before starting or checking active round
+    try {
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+      const staleSessions = await prisma.patrolSession.findMany({
+        where: {
+          status: 'in_progress',
+          OR: [
+            { patrolDate: { lt: patrolDate }, startedAt: { lt: fourHoursAgo } },
+            { startedAt: { lt: fourHoursAgo } },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (staleSessions.length > 0) {
+        const staleIds = staleSessions.map(s => s.id);
+        await prisma.patrolSession.updateMany({
+          where: { id: { in: staleIds } },
+          data: {
+            status: 'incomplete',
+            notes: 'Otomatis ditutup: sesi terhenti di tengah jalan dan telah melewati batas hari/waktu operasional.',
+            completedAt: new Date(),
+          },
+        });
+      }
+    } catch (autoCloseErr) {
+      console.error('Auto-close error before POST:', autoCloseErr);
+    }
+
+    // 2. Strict Concurrency Guard: Only 1 active patrol round allowed at any time
+    const anyActiveSession = await prisma.patrolSession.findFirst({
       where: {
-        scheduleId,
         patrolDate,
+        status: 'in_progress',
       },
       include: {
         user: { select: { id: true, name: true, employeeId: true } },
+        schedule: true,
         sessionFloors: true,
       },
     });
 
-    if (existingSession) {
-      return NextResponse.json(existingSession, { status: 200 });
+    if (anyActiveSession) {
+      // If the active session is for the exact schedule requested, return it (to resume/join)
+      if (anyActiveSession.scheduleId === scheduleId) {
+        return NextResponse.json(anyActiveSession, { status: 200 });
+      }
+
+      // If active session belongs to a different schedule and user didn't force-override:
+      return NextResponse.json({
+        error: `Sedang ada patroli yang berjalan oleh ${anyActiveSession.user?.name || 'petugas lain'} (Ronda #${anyActiveSession.patrolNumber} - ${anyActiveSession.schedule?.name || 'Jadwal'}). Silakan ikut bergabung atau tutup paksa ronda tersebut terlebih dahulu.`,
+        activeSession: anyActiveSession,
+        requiresAction: 'join_or_override',
+      }, { status: 409 });
     }
 
     // Resolve shift dynamically based on schedule and real-time clock

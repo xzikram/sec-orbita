@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { allFindings as mockFindings } from '@/lib/supervisor-data';
 import { findingCategoryLabels } from '@/lib/dummy-data';
 import styles from './findings.module.css';
 
@@ -29,16 +28,12 @@ export default function SupervisorFindingsPage() {
             status: f.status,
           }));
 
-          if (dbList.length > 0) {
-            setFindingsList(dbList);
-          } else {
-            setFindingsList(mockFindings);
-          }
+          setFindingsList(dbList);
         } else {
-          setFindingsList(mockFindings);
+          setFindingsList([]);
         }
       } catch {
-        setFindingsList(mockFindings);
+        setFindingsList([]);
       } finally {
         setLoading(false);
       }

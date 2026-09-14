@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { adminBuildings as mockBuildings } from '@/lib/admin-data';
 import s from '../admin-crud.module.css';
 
 export default function BuildingsPage() {
@@ -18,12 +17,12 @@ export default function BuildingsPage() {
       const res = await fetch('/api/buildings');
       if (res.ok) {
         const data = await res.json();
-        setBuildings(data.length > 0 ? data : mockBuildings);
+        setBuildings(Array.isArray(data) ? data : []);
       } else {
-        setBuildings(mockBuildings);
+        setBuildings([]);
       }
     } catch {
-      setBuildings(mockBuildings);
+      setBuildings([]);
     }
   };
 

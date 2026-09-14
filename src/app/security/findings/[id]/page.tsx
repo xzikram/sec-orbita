@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getOfflineFindings } from '@/lib/db';
 import { findingCategoryLabels } from '@/lib/dummy-data';
 import styles from './finding-detail.module.css';
 
@@ -29,9 +30,35 @@ export default function SecurityFindingDetailPage({ params }: { params: Promise<
           } else if (items && !Array.isArray(items)) {
             setFinding(items);
           }
+        } else {
+          // Check local offline findings
+          const offlineList = await getOfflineFindings();
+          const match = offlineList.find(f => f.id === id);
+          if (match) {
+            setFinding({
+              ...match,
+              findingNumber: 'OFFLINE',
+              status: 'offline_pending',
+              isOffline: true,
+            });
+          }
         }
       } catch (err) {
-        console.error('Finding detail load error:', err);
+        console.warn('Network error loading finding detail, checking local DB:', err);
+        try {
+          const offlineList = await getOfflineFindings();
+          const match = offlineList.find(f => f.id === id);
+          if (match) {
+            setFinding({
+              ...match,
+              findingNumber: 'OFFLINE',
+              status: 'offline_pending',
+              isOffline: true,
+            });
+          }
+        } catch {
+          // Ignore
+        }
       } finally {
         setLoading(false);
       }

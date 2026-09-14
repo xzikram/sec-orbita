@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { floors, getRoomsByFloor, activeFindings } from '@/lib/dummy-data';
+import { floors, getRoomsByFloor } from '@/lib/dummy-data';
 import { syncOfflineData } from '@/lib/sync';
 import { getOfflineCount } from '@/lib/db';
 import styles from './summary.module.css';
@@ -96,11 +96,13 @@ export default function PatrolSummaryPage() {
                   });
                 }
               });
+            } else if (sf.checkedRooms) {
+              totalChecked += sf.checkedRooms;
             }
           });
 
-          // Add offline checks and findings
-          const finalChecked = Math.max(totalChecked, offChecks.length, floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0));
+          // Accurate checked count from server or offline
+          const finalChecked = totalChecked > 0 ? totalChecked : offChecks.length;
           setRoomsCheckedCount(finalChecked);
           setFindingsCount(Math.max(totalFnd, offFindings.length));
 
@@ -117,11 +119,11 @@ export default function PatrolSummaryPage() {
           setSessionFindings(extractedFindings);
 
           const compFloors = s.sessionFloors?.filter((sf: any) => sf.status === 'completed' || sf.qrValidated).length;
-          setFloorsCompletedCount(compFloors !== undefined && compFloors > 0 ? compFloors : floors.length);
+          setFloorsCompletedCount(compFloors !== undefined && compFloors > 0 ? compFloors : (offQr.length > 0 ? offQr.length : floors.length));
         } else {
           setEndTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }));
-          setRoomsCheckedCount(Math.max(offChecks.length, floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0)));
-          setFloorsCompletedCount(floors.length);
+          setRoomsCheckedCount(offChecks.length);
+          setFloorsCompletedCount(offQr.length > 0 ? offQr.length : 0);
         }
       } catch (err) {
         console.error('Summary load error:', err);
@@ -266,13 +268,13 @@ export default function PatrolSummaryPage() {
       </div>
 
       {/* Findings summary */}
-      {(sessionFindings.length > 0 || activeFindings.length > 0) && (
+      {sessionFindings.length > 0 && (
         <div className={`card ${styles.findingsCard}`}>
           <h3 className={styles.breakdownTitle}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-danger-500)" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-            Temuan ({sessionFindings.length || activeFindings.length})
+            Temuan ({sessionFindings.length})
           </h3>
-          {(sessionFindings.length > 0 ? sessionFindings : activeFindings).map((finding, idx) => (
+          {sessionFindings.map((finding, idx) => (
             <div key={finding.id || idx} className={styles.findingItem}>
               <div className={styles.findingDot} />
               <div className={styles.findingContent}>

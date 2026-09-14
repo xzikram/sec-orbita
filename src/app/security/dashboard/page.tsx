@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { rooms } from '@/lib/dummy-data';
 import { getRealtimeShift, getOppositeShift } from '@/lib/shifts';
 import styles from './dashboard.module.css';
 
@@ -73,6 +72,38 @@ export default function SecurityDashboard() {
   const [prepareProgress, setPrepareProgress] = useState(0);
   const [prepareStatusText, setPrepareStatusText] = useState('');
 
+  // Stale date / cross-day session expiry detection helper
+  const isSessionStaleOrPastDay = (session: any): boolean => {
+    if (!session) return true;
+    try {
+      const todayMakassar = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+
+      // Check patrolDate
+      if (session.patrolDate) {
+        const sessDateStr = typeof session.patrolDate === 'string'
+          ? session.patrolDate.split('T')[0]
+          : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date(session.patrolDate));
+        if (sessDateStr < todayMakassar) {
+          const startedTime = session.startedAt ? new Date(session.startedAt).getTime() : 0;
+          if (Date.now() - startedTime > 4 * 60 * 60 * 1000) {
+            return true;
+          }
+        }
+      }
+
+      // Check startedAt > 4 hours ago without activity
+      if (session.startedAt) {
+        const startedTime = new Date(session.startedAt).getTime();
+        if (Date.now() - startedTime > 4 * 60 * 60 * 1000) {
+          return true;
+        }
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  };
+
   const handleNavigateToPatrolWithPreDownload = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     setIsPreparingOffline(true);
@@ -87,6 +118,19 @@ export default function SecurityDashboard() {
 
       // Ensure an active session exists locally for full offline patrol round
       let cached = localStorage.getItem('cached-active-session');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (isSessionStaleOrPastDay(parsed)) {
+            localStorage.removeItem('cached-active-session');
+            localStorage.removeItem('lastPatrolState');
+            cached = null;
+          }
+        } catch {
+          cached = null;
+        }
+      }
+
       if (!cached) {
         const { floors: fallbackFloors, getCurrentSchedule } = await import('@/lib/dummy-data');
         const sched = getCurrentSchedule();
@@ -330,15 +374,24 @@ export default function SecurityDashboard() {
           floors = fallbackFloors;
         }
 
-        // Find active or latest session (online API -> localStorage offline cache)
-        let activeSession = sessions.find(s => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+        // Find active session for today (online API -> localStorage offline cache)
+        let activeSession = sessions.find(s => s.status === 'in_progress') || null;
         if (!activeSession) {
           try {
             const cachedSess = localStorage.getItem('cached-active-session');
             if (cachedSess) {
-              activeSession = JSON.parse(cachedSess);
+              const parsed = JSON.parse(cachedSess);
+              if (isSessionStaleOrPastDay(parsed)) {
+                localStorage.removeItem('cached-active-session');
+                localStorage.removeItem('lastPatrolState');
+              } else if (parsed.status === 'in_progress') {
+                activeSession = parsed;
+              }
             }
           } catch {}
+        }
+        if (!activeSession && sessions.length > 0) {
+          activeSession = sessions[sessions.length - 1];
         }
 
         // Count total rooms from floors
@@ -359,10 +412,7 @@ export default function SecurityDashboard() {
             const sfCode = String(sf.floorCodeSnapshot || '').toLowerCase();
             const offCheckedRoomCodes = offlineChecks
               .filter((c: any) => c.sessionFloorId === sf.id || (sfCode && c.sessionFloorId === `sf-${sfCode}`))
-              .map((c: any) => {
-                const r = rooms.find(rm => rm.id === c.roomId);
-                return r ? r.code : c.roomId;
-              });
+              .map((c: any) => c.roomCode || c.roomId);
             const combinedFloorChecked = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
             checkedRooms += combinedFloorChecked.size;
             if (sf.status === 'completed' || sf.qrValidated) floorsCompleted++;

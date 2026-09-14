@@ -4,9 +4,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   floors,
-  activeSession,
-  activeSessionFloors,
-  activeChecks,
   patrolSchedules,
   getRoomsByFloor,
   getFloorById,
@@ -94,7 +91,18 @@ export default function PatrolPage() {
         const cachedSess = localStorage.getItem('cached-active-session');
         if (cachedSess) {
           try {
-            setSession(JSON.parse(cachedSess));
+            const parsed = JSON.parse(cachedSess);
+            const todayMakassar = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+            const sessDate = parsed.patrolDate ? (typeof parsed.patrolDate === 'string' ? parsed.patrolDate.split('T')[0] : '') : '';
+            const startedTime = parsed.startedAt ? new Date(parsed.startedAt).getTime() : 0;
+            const isStale = (sessDate && sessDate < todayMakassar && Date.now() - startedTime > 4 * 60 * 60 * 1000) || (startedTime > 0 && Date.now() - startedTime > 4 * 60 * 60 * 1000);
+
+            if (isStale) {
+              localStorage.removeItem('cached-active-session');
+              localStorage.removeItem('lastPatrolState');
+            } else {
+              setSession(parsed);
+            }
           } catch {}
         }
 
@@ -129,10 +137,12 @@ export default function PatrolPage() {
               try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
             }
             if (Array.isArray(sessions)) {
-              const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+              const active = sessions.find((s: any) => s.status === 'in_progress') || null;
               if (active) {
                 setSession(active);
                 try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
+              } else {
+                try { localStorage.removeItem('cached-active-session'); } catch {}
               }
             }
           }).catch(() => {
@@ -193,7 +203,32 @@ export default function PatrolPage() {
     }
   };
 
-  const currentSession = session || activeSession;
+  if (loading) {
+    return (
+      <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}>
+        <p className="text-sm text-muted">Memuat sesi patroli...</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="page-content" style={{ textAlign: 'center', padding: '48px 16px' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🛡️</div>
+        <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', marginBottom: 8 }}>
+          Tidak Ada Sesi Patroli Aktif
+        </h2>
+        <p className="text-muted" style={{ maxWidth: 400, margin: '0 auto 24px', fontSize: 'var(--font-size-sm)' }}>
+          Anda belum memulai sesi patroli atau sesi sebelumnya telah selesai/ditutup. Silakan mulai patroli baru dari menu Beranda.
+        </p>
+        <Link href="/security/dashboard" className="btn btn-primary btn-lg">
+          Kembali ke Beranda
+        </Link>
+      </div>
+    );
+  }
+
+  const currentSession = session;
   const schedule = currentSession.schedule || patrolSchedules.find(s => s.id === currentSession.scheduleId) || patrolSchedules[0];
 
   const totalRooms = floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0);
@@ -329,7 +364,7 @@ export default function PatrolPage() {
       <div className={`${styles.patrolInfo} animate-slide-up`}>
         <div className={styles.patrolInfoHeader}>
           <div>
-            <h1 className={styles.patrolTitle}>Patroli #{currentSession.patrolNumber || activeSession.patrolNumber}</h1>
+            <h1 className={styles.patrolTitle}>Patroli #{currentSession.patrolNumber || 1}</h1>
             <p className={styles.patrolPeriod}>
               {schedule?.startTime} - {schedule?.endTime}
             </p>

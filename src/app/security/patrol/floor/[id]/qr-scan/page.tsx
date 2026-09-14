@@ -54,7 +54,20 @@ export default function QRScanPage({
         // 1. Read cached session from localStorage immediately
         const cached = localStorage.getItem('cached-active-session');
         if (cached) {
-          try { setSession(JSON.parse(cached)); } catch {}
+          try {
+            const parsed = JSON.parse(cached);
+            const todayMakassar = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+            const sessDate = parsed.patrolDate ? (typeof parsed.patrolDate === 'string' ? parsed.patrolDate.split('T')[0] : '') : '';
+            const startedTime = parsed.startedAt ? new Date(parsed.startedAt).getTime() : 0;
+            const isStale = (sessDate && sessDate < todayMakassar && Date.now() - startedTime > 4 * 60 * 60 * 1000) || (startedTime > 0 && Date.now() - startedTime > 4 * 60 * 60 * 1000);
+
+            if (isStale) {
+              localStorage.removeItem('cached-active-session');
+              localStorage.removeItem('lastPatrolState');
+            } else {
+              setSession(parsed);
+            }
+          } catch {}
         }
 
         // 2. Read IndexedDB data
