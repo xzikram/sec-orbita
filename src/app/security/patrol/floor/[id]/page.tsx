@@ -20,13 +20,14 @@ export default function FloorDetailPage({
   const router = useRouter();
 
   const [session, setSession] = useState<any>(null);
+  const [dbFloor, setDbFloor] = useState<any>(null);
   const [floorRooms, setFloorRooms] = useState<Room[]>([]);
   const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const floor = getFloorById(id) || 
+  const fallbackFloor = getFloorById(id) || 
     (() => {
       const match = session?.sessionFloors?.find((sf: any) => 
         sf.floorId === id || 
@@ -35,8 +36,14 @@ export default function FloorDetailPage({
         sf.floor?.id === id ||
         String(sf.floor?.code || '').toUpperCase() === String(id).toUpperCase()
       );
-      return match ? (getFloorById(match.floorCodeSnapshot) || getFloorById(match.floorId) || getFloorById(match.floor?.code)) : undefined;
+      if (match) {
+        return getFloorById(match.floorCodeSnapshot) || getFloorById(match.floorId) || getFloorById(match.floor?.code);
+      }
+      const normCode = String(id).replace(/^floor-/, '').replace(/^sf-/, '').toUpperCase();
+      return floors.find(f => f.code.toUpperCase() === normCode || f.id.toLowerCase() === id.toLowerCase());
     })();
+
+  const floor = dbFloor || fallbackFloor;
 
   useEffect(() => {
     async function loadData() {
@@ -61,19 +68,26 @@ export default function FloorDetailPage({
           } catch {}
         }
 
-        // 2. Resolve floor and rooms from IndexedDB master_rooms
-        const resolvedFloor = getFloorById(id) || 
-          (() => {
-            const match = activeSess?.sessionFloors?.find((sf: any) => 
-              sf.floorId === id || 
-              sf.id === id || 
-              String(sf.floorCodeSnapshot || '').toUpperCase() === String(id).toUpperCase() ||
-              sf.floor?.id === id ||
-              String(sf.floor?.code || '').toUpperCase() === String(id).toUpperCase()
+        // 2. Resolve floor from IndexedDB master_floors if available
+        const dbMod = await import('@/lib/db').catch(() => null);
+        if (dbMod && dbMod.getCachedFloors) {
+          try {
+            const cachedFloors = await dbMod.getCachedFloors();
+            const cleanTargetId = String(id).trim().toLowerCase();
+            const matchedFloor = cachedFloors.find((f: any) =>
+              String(f.id).toLowerCase() === cleanTargetId ||
+              String(f.code || '').toLowerCase() === cleanTargetId ||
+              `floor-${String(f.code || '').toLowerCase()}` === cleanTargetId ||
+              `sf-${String(f.code || '').toLowerCase()}` === cleanTargetId
             );
-            return match ? (getFloorById(match.floorCodeSnapshot) || getFloorById(match.floorId) || getFloorById(match.floor?.code)) : undefined;
-          })();
+            if (matchedFloor) {
+              setDbFloor(matchedFloor);
+            }
+          } catch {}
+        }
 
+        // 3. Resolve rooms from IndexedDB master_rooms
+        const resolvedFloor = fallbackFloor;
         const { getResilientRoomsForFloor } = await import('@/lib/offline-cache');
         const defaultRooms = await getResilientRoomsForFloor(resolvedFloor ? resolvedFloor.id : id);
 

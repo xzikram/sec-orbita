@@ -13,6 +13,8 @@ interface SessionFloor {
   floorNameSnapshot: string;
   floorCodeSnapshot: string;
   status: string;
+  qrValidated?: boolean;
+  completedAt?: string;
   patrolChecks: { id: string; condition: string }[];
 }
 
@@ -83,13 +85,38 @@ export default function SecurityDashboard() {
       const { downloadPatrolPackage } = await import('@/lib/offline-cache');
       const res = await downloadPatrolPackage();
 
+      // Ensure an active session exists locally for full offline patrol round
+      let cached = localStorage.getItem('cached-active-session');
+      if (!cached) {
+        const { floors: fallbackFloors, getCurrentSchedule } = await import('@/lib/dummy-data');
+        const sched = getCurrentSchedule();
+        const offlineSession = {
+          id: `offline-sess-${Date.now()}`,
+          patrolNumber: sched.patrolNumber || 1,
+          status: 'in_progress',
+          scheduleId: sched.id,
+          schedule: sched,
+          startedAt: new Date().toISOString(),
+          sessionFloors: (fallbackFloors || []).map(f => ({
+            id: `sf-${f.code.toLowerCase()}`,
+            floorId: f.id,
+            floorNameSnapshot: f.name,
+            floorCodeSnapshot: f.code,
+            status: 'pending',
+            qrValidated: false,
+            patrolChecks: [],
+          })),
+        };
+        localStorage.setItem('cached-active-session', JSON.stringify(offlineSession));
+      }
+
       setPrepareProgress(85);
       setPrepareStatusText(`Menyimpan ${res.roomsCount || 133} ruangan & token QR fisik di HP...`);
-      await new Promise(r => setTimeout(r, 450));
+      await new Promise(r => setTimeout(r, 200));
 
       setPrepareProgress(100);
       setPrepareStatusText('Data offline siap! Masuk ke rute patroli...');
-      await new Promise(r => setTimeout(r, 350));
+      await new Promise(r => setTimeout(r, 150));
 
       router.push('/security/patrol');
     } catch {
@@ -256,6 +283,14 @@ export default function SecurityDashboard() {
           const meData = await meRes.json();
           loggedInUser = meData.user || null;
           setCurrentUser(loggedInUser);
+        } else {
+          try {
+            const cachedUser = localStorage.getItem('cached-user');
+            if (cachedUser) {
+              loggedInUser = JSON.parse(cachedUser);
+              setCurrentUser(loggedInUser);
+            }
+          } catch {}
         }
 
         if (staffRes && staffRes.ok) {
@@ -282,18 +317,37 @@ export default function SecurityDashboard() {
 
         const sessions: PatrolSession[] = sessionsRes && sessionsRes.ok ? await sessionsRes.json() : [];
         const findingsData = findingsRes && findingsRes.ok ? await findingsRes.json() : { data: [], total: 0 };
-        const floors = floorsRes && floorsRes.ok ? await floorsRes.json() : [];
+        let floors = floorsRes && floorsRes.ok ? await floorsRes.json() : [];
 
-        // Find active or latest session
-        const activeSession = sessions.find(s => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+        if (!Array.isArray(floors) || floors.length === 0) {
+          try {
+            const { getCachedFloors } = await import('@/lib/db');
+            floors = await getCachedFloors();
+          } catch {}
+        }
+        if (!Array.isArray(floors) || floors.length === 0) {
+          const { floors: fallbackFloors } = await import('@/lib/dummy-data');
+          floors = fallbackFloors;
+        }
+
+        // Find active or latest session (online API -> localStorage offline cache)
+        let activeSession = sessions.find(s => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+        if (!activeSession) {
+          try {
+            const cachedSess = localStorage.getItem('cached-active-session');
+            if (cachedSess) {
+              activeSession = JSON.parse(cachedSess);
+            }
+          } catch {}
+        }
 
         // Count total rooms from floors
-        const totalRooms = floors.reduce((sum: number, f: any) => sum + (f.rooms?.length || 0), 0);
+        const totalRooms = floors.reduce((sum: number, f: any) => sum + (f.rooms?.length || 0), 0) || 133;
 
         // Count checked rooms from session combining online and offline checks
         let checkedRooms = 0;
         let floorsCompleted = 0;
-        if (activeSession) {
+        if (activeSession && Array.isArray(activeSession.sessionFloors)) {
           let offlineChecks: any[] = [];
           try {
             const { getOfflineChecks } = await import('@/lib/db');
@@ -301,16 +355,17 @@ export default function SecurityDashboard() {
           } catch {}
 
           for (const sf of activeSession.sessionFloors) {
-            const dbCheckedRoomCodes = sf.patrolChecks.map((c: any) => c.roomCodeSnapshot);
+            const dbCheckedRoomCodes = sf.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
+            const sfCode = String(sf.floorCodeSnapshot || '').toLowerCase();
             const offCheckedRoomCodes = offlineChecks
-              .filter((c: any) => c.sessionFloorId === sf.id)
+              .filter((c: any) => c.sessionFloorId === sf.id || (sfCode && c.sessionFloorId === `sf-${sfCode}`))
               .map((c: any) => {
                 const r = rooms.find(rm => rm.id === c.roomId);
                 return r ? r.code : c.roomId;
               });
             const combinedFloorChecked = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
             checkedRooms += combinedFloorChecked.size;
-            if (sf.status === 'completed') floorsCompleted++;
+            if (sf.status === 'completed' || sf.qrValidated) floorsCompleted++;
           }
         }
 

@@ -1,9 +1,24 @@
-const CACHE_NAME = 'sec-patrol-v10';
+const CACHE_NAME = 'sec-patrol-v11';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
+  '/security/dashboard',
   '/security/patrol',
   '/security/patrol/summary',
+  '/security/patrol/floor/floor-sb',
+  '/security/patrol/floor/floor-1',
+  '/security/patrol/floor/floor-2',
+  '/security/patrol/floor/floor-3',
+  '/security/patrol/floor/floor-4',
+  '/security/patrol/floor/floor-5',
+  '/security/patrol/floor/floor-6',
+  '/security/patrol/floor/floor-7',
+  '/security/patrol/floor/floor-8',
+  '/security/patrol/floor/floor-9',
+  '/security/patrol/floor/floor-10',
+  '/security/patrol/floor/floor-11',
+  '/security/patrol/floor/floor-1/qr-scan',
+  '/security/patrol/room/room-l1-01',
   '/Logo RS JEC ORBITA.png',
   '/apple-touch-icon.png',
   '/icons/icon-192.png',
@@ -13,8 +28,19 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await Promise.allSettled(
+        STATIC_ASSETS.map(async (asset) => {
+          try {
+            const res = await fetch(asset, { cache: 'no-cache' });
+            if (res && res.status === 200) {
+              await cache.put(asset, res);
+            }
+          } catch (err) {
+            console.warn('Pre-cache asset warning:', asset, err);
+          }
+        })
+      );
     })
   );
 });
@@ -181,10 +207,17 @@ self.addEventListener('fetch', (e) => {
                 }
               }
 
-              // 4. Default patrol shell (Guaranteed pure HTML)
-              const patrolShell = (await cache.match('/security/patrol')) ||
-                                  (await cache.match('/security/patrol/summary'));
-              if (patrolShell) return resolve(patrolShell);
+              // 4. Default patrol shell (Guaranteed pure HTML) — ONLY for patrol route or summary
+              if (url.pathname === '/security/patrol' || url.pathname === '/security/patrol/') {
+                const patrolShell = (await cache.match('/security/patrol')) ||
+                                    (await cache.match('/security/patrol/summary'));
+                if (patrolShell) return resolve(patrolShell);
+              }
+              if (url.pathname.startsWith('/security/patrol/summary')) {
+                const summaryShell = (await cache.match('/security/patrol/summary')) ||
+                                     (await cache.match('/security/patrol'));
+                if (summaryShell) return resolve(summaryShell);
+              }
             }
 
             // C. Fallback to offline notice page for other routes
