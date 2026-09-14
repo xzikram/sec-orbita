@@ -487,7 +487,14 @@ export default function RoomCheckPage({
           <div className={styles.headerLeft}>
             <button
               className={styles.backBtn}
-              onClick={() => router.push(`/security/patrol/floor/${room.floorId}`)}
+              onClick={() => {
+                const targetUrl = `/security/patrol/floor/${room.floorId}`;
+                if (typeof window !== 'undefined' && !navigator.onLine) {
+                  window.location.href = targetUrl;
+                } else {
+                  router.push(targetUrl);
+                }
+              }}
               aria-label="Kembali"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

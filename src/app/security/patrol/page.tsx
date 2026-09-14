@@ -469,6 +469,12 @@ export default function PatrolPage() {
             href={`/security/patrol/floor/${fp.floor.id}`}
             className={`${styles.timelineItem} animate-slide-up stagger-${index + 1}`}
             id={`patrol-floor-${fp.floor.code}`}
+            onClick={(e) => {
+              if (typeof window !== 'undefined' && !navigator.onLine) {
+                e.preventDefault();
+                window.location.href = `/security/patrol/floor/${fp.floor.id}`;
+              }
+            }}
           >
             {/* Timeline connector */}
             {index < floorProgress.length - 1 && (

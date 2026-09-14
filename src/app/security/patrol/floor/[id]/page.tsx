@@ -243,6 +243,29 @@ export default function FloorDetailPage({
     saveCustomOrder(newList);
   };
 
+  const handleGoToRoom = (roomId: string, e?: React.MouseEvent) => {
+    // When offline, use window.location.href to guarantee instant document shell load from Service Worker cache
+    // completely bypassing Next.js RSC fetch 503 error
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      if (e) e.preventDefault();
+      window.location.href = `/security/patrol/room/${roomId}`;
+    }
+  };
+
+  const handleGoToQr = (e?: React.MouseEvent) => {
+    if (typeof window !== 'undefined' && !navigator.onLine && floor) {
+      if (e) e.preventDefault();
+      window.location.href = `/security/patrol/floor/${floor.id}/qr-scan`;
+    }
+  };
+
+  const handleGoToPatrol = (e?: React.MouseEvent) => {
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      if (e) e.preventDefault();
+      window.location.href = '/security/patrol';
+    }
+  };
+
   return (
     <div className="page-content" style={{ paddingBottom: '96px' }}>
       {/* Back button & header */}
@@ -250,7 +273,13 @@ export default function FloorDetailPage({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
           <button
             className={`btn btn-ghost btn-icon ${styles.backBtn}`}
-            onClick={() => router.back()}
+            onClick={(e) => {
+              if (!navigator.onLine) {
+                handleGoToPatrol(e);
+              } else {
+                router.back();
+              }
+            }}
             aria-label="Kembali"
             style={{ margin: 0 }}
           >
@@ -397,6 +426,7 @@ export default function FloorDetailPage({
                         href={`/security/patrol/room/${room.id}`}
                         className="btn btn-primary btn-sm"
                         id={`btn-check-${room.code}`}
+                        onClick={(e) => handleGoToRoom(room.id, e)}
                       >
                         Periksa
                       </Link>
@@ -414,6 +444,7 @@ export default function FloorDetailPage({
                 href={`/security/patrol/room/${nextRoom.id}`}
                 className="btn btn-primary btn-xl"
                 id="btn-continue-patrol"
+                onClick={(e) => handleGoToRoom(nextRoom.id, e)}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
@@ -435,7 +466,7 @@ export default function FloorDetailPage({
           <p style={{ fontSize: '13px', color: 'var(--color-neutral-600)', margin: '0 0 14px' }}>
             Seluruh titik pemeriksaan di {floor.name} telah dicek dan validasi QR fisik berhasil.
           </p>
-          <Link href="/security/patrol" className="btn btn-outline btn-sm" style={{ fontWeight: 600 }}>
+          <Link href="/security/patrol" className="btn btn-outline btn-sm" style={{ fontWeight: 600 }} onClick={handleGoToPatrol}>
             Kembali ke Rute Patroli →
           </Link>
         </div>
@@ -458,6 +489,7 @@ export default function FloorDetailPage({
               href={`/security/patrol/floor/${floor.id}/qr-scan`}
               className="btn btn-success btn-xl"
               id="btn-scan-qr"
+              onClick={handleGoToQr}
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="3" width="7" height="7" />

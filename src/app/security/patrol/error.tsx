@@ -53,6 +53,20 @@ export default function PatrolErrorPage({
       setReported(true);
     }
 
+    // Automatic offline recovery: if an error occurs while offline, perform a clean hard reload
+    // so the Service Worker immediately serves the cached HTML document shell
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      const currentUrl = window.location.href;
+      const offRetryKey = `off_retry_${currentUrl}`;
+      const offCount = parseInt(sessionStorage.getItem(offRetryKey) || '0', 10);
+      if (offCount < 2) {
+        sessionStorage.setItem(offRetryKey, String(offCount + 1));
+        window.location.href = currentUrl;
+        return;
+      }
+      sessionStorage.removeItem(offRetryKey);
+    }
+
     const msg = error?.message || '';
     const isChunkError =
       msg.includes('Loading chunk') ||
@@ -60,6 +74,7 @@ export default function PatrolErrorPage({
       msg.includes('dynamically imported module') ||
       msg.includes('Failed to fetch') ||
       msg.includes('Load failed') ||
+      msg.includes('Server Components render') ||
       msg.includes('error loading dynamically imported module');
 
     if (isChunkError) {

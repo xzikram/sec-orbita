@@ -69,7 +69,7 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
     // 4. Pre-cache all patrol pages and QR scan routes into browser CacheStorage
     if (typeof window !== 'undefined' && 'caches' in window) {
       try {
-        const cache = await window.caches.open('sec-patrol-v11');
+        const cache = await window.caches.open('sec-patrol-v12');
         const routesToPrecache = [
           '/security/dashboard',
           '/security/patrol',

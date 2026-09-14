@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v11';
+const CACHE_NAME = 'sec-patrol-v12';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -29,6 +29,7 @@ self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
+      // 1. Cache static document shells
       await Promise.allSettled(
         STATIC_ASSETS.map(async (asset) => {
           try {
@@ -39,6 +40,28 @@ self.addEventListener('install', (e) => {
           } catch (err) {
             console.warn('Pre-cache asset warning:', asset, err);
           }
+        })
+      );
+
+      // 2. Pre-cache RSC flight streams for instant offline transitions
+      const rscRoutes = [
+        '/security/patrol',
+        '/security/patrol/floor/floor-1',
+        '/security/patrol/floor/floor-1/qr-scan',
+        '/security/patrol/room/room-l1-01',
+        '/security/patrol/summary',
+      ];
+      await Promise.allSettled(
+        rscRoutes.map(async (route) => {
+          try {
+            const rscReq = new Request(`${route}?_rsc=1`, {
+              headers: { 'RSC': '1', 'accept': 'text/x-component' }
+            });
+            const res = await fetch(rscReq);
+            if (res && res.status === 200) {
+              await cache.put(rscReq, res);
+            }
+          } catch {}
         })
       );
     })
@@ -102,7 +125,6 @@ self.addEventListener('fetch', (e) => {
   }
 
   // 3. Next.js RSC requests (_rsc query or RSC header)
-  // NEVER cross-serve RSC from Room A to Room B (causes client route crash)
   const isRscRequest = url.searchParams.has('_rsc') || 
                        e.request.headers.get('RSC') === '1' || 
                        e.request.headers.get('accept')?.includes('text/x-component');
@@ -111,7 +133,6 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       caches.match(e.request).then((cached) => {
         if (cached) {
-          // Serve exact match if cached
           fetch(e.request)
             .then(res => {
               if (res.status === 200) {
@@ -131,9 +152,30 @@ self.addEventListener('fetch', (e) => {
             }
             return response;
           })
-          .catch(() => {
-            // When offline and exact RSC not cached, return 503 so client router initiates clean hard navigation
-            // Hard navigation will receive the real HTML document shell!
+          .catch(async () => {
+            // When offline and exact RSC not cached:
+            // Match any cached RSC flight payload for this component type
+            try {
+              const cache = await caches.open(CACHE_NAME);
+              const keys = await cache.keys();
+              
+              if (url.pathname.includes('/room/')) {
+                const anyRoomRsc = keys.find(k => k.url.includes('/room/') && (k.url.includes('_rsc') || k.url.includes('?_rsc')));
+                if (anyRoomRsc) {
+                  const match = await cache.match(anyRoomRsc);
+                  if (match) return match;
+                }
+              }
+
+              if (url.pathname.includes('/floor/')) {
+                const anyFloorRsc = keys.find(k => k.url.includes('/floor/') && !k.url.includes('/qr-scan') && (k.url.includes('_rsc') || k.url.includes('?_rsc')));
+                if (anyFloorRsc) {
+                  const match = await cache.match(anyFloorRsc);
+                  if (match) return match;
+                }
+              }
+            } catch {}
+
             return new Response('Offline RSC', { status: 503, statusText: 'Offline' });
           });
       })
