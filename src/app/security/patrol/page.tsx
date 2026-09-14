@@ -10,6 +10,7 @@ import {
   patrolSchedules,
   getRoomsByFloor,
   getFloorById,
+  isRoomChecked,
   rooms,
 } from '@/lib/dummy-data';
 import styles from './patrol.module.css';
@@ -197,26 +198,22 @@ export default function PatrolPage() {
 
   const totalRooms = floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0);
 
-  // Combine online (DB) and offline (IndexedDB) check room codes
-  const onlineCheckRoomCodes = new Set<string>();
-  currentSession.sessionFloors?.forEach((sf: any) => {
-    sf.patrolChecks?.forEach((c: any) => onlineCheckRoomCodes.add(c.roomCodeSnapshot));
-  });
-
-  const offlineCheckRoomCodes = new Set<string>();
-  offlineChecks.forEach((c: any) => {
-    const isMatchingFloor = currentSession.sessionFloors?.some((sf: any) => {
-      const floor = floors.find(f => f.id === sf.floorId || f.code === sf.floorCodeSnapshot);
-      const dummySfId = floor ? `sf-${floor.code.toLowerCase()}` : '';
-      return sf.id === c.sessionFloorId || (dummySfId && dummySfId === c.sessionFloorId);
+  // Combine online (DB) and offline (IndexedDB) check room codes using isRoomChecked
+  const checkedRoomCodesSet = new Set<string>();
+  floors.forEach(f => {
+    const fRooms = getRoomsByFloor(f.id);
+    const sf = currentSession.sessionFloors?.find((s: any) => 
+      s.floorId === f.id || 
+      String(s.floorCodeSnapshot || '').toUpperCase() === f.code.toUpperCase() ||
+      (s.floor?.code && s.floor.code.toUpperCase() === f.code.toUpperCase())
+    );
+    fRooms.forEach(r => {
+      if (isRoomChecked(r, sf?.patrolChecks, offlineChecks)) {
+        checkedRoomCodesSet.add(r.code);
+      }
     });
-    if (isMatchingFloor) {
-      const r = rooms.find(rm => rm.id === c.roomId);
-      if (r) offlineCheckRoomCodes.add(r.code);
-    }
   });
 
-  const checkedRoomCodesSet = new Set([...onlineCheckRoomCodes, ...offlineCheckRoomCodes]);
   const checkedRooms = checkedRoomCodesSet.size;
   const overallProgress = totalRooms > 0 ? Math.round((checkedRooms / totalRooms) * 100) : 0;
 
@@ -241,14 +238,12 @@ export default function PatrolPage() {
 
     const floorRooms = getRoomsByFloor(floor.id);
     
-    const dbCheckedCodes = sf.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
-    const offCheckedCodes = offlineChecks
-      .filter((c: any) => c.sessionFloorId === sf.id || (floor?.code && c.sessionFloorId === `sf-${floor.code.toLowerCase()}`))
-      .map((c: any) => {
-        const r = rooms.find(rm => rm.id === c.roomId);
-        return r ? r.code : c.roomId;
-      });
-    const combinedFloorChecked = new Set([...dbCheckedCodes, ...offCheckedCodes]);
+    const combinedFloorChecked = new Set<string>();
+    floorRooms.forEach(r => {
+      if (isRoomChecked(r, sf.patrolChecks, offlineChecks)) {
+        combinedFloorChecked.add(r.code);
+      }
+    });
     
     const checked = combinedFloorChecked.size;
     const total = floorRooms.length;

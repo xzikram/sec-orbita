@@ -51,6 +51,9 @@ export interface OfflineCheck {
   id: string;
   sessionFloorId: string;
   roomId: string;
+  roomCode?: string;
+  floorId?: string;
+  floorCode?: string;
   acStatus: 'on' | 'off' | 'not_available';
   lightStatus: 'on' | 'off';
   condition: 'normal' | 'finding';

@@ -477,6 +477,59 @@ export function getRoomById(roomId: string): Room | undefined {
   return undefined;
 }
 
+/**
+ * Robustly checks if a room has been inspected, cross-checking both
+ * online DB session checks and IndexedDB offline checks with full UUID/code resilience.
+ */
+export function isRoomChecked(
+  room: { id: string; code: string; floorId?: string },
+  sessionFloorChecks: any[] = [],
+  offlineChecks: any[] = []
+): boolean {
+  if (!room) return false;
+  const roomCode = String(room.code || '').toUpperCase().trim();
+  const roomId = String(room.id || '').toLowerCase().trim();
+
+  // 1. Check DB checks in sessionFloor
+  if (Array.isArray(sessionFloorChecks) && sessionFloorChecks.length > 0) {
+    const dbMatch = sessionFloorChecks.some((c: any) => {
+      if (!c) return false;
+      const cCode = String(c.roomCodeSnapshot || '').toUpperCase().trim();
+      if (roomCode && cCode === roomCode) return true;
+      const cRoomId = String(c.roomId || '').toLowerCase().trim();
+      if (cRoomId && (cRoomId === roomId || cRoomId === roomCode.toLowerCase())) return true;
+      return false;
+    });
+    if (dbMatch) return true;
+  }
+
+  // 2. Check offline checks (IndexedDB)
+  if (Array.isArray(offlineChecks) && offlineChecks.length > 0) {
+    const offMatch = offlineChecks.some((c: any) => {
+      if (!c) return false;
+      // Direct roomCode match
+      const cRoomCode = String(c.roomCode || '').toUpperCase().trim();
+      if (roomCode && cRoomCode === roomCode) return true;
+
+      const cRoomId = String(c.roomId || '').trim();
+      if (!cRoomId) return false;
+      const cRoomIdLower = cRoomId.toLowerCase();
+
+      // Direct ID or code match
+      if (cRoomIdLower === roomId || (roomCode && cRoomIdLower === roomCode.toLowerCase())) return true;
+
+      // Resolved room match via static catalog / DB map
+      const resolved = getRoomById(cRoomId);
+      if (resolved && roomCode && resolved.code.toUpperCase() === roomCode) return true;
+
+      return false;
+    });
+    if (offMatch) return true;
+  }
+
+  return false;
+}
+
 export function getCurrentSchedule(): PatrolSchedule {
   const now = new Date();
   const options: Intl.DateTimeFormatOptions = {

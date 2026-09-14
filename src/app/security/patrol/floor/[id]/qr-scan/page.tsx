@@ -3,7 +3,7 @@
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import QRScanner from '@/components/QRScanner';
-import { getFloorById, getRoomsByFloor, floors } from '@/lib/dummy-data';
+import { getFloorById, getRoomsByFloor, floors, isRoomChecked } from '@/lib/dummy-data';
 import styles from './qrscan.module.css';
 
 export default function QRScanPage({
@@ -128,14 +128,12 @@ export default function QRScanPage({
 
   // Check if all rooms on this floor are checked before scanning QR
   const floorRooms = floor ? getRoomsByFloor(floor.id) : [];
-  const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
-  const offCheckedRoomCodes = offlineChecks
-    .filter((c: any) => c.sessionFloorId === sessionFloor?.id || (floor?.code && c.sessionFloorId === `sf-${floor.code.toLowerCase()}`))
-    .map((c: any) => {
-      const r = floorRooms.find(rm => rm.id === c.roomId);
-      return r ? r.code : c.roomId;
-    });
-  const uniqueChecked = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
+  const uniqueChecked = new Set<string>();
+  floorRooms.forEach(r => {
+    if (isRoomChecked(r, sessionFloor?.patrolChecks, offlineChecks)) {
+      uniqueChecked.add(r.code);
+    }
+  });
   const isAllRoomsChecked = floorRooms.length === 0 || uniqueChecked.size >= floorRooms.length;
 
   // Calculate next floor based on user route direction
@@ -258,10 +256,10 @@ export default function QRScanPage({
     // 5. Transition to next floor or summary
     setTimeout(() => {
       const targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
-      try {
-        router.push(targetUrl);
-      } catch {
+      if (typeof window !== 'undefined' && !navigator.onLine) {
         window.location.href = targetUrl;
+      } else {
+        router.push(targetUrl);
       }
     }, 2200);
   };

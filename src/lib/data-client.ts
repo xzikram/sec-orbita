@@ -5,6 +5,9 @@ import { saveOfflineCheck, saveOfflineFinding } from './db';
 export interface RoomCheckPayload {
   sessionFloorId: string;
   roomId: string;
+  roomCode?: string;
+  floorId?: string;
+  floorCode?: string;
   acStatus: 'on' | 'off' | 'not_available';
   lightStatus: 'on' | 'off';
   condition: 'normal' | 'finding';

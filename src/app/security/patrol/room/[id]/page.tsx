@@ -8,6 +8,7 @@ import {
   getRoomById,
   getFloorById,
   getRoomsByFloor,
+  isRoomChecked,
   findingCategoryLabels,
   type FindingCategory,
   type ACStatus,
@@ -217,20 +218,14 @@ export default function RoomCheckPage({
   });
   
   // Combine online (DB) checks and offline checks for this floor (by code snapshot)
-  const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
-  let offCheckedRoomCodes: string[] = [];
-  try {
-    offCheckedRoomCodes = offlineChecks
-      .filter((c: any) => c.sessionFloorId === sessionFloor?.id || (floor?.code && c.sessionFloorId === `sf-${floor.code.toLowerCase()}`))
-      .map((c: any) => {
-        const r = getRoomById(c.roomId);
-        return r ? r.code : c.roomId;
-      });
-  } catch (e) {
-    console.error('Error processing offline checks in room page:', e);
-  }
-  const combinedCheckedSet = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
+  const combinedCheckedSet = new Set<string>();
+  activeFloorRooms.forEach((r: any) => {
+    if (isRoomChecked(r, sessionFloor?.patrolChecks, offlineChecks)) {
+      combinedCheckedSet.add(r.code);
+    }
+  });
   const checked = combinedCheckedSet.size;
+  const isFloorFullyChecked = activeFloorRooms.length > 0 && checked >= activeFloorRooms.length;
 
 
   const toggleSpeechRecognition = (target: 'remarks' | 'finding') => {
@@ -351,10 +346,13 @@ export default function RoomCheckPage({
 
     const sessionFloorId = sessionFloor?.id || `sf-${(floor?.code || 'dummy').toLowerCase()}`;
 
-    // Call submitRoomCheck helper
+    // Call submitRoomCheck helper with rich metadata
     const result = await submitRoomCheck({
       sessionFloorId,
       roomId: room.id,
+      roomCode: room.code,
+      floorId: room.floorId,
+      floorCode: floor?.code || '',
       acStatus: acStatus || 'not_available',
       lightStatus: lightStatus === 'not_available' ? 'off' : (lightStatus || 'off'),
       condition: condition || 'normal',
@@ -437,14 +435,24 @@ export default function RoomCheckPage({
             window.history.replaceState(null, '', `/security/patrol/room/${nextRoom.id}`);
           }
         } else {
-          // All rooms done, go to floor page for QR scan
+          // All rooms done on this floor! Go straight to floor QR Scan
           const floorTarget = floor ? floor.id : room.floorId;
-          router.push(`/security/patrol/floor/${floorTarget}`);
+          const targetUrl = `/security/patrol/floor/${floorTarget}/qr-scan`;
+          if (typeof window !== 'undefined' && !navigator.onLine) {
+            window.location.href = targetUrl;
+          } else {
+            router.push(targetUrl);
+          }
         }
       } catch (navErr) {
         console.error('Navigation error after submit:', navErr);
-        // Fallback: go to patrol route
-        router.push('/security/patrol');
+        const floorTarget = floor ? floor.id : room.floorId;
+        const targetUrl = `/security/patrol/floor/${floorTarget}/qr-scan`;
+        if (typeof window !== 'undefined' && !navigator.onLine) {
+          window.location.href = targetUrl;
+        } else {
+          router.push(targetUrl);
+        }
       }
     }, 1000);
   };
@@ -479,6 +487,137 @@ export default function RoomCheckPage({
     );
   }
 
+  // If all rooms on the floor have already been completed, display celebratory floor completion view
+  if (isFloorFullyChecked) {
+    return (
+      <div className="page-content" style={{ paddingBottom: '96px' }}>
+        {/* Header */}
+        <div className={styles.header}>
+          <div className={styles.headerLeft}>
+            <button
+              className={styles.backBtn}
+              onClick={() => {
+                const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
+                if (typeof window !== 'undefined' && !navigator.onLine) {
+                  window.location.href = targetUrl;
+                } else {
+                  router.push(targetUrl);
+                }
+              }}
+              aria-label="Kembali"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <div className={styles.headerInfo}>
+              <div className={styles.roomTitleRow}>
+                <h1 className={styles.roomName}>{floor?.name || 'Lantai Selesai'}</h1>
+              </div>
+              <span className={styles.headerFloor}>{activeFloorRooms.length} Ruangan Selesai Diperiksa</span>
+            </div>
+          </div>
+          <span className="badge badge-success badge-lg" style={{ fontWeight: 800 }}>
+            {activeFloorRooms.length}/{activeFloorRooms.length} Selesai ✓
+          </span>
+        </div>
+
+        {/* Full progress bar */}
+        <div className={styles.progressBar} style={{ marginBottom: '1.5rem' }}>
+          <div className={styles.progressFill} style={{ width: '100%', background: 'var(--color-success-500, #10b981)' }} />
+        </div>
+
+        {/* Modern Celebration Card */}
+        <div className="card animate-scale-in" style={{ textAlign: 'center', padding: '2rem 1.25rem', borderRadius: '16px', background: '#fff', border: '1px solid var(--color-neutral-200)', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+          <div style={{
+            width: '68px',
+            height: '68px',
+            borderRadius: '50%',
+            background: 'var(--color-success-50, #ecfdf5)',
+            border: '2px solid var(--color-success-300, #a7f3d0)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1rem',
+            color: 'var(--color-success-600, #059669)',
+          }}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+
+          <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px' }}>
+            Seluruh Ruangan Selesai!
+          </h2>
+          <p style={{ fontSize: '13.5px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '1.5rem', maxWidth: '360px', marginInline: 'auto' }}>
+            Semua {activeFloorRooms.length} ruangan di <strong>{floor?.name || 'lantai ini'}</strong> telah selesai diperiksa.
+          </p>
+
+          <div style={{
+            background: 'var(--color-primary-50, #eff6ff)',
+            border: '1px solid var(--color-primary-200, #bfdbfe)',
+            borderRadius: '12px',
+            padding: '1rem',
+            marginBottom: '1.5rem',
+            textAlign: 'left',
+          }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '22px', lineHeight: 1 }}>📷</span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--color-primary-900, #1e3a8a)', marginBottom: '4px' }}>
+                  Langkah Terakhir: Scan QR Lantai
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-primary-700, #1d4ed8)', lineHeight: 1.4 }}>
+                  Scan stiker QR fisik yang tertempel di dinding lantai ini untuk memvalidasi dan menyelesaikan patroli lantai.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button
+            className="btn btn-success btn-xl"
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontWeight: 800, fontSize: '16px', padding: '14px 20px', borderRadius: '12px', marginBottom: '10px' }}
+            onClick={() => {
+              const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}/qr-scan`;
+              if (typeof window !== 'undefined' && !navigator.onLine) {
+                window.location.href = targetUrl;
+              } else {
+                router.push(targetUrl);
+              }
+            }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+            </svg>
+            Scan QR Lantai Sekarang →
+          </button>
+
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ width: '100%', color: 'var(--text-secondary)', fontWeight: 600 }}
+            onClick={() => {
+              const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
+              if (typeof window !== 'undefined' && !navigator.onLine) {
+                window.location.href = targetUrl;
+              } else {
+                router.push(targetUrl);
+              }
+            }}
+          >
+            Lihat Ringkasan Ruangan Lantai
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentRoomIndex = activeFloorRooms.findIndex((r: any) => r.id === room.id || r.code === room.code);
+  const currentRoomOrder = currentRoomIndex !== -1 ? currentRoomIndex + 1 : Math.min(checked + 1, activeFloorRooms.length);
+  const totalRoomsCount = activeFloorRooms.length || 1;
+
   return (
     <div className="page-content" style={{ paddingBottom: '32px' }}>
       <div className={styles.inspectionContainer}>
@@ -488,7 +627,7 @@ export default function RoomCheckPage({
             <button
               className={styles.backBtn}
               onClick={() => {
-                const targetUrl = `/security/patrol/floor/${room.floorId}`;
+                const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
                 if (typeof window !== 'undefined' && !navigator.onLine) {
                   window.location.href = targetUrl;
                 } else {
@@ -510,7 +649,7 @@ export default function RoomCheckPage({
             </div>
           </div>
           <span className={styles.stepBadge}>
-            {checked + 1}/{floorRooms.length}
+            {currentRoomOrder}/{totalRoomsCount}
           </span>
         </div>
 
@@ -518,7 +657,7 @@ export default function RoomCheckPage({
         <div className={styles.progressBar}>
           <div
             className={styles.progressFill}
-            style={{ width: `${floorRooms.length > 0 ? Math.round(((checked + 1) / floorRooms.length) * 100) : 0}%` }}
+            style={{ width: `${Math.min(100, Math.round((checked / totalRoomsCount) * 100))}%` }}
           />
         </div>
 

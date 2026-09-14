@@ -8,6 +8,7 @@ import {
   floors,
   getRoomsByFloor,
   getFloorById,
+  isRoomChecked,
 } from '@/lib/dummy-data';
 import styles from './floor.module.css';
 
@@ -193,20 +194,12 @@ export default function FloorDetailPage({
   });
   
   // Combine online (DB) checks and offline checks for this floor by code snapshot
-  const dbCheckedRoomCodes = sessionFloor?.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
-  let offCheckedRoomCodes: string[] = [];
-  try {
-    offCheckedRoomCodes = offlineChecks
-      .filter((c: any) => c.sessionFloorId === sessionFloor?.id || (floor?.code && c.sessionFloorId === `sf-${floor.code.toLowerCase()}`))
-      .map((c: any) => {
-        // Look up room code in any floor rooms list
-        const r = floors.reduce((found: any, f) => found || getRoomsByFloor(f.id).find(rm => rm.id === c.roomId), null as any);
-        return r ? r.code : c.roomId;
-      });
-  } catch (e) {
-    console.error('Error processing offline checks:', e);
-  }
-  const combinedCheckedSet = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
+  const combinedCheckedSet = new Set<string>();
+  floorRooms.forEach((r: Room) => {
+    if (isRoomChecked(r, sessionFloor?.patrolChecks, offlineChecks)) {
+      combinedCheckedSet.add(r.code);
+    }
+  });
 
   const checked = combinedCheckedSet.size;
   const total = floorRooms.length;
@@ -332,7 +325,12 @@ export default function FloorDetailPage({
               const isChecked = combinedCheckedSet.has(room.code);
               const isNext = nextRoom?.id === room.id;
               const check = sessionFloor?.patrolChecks?.find((c: any) => c.roomCodeSnapshot === room.code) ||
-                            offlineChecks.find((c: any) => c.roomId === room.id && c.sessionFloorId === sessionFloor?.id);
+                            offlineChecks.find((c: any) => 
+                              c.roomCode === room.code || 
+                              c.roomId === room.id || 
+                              c.roomId === room.code || 
+                              (c.roomId && String(c.roomId).toLowerCase() === room.code.toLowerCase())
+                            );
 
               return (
                 <div
