@@ -48,18 +48,22 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
         fetch('/api/auth/me').catch(() => null),
       ]);
 
-      if (sessionsRes && sessionsRes.ok) {
-        const sessions = await sessionsRes.json();
-        const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1];
-        if (active) {
-          localStorage.setItem('cached-active-session', JSON.stringify(active));
+      let currentUserId: string | null = null;
+      if (meRes && meRes.ok) {
+        const meData = await meRes.json();
+        if (meData?.user) {
+          currentUserId = meData.user.id || null;
+          localStorage.setItem('cached-user', JSON.stringify(meData.user));
         }
       }
 
-      if (meRes && meRes.ok) {
-        const meData = await meRes.json();
-        if (meData.user) {
-          localStorage.setItem('cached-user', JSON.stringify(meData.user));
+      if (sessionsRes && sessionsRes.ok) {
+        const sessions = await sessionsRes.json();
+        if (Array.isArray(sessions)) {
+          const active = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === currentUserId || !s.userId)) || null;
+          if (active) {
+            localStorage.setItem('cached-active-session', JSON.stringify(active));
+          }
         }
       }
     } catch {

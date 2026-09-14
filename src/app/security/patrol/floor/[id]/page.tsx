@@ -153,7 +153,8 @@ export default function FloorDetailPage({
               try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
             }
             if (Array.isArray(sessions)) {
-              const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+              const myId = meData?.user?.id || currentUser?.id;
+              const active = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === myId || !s.userId)) || null;
               if (active) {
                 setSession(active);
                 try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}

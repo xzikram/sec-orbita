@@ -106,9 +106,14 @@ export default function RoomCheckPage({
     async function loadData() {
       try {
         // 1. Instantly load cached user and cached session from localStorage (Zero Network Delay)
+        let currentUserId: string | null = null;
         const cachedUser = localStorage.getItem('cached-user');
         if (cachedUser) {
-          try { setCurrentUser(JSON.parse(cachedUser)); } catch {}
+          try {
+            const u = JSON.parse(cachedUser);
+            currentUserId = u.id || null;
+            setCurrentUser(u);
+          } catch {}
         }
         const cachedSess = localStorage.getItem('cached-active-session');
         if (cachedSess) {
@@ -119,9 +124,11 @@ export default function RoomCheckPage({
             const startedTime = parsed.startedAt ? new Date(parsed.startedAt).getTime() : 0;
             const isStale = (sessDate && sessDate < todayMakassar && Date.now() - startedTime > 4 * 60 * 60 * 1000) || (startedTime > 0 && Date.now() - startedTime > 4 * 60 * 60 * 1000);
 
-            if (isStale) {
-              localStorage.removeItem('cached-active-session');
-              localStorage.removeItem('lastPatrolState');
+            if (isStale || (currentUserId && parsed.userId && parsed.userId !== currentUserId)) {
+              if (isStale) {
+                localStorage.removeItem('cached-active-session');
+                localStorage.removeItem('lastPatrolState');
+              }
             } else {
               setSession(parsed);
             }
@@ -179,7 +186,8 @@ export default function RoomCheckPage({
               try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
             }
             if (Array.isArray(sessions)) {
-              const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+              const myId = meData?.user?.id || currentUserId;
+              const active = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === myId || !s.userId)) || null;
               if (active) {
                 setSession(active);
                 try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
@@ -431,8 +439,9 @@ export default function RoomCheckPage({
       fetch('/api/patrol/sessions')
         .then(res => (res && res.ok ? res.json() : null))
         .then(sessions => {
-          if (sessions) {
-            const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+          if (Array.isArray(sessions)) {
+            const myId = currentUser?.id;
+            const active = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === myId || !s.userId)) || null;
             if (active) {
               localStorage.setItem('cached-active-session', JSON.stringify(active));
             }

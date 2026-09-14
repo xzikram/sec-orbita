@@ -39,6 +39,15 @@ export default function PatrolSummaryPage() {
 
     async function loadSummary() {
       try {
+        let currentUserId: string | null = null;
+        const cachedUser = localStorage.getItem('cached-user');
+        if (cachedUser) {
+          try {
+            const u = JSON.parse(cachedUser);
+            currentUserId = u.id || null;
+          } catch {}
+        }
+
         let s = null;
         const cached = localStorage.getItem('cached-active-session');
         if (cached) try { s = JSON.parse(cached); } catch {}
@@ -47,8 +56,14 @@ export default function PatrolSummaryPage() {
           const res = await fetch('/api/patrol/sessions').catch(() => null);
           if (res && res.ok) {
             const sessions = await res.json();
-            const found = sessions.find((item: any) => item.status === 'completed') || sessions[sessions.length - 1];
-            if (found) s = found;
+            if (Array.isArray(sessions)) {
+              const mySessions = currentUserId ? sessions.filter((item: any) => item.userId === currentUserId) : sessions;
+              const found = mySessions.find((item: any) => item.status === 'completed') 
+                || mySessions[mySessions.length - 1] 
+                || sessions.find((item: any) => item.status === 'completed') 
+                || sessions[sessions.length - 1];
+              if (found) s = found;
+            }
           }
         }
 

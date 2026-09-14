@@ -29,26 +29,51 @@ export async function POST(request: NextRequest) {
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
     const patrolDate = new Date(todayStr);
 
-    // 1. Get or create active session
-    let activeSession = await prisma.patrolSession.findFirst({
-      where: {
-        patrolDate,
-        status: 'in_progress',
-      },
-      include: {
-        sessionFloors: {
-          include: { floor: { include: { qrCode: true } } },
+    // 1. Get or create active session for this specific user
+    let activeSession = null;
+    if (body.sessionId && !String(body.sessionId).startsWith('offline-')) {
+      activeSession = await prisma.patrolSession.findUnique({
+        where: { id: body.sessionId },
+        include: {
+          sessionFloors: {
+            include: { floor: { include: { qrCode: true } } },
+          },
         },
-      },
-      orderBy: { startedAt: 'desc' },
-    });
+      });
+    }
 
     if (!activeSession) {
-      // Find latest session or create one
-      const defaultSchedule = await prisma.patrolSchedule.findFirst({
-        where: { isActive: true },
-        orderBy: { patrolNumber: 'asc' },
+      activeSession = await prisma.patrolSession.findFirst({
+        where: {
+          userId: auth.id,
+          patrolDate,
+          status: 'in_progress',
+        },
+        include: {
+          sessionFloors: {
+            include: { floor: { include: { qrCode: true } } },
+          },
+        },
+        orderBy: { startedAt: 'desc' },
       });
+    }
+
+    if (!activeSession) {
+      // Auto-resolve schedule based on current Makassar time
+      const allSchedules = await prisma.patrolSchedule.findMany({ orderBy: { patrolNumber: 'asc' } });
+      const nowTime = new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Makassar',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date()).replace('.', ':');
+
+      const defaultSchedule = allSchedules.find(s => {
+        if (s.startTime < s.endTime) {
+          return nowTime >= s.startTime && nowTime < s.endTime;
+        }
+        return nowTime >= s.startTime || nowTime < s.endTime;
+      }) || allSchedules[0];
 
       if (defaultSchedule) {
         const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });

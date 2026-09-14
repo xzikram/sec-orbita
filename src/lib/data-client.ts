@@ -148,11 +148,21 @@ export async function submitFinding(payload: FindingPayload): Promise<{ success:
 
 export async function fetchActiveSession() {
   try {
+    let currentUserId: string | null = null;
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const u = JSON.parse(localStorage.getItem('cached-user') || '{}');
+        currentUserId = u.id || null;
+      } catch {}
+    }
     const today = new Date().toISOString().split('T')[0];
     const res = await fetch(`/api/patrol/sessions?date=${today}`);
     if (!res.ok) return null;
     const data = await res.json();
-    return data.find((s: { status: string }) => s.status === 'in_progress') || data[data.length - 1] || null;
+    if (!Array.isArray(data)) return null;
+    return data.find((s: { status: string; userId?: string }) => s.status === 'in_progress' && (!currentUserId || s.userId === currentUserId))
+      || data.find((s: { status: string }) => s.status === 'in_progress')
+      || null;
   } catch {
     return null;
   }
