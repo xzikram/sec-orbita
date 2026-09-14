@@ -358,6 +358,18 @@ export default function RoomCheckPage({
     return true;
   };
 
+  const handleSetAllNormal = () => {
+    if (room.hasAc) setAcStatus('on');
+    else setAcStatus('not_available');
+    if (room.hasLight) setLightStatus('on');
+    setCondition('normal');
+    setFindingCategory(null);
+    setFindingDescription('');
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(40);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!canSubmit()) return;
 
@@ -411,6 +423,9 @@ export default function RoomCheckPage({
       // Show success screen immediately
       setSyncMode(result.mode);
       setShowSuccess(true);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([60, 40, 100]);
+      }
 
       // Refresh cached session data in background during success animation
       fetch('/api/patrol/sessions')
@@ -766,6 +781,38 @@ export default function RoomCheckPage({
             officerName="Petugas Security"
           />
         )}
+
+        {/* Quick Action: 1-Klik Set Normal / Aman */}
+        <div style={{ marginBottom: '10px' }}>
+          <button
+            type="button"
+            onClick={handleSetAllNormal}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 14px',
+              background: condition === 'normal' && (acStatus === 'on' || acStatus === 'not_available') && lightStatus === 'on'
+                ? 'linear-gradient(135deg, #059669, #10b981)'
+                : '#f0fdf4',
+              color: condition === 'normal' && (acStatus === 'on' || acStatus === 'not_available') && lightStatus === 'on'
+                ? '#ffffff'
+                : '#15803d',
+              border: '1.5px solid #86efac',
+              borderRadius: '12px',
+              fontWeight: 700,
+              fontSize: '13px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 6px rgba(16, 185, 129, 0.12)',
+            }}
+          >
+            <span style={{ fontSize: '15px' }}>⚡</span>
+            <span>Set Semua Normal / Aman (1-Klik)</span>
+          </button>
+        </div>
 
         {/* 2-Column Utilities Grid (AC & Lampu side-by-side) */}
         <div className={styles.utilitiesGrid}>

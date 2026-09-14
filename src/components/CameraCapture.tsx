@@ -20,10 +20,13 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
   const [captured, setCaptured] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isStarting, setIsStarting] = useState(true);
+  const [hasTorch, setHasTorch] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   const startCamera = useCallback(async (facing: 'environment' | 'user') => {
     setIsStarting(true);
     setError('');
+    setTorchOn(false);
     try {
       // Stop existing stream
       if (stream) {
@@ -40,6 +43,20 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
       });
 
       setStream(mediaStream);
+
+      // Check for flashlight / torch capability
+      try {
+        const track = mediaStream.getVideoTracks()[0];
+        if (track && typeof (track as any).getCapabilities === 'function') {
+          const caps = (track as any).getCapabilities();
+          setHasTorch(!!caps?.torch);
+        } else {
+          setHasTorch(false);
+        }
+      } catch {
+        setHasTorch(false);
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         await videoRef.current.play();
@@ -70,6 +87,22 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
     const newFacing = facingMode === 'environment' ? 'user' : 'environment';
     setFacingMode(newFacing);
     startCamera(newFacing);
+  };
+
+  const toggleTorch = async () => {
+    if (!stream) return;
+    try {
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        const nextState = !torchOn;
+        await (track as any).applyConstraints({
+          advanced: [{ torch: nextState }],
+        });
+        setTorchOn(nextState);
+      }
+    } catch (err) {
+      console.warn('Torch toggle warning:', err);
+    }
   };
 
   const addWatermark = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -280,6 +313,20 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
               <div className={styles.captureBtnInner} />
             </button>
             <div style={{ display: 'flex', gap: '8px' }}>
+              {hasTorch && (
+                <button
+                  type="button"
+                  className={styles.ctrlBtn}
+                  onClick={toggleTorch}
+                  title={torchOn ? 'Matikan Senter' : 'Nyalakan Senter'}
+                  style={{
+                    background: torchOn ? '#f59e0b' : 'rgba(0, 0, 0, 0.45)',
+                    borderColor: torchOn ? '#f59e0b' : 'rgba(255, 255, 255, 0.2)',
+                  }}
+                >
+                  <span style={{ fontSize: '18px' }}>🔦</span>
+                </button>
+              )}
               <button className={styles.ctrlBtn} onClick={switchCamera} title="Ganti Kamera Depan/Belakang">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
               </button>

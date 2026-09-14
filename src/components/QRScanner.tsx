@@ -11,6 +11,26 @@ interface QRScannerProps {
   hideHeader?: boolean;
 }
 
+// Synthesize instant audio beep on success (works 100% offline without assets)
+function playSuccessBeep() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  } catch {}
+}
+
 export default function QRScanner({ onScan, onError, onCancel, floorName, hideHeader = false }: QRScannerProps) {
   const scannerRef = useRef<HTMLDivElement>(null);
   const html5QrRef = useRef<any>(null);
@@ -91,7 +111,8 @@ export default function QRScanner({ onScan, onError, onCancel, floorName, hideHe
         },
         (decodedText) => {
           setStatus('success');
-          if (navigator.vibrate) navigator.vibrate(200);
+          playSuccessBeep();
+          if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
           try {
             qrInstance.stop().catch(() => {});
           } catch (e) {}
