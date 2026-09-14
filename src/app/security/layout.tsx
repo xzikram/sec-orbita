@@ -247,9 +247,24 @@ export default function SecurityLayout({
         <div className={styles.headerTop}>
           <div className={styles.headerLogo}>
             <img 
-              src="/Logo RS JEC ORBITA.png" 
+              src="/logo-jec.png" 
               alt="Logo JEC ORBITA" 
               style={{ height: '22px', width: 'auto', objectFit: 'contain' }}
+              onError={(e) => {
+                // Graceful fallback if image fails offline
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (parent && !parent.querySelector('.logo-text-fallback')) {
+                  const span = document.createElement('span');
+                  span.className = 'logo-text-fallback';
+                  span.textContent = 'JEC ORBITA';
+                  span.style.fontWeight = '800';
+                  span.style.fontSize = '13px';
+                  span.style.color = '#38bdf8';
+                  span.style.letterSpacing = '0.5px';
+                  parent.appendChild(span);
+                }
+              }}
             />
           </div>
           <div className={styles.headerRight}>

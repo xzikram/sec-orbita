@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v13';
+const CACHE_NAME = 'sec-patrol-v14';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -17,9 +17,22 @@ const STATIC_ASSETS = [
   '/security/patrol/floor/floor-9',
   '/security/patrol/floor/floor-10',
   '/security/patrol/floor/floor-11',
+  '/security/patrol/floor/floor-sb/qr-scan',
   '/security/patrol/floor/floor-1/qr-scan',
+  '/security/patrol/floor/floor-2/qr-scan',
+  '/security/patrol/floor/floor-3/qr-scan',
+  '/security/patrol/floor/floor-4/qr-scan',
+  '/security/patrol/floor/floor-5/qr-scan',
+  '/security/patrol/floor/floor-6/qr-scan',
+  '/security/patrol/floor/floor-7/qr-scan',
+  '/security/patrol/floor/floor-8/qr-scan',
+  '/security/patrol/floor/floor-9/qr-scan',
+  '/security/patrol/floor/floor-10/qr-scan',
+  '/security/patrol/floor/floor-11/qr-scan',
   '/security/patrol/room/room-l1-01',
+  '/logo-jec.png',
   '/Logo RS JEC ORBITA.png',
+  '/Logo%20RS%20JEC%20ORBITA.png',
   '/apple-touch-icon.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
@@ -92,10 +105,14 @@ self.addEventListener('fetch', (e) => {
   }
 
   // 1. Static assets (icons, manifest, offline page, core shells) — cache-first
-  if (STATIC_ASSETS.some(asset => url.pathname === asset)) {
+  const decodedPath = decodeURIComponent(url.pathname);
+  if (STATIC_ASSETS.some(asset => url.pathname === asset || decodedPath === asset)) {
     e.respondWith(
-      caches.match(e.request).then((cached) => {
-        return cached || fetch(e.request).then((response) => {
+      caches.match(e.request).then(async (cached) => {
+        if (cached) return cached;
+        const decodedMatch = await caches.match(decodedPath);
+        if (decodedMatch) return decodedMatch;
+        return fetch(e.request).then((response) => {
           if (response.status === 200) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));

@@ -662,9 +662,14 @@ export default function RoomCheckPage({
     );
   }
 
-  const currentRoomIndex = activeFloorRooms.findIndex((r: any) => r.id === room.id || r.code === room.code);
-  const currentRoomOrder = currentRoomIndex !== -1 ? currentRoomIndex + 1 : Math.min(checked + 1, activeFloorRooms.length);
-  const totalRoomsCount = activeFloorRooms.length || 1;
+  const currentRoomIndex = activeFloorRooms.findIndex((r: any) => 
+    String(r.id).toLowerCase() === String(room?.id || '').toLowerCase() || 
+    String(r.code).toUpperCase() === String(room?.code || '').toUpperCase()
+  );
+  const totalRoomsCount = Math.max(1, activeFloorRooms.length);
+  const currentRoomOrder = currentRoomIndex !== -1 ? currentRoomIndex + 1 : 1;
+  const displayRoomOrder = Math.min(Math.max(1, currentRoomOrder), totalRoomsCount);
+  const isCurrentRoomAlreadyChecked = isRoomChecked(room, sessionFloor?.patrolChecks, offlineChecks);
 
   return (
     <div className="page-content" style={{ paddingBottom: '32px' }}>
@@ -697,7 +702,7 @@ export default function RoomCheckPage({
             </div>
           </div>
           <span className={styles.stepBadge}>
-            {currentRoomOrder}/{totalRoomsCount}
+            {displayRoomOrder}/{totalRoomsCount}
           </span>
         </div>
 
@@ -708,6 +713,59 @@ export default function RoomCheckPage({
             style={{ width: `${Math.min(100, Math.round((checked / totalRoomsCount) * 100))}%` }}
           />
         </div>
+
+        {/* Already Checked Notice */}
+        {isCurrentRoomAlreadyChecked && (
+          <div style={{
+            background: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            borderRadius: '12px',
+            padding: '10px 14px',
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px', color: '#059669', lineHeight: 1 }}>✓</span>
+              <div>
+                <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#065f46' }}>
+                  Ruangan Ini Sudah Diperiksa
+                </div>
+                <div style={{ fontSize: '11px', color: '#047857' }}>
+                  {isFloorFullyChecked ? 'Seluruh ruangan di lantai ini telah selesai!' : 'Data tersimpan. Anda dapat memperbarui jika perlu.'}
+                </div>
+              </div>
+            </div>
+            {isFloorFullyChecked && (
+              <button
+                type="button"
+                style={{
+                  background: '#059669',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}/qr-scan`;
+                  if (typeof window !== 'undefined' && !navigator.onLine) {
+                    window.location.href = targetUrl;
+                  } else {
+                    router.push(targetUrl);
+                  }
+                }}
+              >
+                Scan QR →
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Modern Photo Card */}
         <div className={styles.photoCard}>
