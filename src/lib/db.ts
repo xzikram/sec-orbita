@@ -365,12 +365,54 @@ export async function getOfflineCount(): Promise<{ checks: number; findings: num
   }
 }
 
+export async function deleteOfflineChecksByIds(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_CHECKS, 'readwrite');
+    const store = tx.objectStore(STORE_CHECKS);
+    for (const id of ids) {
+      store.delete(id);
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function deleteOfflineFindingsByIds(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_FINDINGS, 'readwrite');
+    const store = tx.objectStore(STORE_FINDINGS);
+    for (const id of ids) {
+      store.delete(id);
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function deleteOfflineQrScansByIds(ids: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_OFFLINE_QR_SCANS, 'readwrite');
+    const store = tx.objectStore(STORE_OFFLINE_QR_SCANS);
+    for (const id of ids) {
+      store.delete(id);
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 // Clears only temporary transaction data (checks + photos, findings, qrScans) after successful sync
 // Preserves master catalog (master_floors, master_rooms) so device stays ready offline
 export async function clearTemporaryOfflineMedia(): Promise<void> {
   try {
     const db = await openDB();
-    return new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const tx = db.transaction([STORE_CHECKS, STORE_FINDINGS, STORE_OFFLINE_QR_SCANS], 'readwrite');
       tx.objectStore(STORE_CHECKS).clear();
       tx.objectStore(STORE_FINDINGS).clear();
@@ -378,6 +420,12 @@ export async function clearTemporaryOfflineMedia(): Promise<void> {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('lastPatrolState');
+      } catch {}
+    }
   } catch (err) {
     console.warn('Clear temporary offline media error:', err);
   }
@@ -386,3 +434,4 @@ export async function clearTemporaryOfflineMedia(): Promise<void> {
 export async function clearOfflineData(): Promise<void> {
   return clearTemporaryOfflineMedia();
 }
+

@@ -84,6 +84,13 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
             routesToPrecache.push(`/security/patrol/floor/${f.code.toLowerCase()}`);
             routesToPrecache.push(`/security/patrol/floor/${f.code.toLowerCase()}/qr-scan`);
           }
+          if (Array.isArray(f.rooms)) {
+            // Pre-cache sample rooms so Next.js downloads the room page JS chunk into CacheStorage
+            f.rooms.slice(0, 3).forEach((r: any) => {
+              if (r.id) routesToPrecache.push(`/security/patrol/room/${r.id}`);
+              if (r.code) routesToPrecache.push(`/security/patrol/room/${r.code.toLowerCase()}`);
+            });
+          }
         });
 
         // Preload in parallel without blocking startup
@@ -109,7 +116,12 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
       } catch {}
     }
 
-    localStorage.setItem('offline-patrol-cache-time', new Date().toISOString());
+    const nowIso = new Date().toISOString();
+    localStorage.setItem('offline-patrol-cache-time', nowIso);
+    localStorage.setItem('offline-patrol-start-time', nowIso);
+    if (typeof performance !== 'undefined') {
+      localStorage.setItem('offline-patrol-perf-baseline', String(performance.now()));
+    }
 
     return {
       success: true,

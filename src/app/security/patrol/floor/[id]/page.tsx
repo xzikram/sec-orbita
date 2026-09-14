@@ -41,46 +41,27 @@ export default function FloorDetailPage({
   useEffect(() => {
     async function loadData() {
       try {
-        const [meRes, sessionsRes] = await Promise.all([
-          fetch('/api/auth/me').catch(() => null),
-          fetch('/api/patrol/sessions').catch(() => null),
-        ]);
-
+        // 1. Read cached user and active session instantly from localStorage
         let empId = 'guest';
-        if (meRes && meRes.ok) {
-          const meData = await meRes.json();
-          setCurrentUser(meData.user);
-          empId = meData.user.employeeId;
-          try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
-        } else {
-          const cachedUser = localStorage.getItem('cached-user');
-          if (cachedUser) {
-            try {
-              const u = JSON.parse(cachedUser);
-              setCurrentUser(u);
-              empId = u.employeeId || 'guest';
-            } catch {}
-          }
+        const cachedUser = localStorage.getItem('cached-user');
+        if (cachedUser) {
+          try {
+            const u = JSON.parse(cachedUser);
+            setCurrentUser(u);
+            empId = u.employeeId || 'guest';
+          } catch {}
         }
 
         let activeSess: any = null;
-        if (sessionsRes && sessionsRes.ok) {
-          const sessions = await sessionsRes.json();
-          activeSess = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
-          setSession(activeSess);
-          if (activeSess) {
-            try { localStorage.setItem('cached-active-session', JSON.stringify(activeSess)); } catch {}
-          }
-        } else {
-          const cachedSess = localStorage.getItem('cached-active-session');
-          if (cachedSess) {
-            try {
-              activeSess = JSON.parse(cachedSess);
-              setSession(activeSess);
-            } catch {}
-          }
+        const cachedSess = localStorage.getItem('cached-active-session');
+        if (cachedSess) {
+          try {
+            activeSess = JSON.parse(cachedSess);
+            setSession(activeSess);
+          } catch {}
         }
 
+        // 2. Resolve floor and rooms from IndexedDB master_rooms
         const resolvedFloor = getFloorById(id) || 
           (() => {
             const match = activeSess?.sessionFloors?.find((sf: any) => 
@@ -108,7 +89,6 @@ export default function FloorDetailPage({
               if (idxB === -1) return -1;
               return idxA - idxB;
             });
-            // Ensure no rooms were dropped if catalog changed
             const sortedIds = new Set(sorted.map(r => r.id));
             const missing = defaultRooms.filter(r => !sortedIds.has(r.id));
             setFloorRooms([...sorted, ...missing]);
@@ -119,7 +99,7 @@ export default function FloorDetailPage({
           setFloorRooms(defaultRooms);
         }
 
-        // Get offline checks
+        // 3. Get offline checks from IndexedDB
         try {
           const { getOfflineChecks } = await import('@/lib/db');
           const offline = await getOfflineChecks();
@@ -128,11 +108,37 @@ export default function FloorDetailPage({
           console.error('IndexedDB load error:', e);
         }
 
+        // 4. Set loading false immediately (< 25ms render)
+        setLoading(false);
+        setMounted(true);
+
+        // 5. Background network update if online
+        if (navigator.onLine) {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 1200);
+
+          Promise.all([
+            fetch('/api/auth/me', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch('/api/patrol/sessions', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
+          ]).then(([meData, sessions]) => {
+            clearTimeout(timer);
+            if (meData?.user) {
+              setCurrentUser(meData.user);
+              try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
+            }
+            if (Array.isArray(sessions)) {
+              const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+              if (active) {
+                setSession(active);
+                try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
+              }
+            }
+          }).catch(() => {
+            clearTimeout(timer);
+          });
+        }
       } catch (err) {
         console.error('Floor load error:', err);
-        const cachedSess = localStorage.getItem('cached-active-session');
-        if (cachedSess) try { setSession(JSON.parse(cachedSess)); } catch {}
-      } finally {
         setLoading(false);
         setMounted(true);
       }

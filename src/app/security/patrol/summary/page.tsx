@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { floors, getRoomsByFloor, activeFindings } from '@/lib/dummy-data';
+import { syncOfflineData } from '@/lib/sync';
+import { getOfflineCount } from '@/lib/db';
 import styles from './summary.module.css';
 
 export default function PatrolSummaryPage() {
@@ -17,20 +19,45 @@ export default function PatrolSummaryPage() {
   const [floorsCompletedCount, setFloorsCompletedCount] = useState(floors.length);
   const [sessionFindings, setSessionFindings] = useState<any[]>([]);
 
+  // Sync state
+  const [offlinePendingCount, setOfflinePendingCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
+  const [syncStatusText, setSyncStatusText] = useState('');
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState('');
+
+  const checkOffline = async () => {
+    try {
+      const counts = await getOfflineCount();
+      const total = counts.checks + counts.findings + counts.qrScans;
+      setOfflinePendingCount(total);
+    } catch {}
+  };
+
   useEffect(() => {
+    checkOffline();
+
     async function loadSummary() {
       try {
-        const res = await fetch('/api/patrol/sessions').catch(() => null);
         let s = null;
-        if (res && res.ok) {
-          const sessions = await res.json();
-          s = sessions.find((item: any) => item.status === 'completed') || sessions[sessions.length - 1];
+        const cached = localStorage.getItem('cached-active-session');
+        if (cached) try { s = JSON.parse(cached); } catch {}
+
+        if (navigator.onLine) {
+          const res = await fetch('/api/patrol/sessions').catch(() => null);
+          if (res && res.ok) {
+            const sessions = await res.json();
+            const found = sessions.find((item: any) => item.status === 'completed') || sessions[sessions.length - 1];
+            if (found) s = found;
+          }
         }
 
-        if (!s) {
-          const cached = localStorage.getItem('cached-active-session');
-          if (cached) try { s = JSON.parse(cached); } catch {}
-        }
+        const { getOfflineChecks, getOfflineFindings, getOfflineQrScans } = await import('@/lib/db');
+        const [offChecks, offFindings, offQr] = await Promise.all([
+          getOfflineChecks().catch(() => []),
+          getOfflineFindings().catch(() => []),
+          getOfflineQrScans().catch(() => []),
+        ]);
 
         if (s) {
           setSession(s);
@@ -72,15 +99,29 @@ export default function PatrolSummaryPage() {
             }
           });
 
-          setRoomsCheckedCount(totalChecked || floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0));
-          setFindingsCount(totalFnd);
+          // Add offline checks and findings
+          const finalChecked = Math.max(totalChecked, offChecks.length, floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0));
+          setRoomsCheckedCount(finalChecked);
+          setFindingsCount(Math.max(totalFnd, offFindings.length));
+
+          if (offFindings.length > 0) {
+            offFindings.forEach(f => {
+              extractedFindings.push({
+                id: f.id,
+                description: f.description,
+                roomNameSnapshot: f.roomNameSnapshot,
+                floorNameSnapshot: f.floorNameSnapshot,
+              });
+            });
+          }
           setSessionFindings(extractedFindings);
 
           const compFloors = s.sessionFloors?.filter((sf: any) => sf.status === 'completed' || sf.qrValidated).length;
           setFloorsCompletedCount(compFloors !== undefined && compFloors > 0 ? compFloors : floors.length);
         } else {
           setEndTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }));
-          setRoomsCheckedCount(floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0));
+          setRoomsCheckedCount(Math.max(offChecks.length, floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0)));
+          setFloorsCompletedCount(floors.length);
         }
       } catch (err) {
         console.error('Summary load error:', err);
@@ -88,6 +129,25 @@ export default function PatrolSummaryPage() {
     }
     loadSummary();
   }, []);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    setSyncProgress(10);
+    setSyncStatusText('Menghubungi server...');
+
+    const result = await syncOfflineData((p) => {
+      setSyncProgress(p.percent);
+      setSyncStatusText(p.statusText);
+    });
+
+    setIsSyncing(false);
+    if (result.success) {
+      setSyncSuccessMsg('Semua data patroli berhasil terkirim ke server & penyimpanan lokal HP telah dibersihkan.');
+      setOfflinePendingCount(0);
+    } else {
+      setSyncStatusText(result.error || 'Koneksi gagal. Pastikan terhubung ke Wi-Fi RS.');
+    }
+  };
 
   return (
     <div className="page-container" style={{ paddingBottom: 100 }}>
@@ -101,6 +161,48 @@ export default function PatrolSummaryPage() {
         <h1 className={styles.successTitle}>Patroli Selesai!</h1>
         <p className={styles.successSub}>Patroli #{patrolNumber} • {scheduleName}</p>
       </div>
+
+      {/* Sync Status Alert Box */}
+      {offlinePendingCount > 0 && (
+        <div className="card" style={{ background: '#fffbeb', border: '1px solid #fef3c7', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <span style={{ fontSize: '24px' }}>📱</span>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#92400e' }}>
+                Ada {offlinePendingCount} Data Patroli Tersimpan di HP
+              </h4>
+              <p style={{ margin: '4px 0 12px', fontSize: '12px', color: '#b45309', lineHeight: 1.4 }}>
+                Seluruh ruangan & scan QR aman tersimpan di HP. Saat sudah kembali ke pos atau terkoneksi Wi-Fi server, tekan tombol di bawah untuk sinkronisasi.
+              </p>
+
+              {isSyncing ? (
+                <div>
+                  <div style={{ height: '8px', background: '#fde68a', borderRadius: '4px', overflow: 'hidden', marginBottom: '6px' }}>
+                    <div style={{ height: '100%', width: `${syncProgress}%`, background: '#d97706', transition: 'width 0.3s ease' }} />
+                  </div>
+                  <p style={{ margin: 0, fontSize: '11px', color: '#92400e', fontWeight: 600 }}>{syncStatusText}</p>
+                </div>
+              ) : (
+                <button
+                  onClick={handleManualSync}
+                  className="btn btn-primary btn-sm"
+                  style={{ background: '#d97706', borderColor: '#d97706', fontWeight: 700, width: '100%' }}
+                >
+                  🚀 Sinkronkan ke Server & Bersihkan HP
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {syncSuccessMsg && (
+        <div className="card" style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '14px', borderRadius: '12px', marginBottom: '16px', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: '13px', color: '#065f46', fontWeight: 700 }}>
+            ✓ {syncSuccessMsg}
+          </p>
+        </div>
+      )}
 
       {/* Stats */}
       <div className={styles.statsRow}>
@@ -170,11 +272,11 @@ export default function PatrolSummaryPage() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-danger-500)" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
             Temuan ({sessionFindings.length || activeFindings.length})
           </h3>
-          {(sessionFindings.length > 0 ? sessionFindings : activeFindings).map(finding => (
-            <div key={finding.id} className={styles.findingItem}>
+          {(sessionFindings.length > 0 ? sessionFindings : activeFindings).map((finding, idx) => (
+            <div key={finding.id || idx} className={styles.findingItem}>
               <div className={styles.findingDot} />
               <div className={styles.findingContent}>
-                <span className={styles.findingText}>{finding.description.substring(0, 80)}...</span>
+                <span className={styles.findingText}>{finding.description?.substring(0, 80)}...</span>
                 <span className={styles.findingLoc}>{finding.roomNameSnapshot} • {finding.floorNameSnapshot}</span>
               </div>
             </div>

@@ -51,25 +51,14 @@ export default function QRScanPage({
 
     async function loadData() {
       try {
-        const [sessionsRes, dbMod] = await Promise.all([
-          fetch('/api/patrol/sessions').catch(() => null),
-          import('@/lib/db').catch(() => null),
-        ]);
-
-        if (sessionsRes && sessionsRes.ok) {
-          const sessions = await sessionsRes.json();
-          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
-          setSession(active);
-          if (active) {
-            try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
-          }
-        } else {
-          const cached = localStorage.getItem('cached-active-session');
-          if (cached) {
-            try { setSession(JSON.parse(cached)); } catch {}
-          }
+        // 1. Read cached session from localStorage immediately
+        const cached = localStorage.getItem('cached-active-session');
+        if (cached) {
+          try { setSession(JSON.parse(cached)); } catch {}
         }
 
+        // 2. Read IndexedDB data
+        const dbMod = await import('@/lib/db').catch(() => null);
         if (dbMod) {
           if (dbMod.getOfflineChecks) {
             try {
@@ -94,13 +83,33 @@ export default function QRScanPage({
             } catch {}
           }
         }
+
+        // 3. Render immediately (< 25ms)
+        setLoading(false);
+
+        // 4. Background network update if online
+        if (navigator.onLine) {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 1200);
+
+          fetch('/api/patrol/sessions', { signal: controller.signal })
+            .then(r => (r.ok ? r.json() : null))
+            .then(sessions => {
+              clearTimeout(timer);
+              if (Array.isArray(sessions)) {
+                const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+                if (active) {
+                  setSession(active);
+                  try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
+                }
+              }
+            })
+            .catch(() => {
+              clearTimeout(timer);
+            });
+        }
       } catch (err) {
         console.error('QR Scan load error:', err);
-        const cached = localStorage.getItem('cached-active-session');
-        if (cached) {
-          try { setSession(JSON.parse(cached)); } catch {}
-        }
-      } finally {
         setLoading(false);
       }
     }

@@ -2,42 +2,47 @@
 
 import { useEffect, useState } from 'react';
 import { getOfflineCount } from '@/lib/db';
+import { checkServerReachable } from '@/lib/data-client';
 
 export default function ConnectionStatus() {
-  const [isOnline, setIsOnline] = useState(true);
+  const [serverReachable, setServerReachable] = useState(true);
   const [offlineCount, setOfflineCount] = useState(0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    setIsOnline(navigator.onLine);
+    let isMounted = true;
 
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const probeServer = async () => {
+      const ok = await checkServerReachable(800);
+      if (isMounted) setServerReachable(ok);
+      try {
+        const counts = await getOfflineCount();
+        if (isMounted) setOfflineCount(counts.checks + counts.findings + (counts.qrScans || 0));
+      } catch {}
+    };
+
+    probeServer();
+    const interval = setInterval(probeServer, 10000);
+
+    const handleOnline = () => probeServer();
+    const handleOffline = () => {
+      setServerReachable(false);
+      probeServer();
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    const checkOffline = async () => {
-      try {
-        const counts = await getOfflineCount();
-        setOfflineCount(counts.checks + counts.findings);
-      } catch (err) {
-        console.error('Failed to get offline count:', err);
-      }
-    };
-
-    checkOffline();
-    const interval = setInterval(checkOffline, 10000);
-
     return () => {
+      isMounted = false;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       clearInterval(interval);
     };
   }, []);
 
-  if (isOnline) {
+  if (serverReachable) {
     if (offlineCount > 0) {
       return (
         <div 
@@ -45,18 +50,18 @@ export default function ConnectionStatus() {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
-            background: 'rgba(255, 193, 7, 0.15)',
-            border: '1px solid rgba(255, 193, 7, 0.3)',
+            background: 'rgba(245, 158, 11, 0.15)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
             borderRadius: '12px',
             padding: '4px 8px',
             fontSize: '11px',
-            color: '#FFC107',
+            color: '#b45309',
             fontWeight: '600'
           }}
-          title={`${offlineCount} data pending sinkronisasi`}
+          title={`${offlineCount} data tersimpan di HP siap disinkronkan ke server`}
         >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#FFC107', display: 'inline-block', boxShadow: '0 0 6px #FFC107' }} />
-          <span>{offlineCount} Pending</span>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', display: 'inline-block', boxShadow: '0 0 6px #f59e0b' }} />
+          <span>{offlineCount} Tersimpan di HP</span>
         </div>
       );
     }
@@ -66,44 +71,45 @@ export default function ConnectionStatus() {
           display: 'inline-flex',
           alignItems: 'center',
           gap: '6px',
-          background: 'rgba(76, 175, 80, 0.15)',
-          border: '1px solid rgba(76, 175, 80, 0.3)',
+          background: 'rgba(16, 185, 129, 0.15)',
+          border: '1px solid rgba(16, 185, 129, 0.35)',
           borderRadius: '12px',
           padding: '4px 8px',
           fontSize: '11px',
-          color: '#4CAF50',
+          color: '#065f46',
           fontWeight: '600'
         }}
-        title="Online - Terhubung ke Server"
+        title="Terhubung ke Server RS Mata JEC ORBITA"
       >
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4CAF50', display: 'inline-block', boxShadow: '0 0 6px #4CAF50' }} />
-        <span>Online</span>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }} />
+        <span>Terhubung</span>
       </div>
     );
   }
 
+  // Server unreachable or dead zone
   return (
     <div 
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: '6px',
-        background: 'rgba(244, 67, 54, 0.15)',
-        border: '1px solid rgba(244, 67, 54, 0.3)',
+        background: 'rgba(245, 158, 11, 0.15)',
+        border: '1px solid rgba(245, 158, 11, 0.35)',
         borderRadius: '12px',
         padding: '4px 8px',
         fontSize: '11px',
-        color: '#F44336',
+        color: '#b45309',
         fontWeight: '600'
       }}
-      title="Offline - Tidak ada koneksi internet"
+      title="Mode Patroli Offline — Data aman tersimpan di HP Anda"
     >
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F44336', display: 'inline-block', boxShadow: '0 0 6px #F44336', animation: 'pulse 1.5s infinite' }} />
-      <span>Offline {offlineCount > 0 ? `(${offlineCount})` : ''}</span>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', display: 'inline-block', animation: 'pulse 1.8s infinite' }} />
+      <span>Mode Offline {offlineCount > 0 ? `(${offlineCount} data di HP)` : ''}</span>
       <style jsx global>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
+          50% { opacity: 0.4; }
         }
       `}</style>
     </div>

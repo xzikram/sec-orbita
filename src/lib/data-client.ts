@@ -23,12 +23,26 @@ export interface FindingPayload {
   description: string;
 }
 
+// Fast ping probe to verify true server reachability (not just cellular/Wi-Fi radio status)
+export async function checkServerReachable(timeoutMs = 1000): Promise<boolean> {
+  if (typeof window === 'undefined' || !navigator.onLine) return false;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch('/api/ping', { cache: 'no-store', signal: controller.signal });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // Unified client to route check submissions to API (online) or IndexedDB (offline)
 export async function submitRoomCheck(payload: RoomCheckPayload): Promise<{ success: boolean; mode: 'online' | 'offline'; error?: string; checkId?: string }> {
   const isOnline = typeof window !== 'undefined' && navigator.onLine;
 
+  // If browser reports offline, go straight to IndexedDB instantly
   if (!isOnline) {
-    // Save to IndexedDB
     try {
       const offlineId = `check-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       await saveOfflineCheck({
@@ -42,9 +56,9 @@ export async function submitRoomCheck(payload: RoomCheckPayload): Promise<{ succ
     }
   }
 
-  // Fast-timeout (3.5s) for Wi-Fi handover resilience across floors
+  // Fast-timeout (1.2s) - If server is unreachable in building dead zones, fall back to offline storage with ZERO perceptible lag
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  const timeoutId = setTimeout(() => controller.abort(), 1200);
 
   try {
     const res = await fetch('/api/patrol/checks', {
@@ -60,7 +74,7 @@ export async function submitRoomCheck(payload: RoomCheckPayload): Promise<{ succ
       return { success: true, mode: 'online', checkId: data?.id };
     }
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     throw new Error(data.error || 'API response error');
   } catch (error) {
     clearTimeout(timeoutId);
@@ -96,7 +110,7 @@ export async function submitFinding(payload: FindingPayload): Promise<{ success:
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  const timeoutId = setTimeout(() => controller.abort(), 1200);
 
   try {
     const res = await fetch('/api/findings', {
@@ -111,7 +125,7 @@ export async function submitFinding(payload: FindingPayload): Promise<{ success:
       return { success: true, mode: 'online' };
     }
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     throw new Error(data.error || 'API response error');
   } catch (error) {
     clearTimeout(timeoutId);
@@ -127,6 +141,7 @@ export async function submitFinding(payload: FindingPayload): Promise<{ success:
     }
   }
 }
+
 
 export async function fetchActiveSession() {
   try {

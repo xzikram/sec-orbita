@@ -77,27 +77,27 @@ export default function PatrolPage() {
 
     async function loadData() {
       try {
-        const [meRes, sessionsRes] = await Promise.all([
-          fetch('/api/auth/me').catch(() => null),
-          fetch('/api/patrol/sessions').catch(() => null),
-        ]);
-
-        if (meRes && meRes.ok) {
-          const meData = await meRes.json();
-          const empId = meData.user?.employeeId || 'guest';
-          const saved = localStorage.getItem(`patrol-reversed-${empId}`) || localStorage.getItem('patrol-reversed');
-          if (saved === 'true') {
-            setIsReversed(true);
-          }
+        // 1. Read cached user and active session instantly from localStorage
+        const cachedUser = localStorage.getItem('cached-user');
+        if (cachedUser) {
+          try {
+            const u = JSON.parse(cachedUser);
+            const empId = u.employeeId || 'guest';
+            const saved = localStorage.getItem(`patrol-reversed-${empId}`) || localStorage.getItem('patrol-reversed');
+            if (saved === 'true') {
+              setIsReversed(true);
+            }
+          } catch {}
         }
 
-        if (sessionsRes && sessionsRes.ok) {
-          const sessions = await sessionsRes.json();
-          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
-          setSession(active);
+        const cachedSess = localStorage.getItem('cached-active-session');
+        if (cachedSess) {
+          try {
+            setSession(JSON.parse(cachedSess));
+          } catch {}
         }
 
-        // Get offline checks
+        // 2. Get offline checks from IndexedDB
         try {
           const { getOfflineChecks } = await import('@/lib/db');
           const offline = await getOfflineChecks();
@@ -106,9 +106,40 @@ export default function PatrolPage() {
           console.error('IndexedDB load error:', e);
         }
 
+        // 3. Render immediately (< 25ms)
+        setLoading(false);
+
+        // 4. Background network update if online
+        if (navigator.onLine) {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 1200);
+
+          Promise.all([
+            fetch('/api/auth/me', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch('/api/patrol/sessions', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
+          ]).then(([meData, sessions]) => {
+            clearTimeout(timer);
+            if (meData?.user) {
+              const empId = meData.user.employeeId || 'guest';
+              const saved = localStorage.getItem(`patrol-reversed-${empId}`) || localStorage.getItem('patrol-reversed');
+              if (saved === 'true') {
+                setIsReversed(true);
+              }
+              try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
+            }
+            if (Array.isArray(sessions)) {
+              const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+              if (active) {
+                setSession(active);
+                try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
+              }
+            }
+          }).catch(() => {
+            clearTimeout(timer);
+          });
+        }
       } catch (err) {
         console.error('Patrol load error:', err);
-      } finally {
         setLoading(false);
       }
     }

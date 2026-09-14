@@ -1,31 +1,41 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getOfflineCount, clearOfflineData } from '@/lib/db';
+import { getOfflineCount } from '@/lib/db';
 import { syncOfflineData } from '@/lib/sync';
+import { checkServerReachable } from '@/lib/data-client';
 import styles from './sync-status.module.css';
 
 export default function SyncStatus() {
   const [counts, setCounts] = useState({ checks: 0, findings: 0, qrScans: 0 });
-  const [isOnline, setIsOnline] = useState(true);
+  const [serverReachable, setServerReachable] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncPercent, setSyncPercent] = useState(0);
   const [message, setMessage] = useState('');
 
   const updateCounts = async () => {
-    const c = await getOfflineCount();
-    setCounts(c);
+    try {
+      const c = await getOfflineCount();
+      setCounts(c);
+    } catch {}
   };
 
   const handleSync = async () => {
     setSyncing(true);
-    setMessage('Menyinkronkan data...');
-    const result = await syncOfflineData();
+    setSyncPercent(10);
+    setMessage('Menghubungkan ke server...');
+
+    const result = await syncOfflineData((p) => {
+      setSyncPercent(p.percent);
+      setMessage(p.statusText);
+    });
+
     setSyncing(false);
 
     if (result.success) {
       const totalSynced = result.checksSynced + result.findingsSynced + result.qrScansSynced;
-      setMessage(`Sukses menyinkronkan ${totalSynced} data.`);
-      setTimeout(() => setMessage(''), 3000);
+      setMessage(`✓ Berhasil menyinkronkan ${totalSynced} data & penyimpanan HP telah dibersihkan.`);
+      setTimeout(() => setMessage(''), 4500);
     } else {
       setMessage(result.error || 'Gagal menyinkronkan data.');
       setTimeout(() => setMessage(''), 4000);
@@ -33,54 +43,68 @@ export default function SyncStatus() {
     updateCounts();
   };
 
-  const autoSync = async () => {
-    const c = await getOfflineCount();
-    if (c.checks > 0 || c.findings > 0 || c.qrScans > 0) {
-      handleSync();
-    }
-  };
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const handleOnline = () => {
-      setIsOnline(true);
-      autoSync();
+    let isMounted = true;
+
+    const probe = async () => {
+      const ok = await checkServerReachable(800);
+      if (isMounted) setServerReachable(ok);
+      updateCounts();
     };
-    const handleOffline = () => setIsOnline(false);
+
+    probe();
+    const interval = setInterval(probe, 8000);
+
+    const handleOnline = async () => {
+      const ok = await checkServerReachable(800);
+      if (isMounted) {
+        setServerReachable(ok);
+        if (ok) {
+          const c = await getOfflineCount();
+          if (c.checks > 0 || c.findings > 0 || c.qrScans > 0) {
+            handleSync();
+          }
+        }
+      }
+    };
+
+    const handleOffline = () => {
+      if (isMounted) setServerReachable(false);
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    updateCounts();
-    // Poll counts every 5 seconds for updates
-    const i = setInterval(updateCounts, 5000);
-
     return () => {
+      isMounted = false;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      clearInterval(i);
+      clearInterval(interval);
     };
   }, []);
 
   const totalOffline = counts.checks + counts.findings + (counts.qrScans || 0);
 
-  if (totalOffline === 0 && isOnline && !message) return null;
+  if (totalOffline === 0 && !message) return null;
 
   return (
-    <div className={`${styles.bar} ${!isOnline ? styles.barOffline : styles.barPending}`}>
+    <div className={`${styles.bar} ${!serverReachable ? styles.barOffline : styles.barPending}`}>
       <div className={styles.info}>
         <span className={styles.statusDot} />
         <span>
-          {!isOnline
-            ? `Offline • Ada ${totalOffline} data tersimpan lokal`
-            : message || `${totalOffline} data siap disinkronkan`}
+          {message || (
+            !serverReachable
+              ? `Mode Offline • Ada ${totalOffline} data aman di HP`
+              : `${totalOffline} data tersimpan di HP siap dikirim`
+          )}
         </span>
       </div>
-      {isOnline && totalOffline > 0 && (
+      {serverReachable && totalOffline > 0 && (
         <div style={{ display: 'flex', gap: '6px' }}>
           <button className={styles.syncBtn} onClick={handleSync} disabled={syncing}>
-            {syncing ? 'Menyinkronkan...' : 'Sinkronkan Sekarang'}
+            {syncing ? `Sinkron (${syncPercent}%)` : 'Sinkronkan Sekarang'}
           </button>
         </div>
       )}
