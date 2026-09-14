@@ -40,6 +40,9 @@ export async function POST(request: NextRequest) {
           },
         },
       });
+      if (activeSession && auth.role === 'security' && activeSession.userId !== auth.id) {
+        activeSession = null;
+      }
     }
 
     if (!activeSession) {
@@ -140,15 +143,14 @@ export async function POST(request: NextRequest) {
         if (!dbRoom) continue;
 
         // Resolve sessionFloorId
+        const roomFloorCode = dbRoom.code ? dbRoom.code.split('-')[0].toUpperCase() : '';
         let targetSf = activeSession?.sessionFloors?.find(sf =>
           sf.id === c.sessionFloorId ||
           sf.floorId === dbRoom!.floorId ||
-          sf.floor.code.toUpperCase() === dbRoom!.floor.code.toUpperCase()
+          sf.floor.code.toUpperCase() === dbRoom!.floor.code.toUpperCase() ||
+          (roomFloorCode && sf.floor.code.toUpperCase() === roomFloorCode) ||
+          (roomFloorCode && sf.floorCodeSnapshot.toUpperCase() === roomFloorCode)
         );
-
-        if (!targetSf && activeSession) {
-          targetSf = activeSession.sessionFloors[0];
-        }
 
         if (!targetSf) continue;
 

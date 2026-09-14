@@ -38,13 +38,22 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
       floorsData = fallbackFloors;
     }
 
+    // Ensure all floors have rooms attached (especially when using fallbackFloors where rooms is a separate array)
+    const floorsWithRooms = floorsData.map((f: any) => {
+      if (Array.isArray(f.rooms) && f.rooms.length > 0) return f;
+      return {
+        ...f,
+        rooms: getFallbackRoomsByFloor(f.id),
+      };
+    });
+
     // 2. Cache floors and all rooms in IndexedDB
-    const { floorsCount, roomsCount } = await cacheMasterPatrolData(floorsData);
+    const { floorsCount, roomsCount } = await cacheMasterPatrolData(floorsWithRooms);
 
     // 3. Pre-cache active patrol session & auth user for offline resilience
     try {
       const [sessionsRes, meRes] = await Promise.all([
-        fetch('/api/patrol/sessions').catch(() => null),
+        fetch('/api/patrol/sessions?personal=true').catch(() => null),
         fetch('/api/auth/me').catch(() => null),
       ]);
 
@@ -60,7 +69,7 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
       if (sessionsRes && sessionsRes.ok) {
         const sessions = await sessionsRes.json();
         if (Array.isArray(sessions)) {
-          const active = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === currentUserId || !s.userId)) || null;
+          const active = sessions.find((s: any) => s.status === 'in_progress' && (!currentUserId || s.userId === currentUserId)) || null;
           if (active) {
             localStorage.setItem('cached-active-session', JSON.stringify(active));
           }
@@ -137,7 +146,11 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
     console.warn('Pre-download patrol package notice:', err);
     // Even if fetch threw an error, populate from fallback catalog
     try {
-      const { floorsCount, roomsCount } = await cacheMasterPatrolData(fallbackFloors);
+      const floorsWithFallbackRooms = fallbackFloors.map((f: any) => ({
+        ...f,
+        rooms: getFallbackRoomsByFloor(f.id),
+      }));
+      const { floorsCount, roomsCount } = await cacheMasterPatrolData(floorsWithFallbackRooms);
       return { success: true, floorsCount, roomsCount };
     } catch {
       return {

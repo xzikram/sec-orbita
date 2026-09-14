@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { floors, getRoomsByFloor } from '@/lib/dummy-data';
+import { floors } from '@/lib/dummy-data';
 import { syncOfflineData } from '@/lib/sync';
 import { getOfflineCount } from '@/lib/db';
 import styles from './summary.module.css';
@@ -53,7 +53,7 @@ export default function PatrolSummaryPage() {
         if (cached) try { s = JSON.parse(cached); } catch {}
 
         if (navigator.onLine) {
-          const res = await fetch('/api/patrol/sessions').catch(() => null);
+          const res = await fetch('/api/patrol/sessions?personal=true').catch(() => null);
           if (res && res.ok) {
             const sessions = await res.json();
             if (Array.isArray(sessions)) {
@@ -262,20 +262,43 @@ export default function PatrolSummaryPage() {
       {/* Floor breakdown */}
       <div className={`card ${styles.breakdownCard}`}>
         <h3 className={styles.breakdownTitle}>Ringkasan Per Lantai</h3>
-        {floors.map(floor => {
-          const roomCount = getRoomsByFloor(floor.id).length;
+        {(session?.sessionFloors && session.sessionFloors.length > 0
+          ? [...session.sessionFloors].sort((a: any, b: any) => {
+              const getOrder = (sf: any) => {
+                const code = String(sf.floorCodeSnapshot || sf.floor?.code || '').toUpperCase();
+                if (code.includes('SB') || code.includes('SEMI')) return 0;
+                const m = code.match(/\d+/);
+                return m ? parseInt(m[0], 10) : 99;
+              };
+              return getOrder(a) - getOrder(b);
+            })
+          : floors.map(f => ({ floorNameSnapshot: f.name, floorCodeSnapshot: f.code, status: 'pending', qrValidated: false, patrolChecks: [] }))
+        ).map((sf: any, idx: number) => {
+          const checkedCount = sf.patrolChecks?.length || 0;
+          const isCompleted = sf.status === 'completed' || sf.qrValidated;
+          const isPartial = checkedCount > 0 && !isCompleted;
           return (
-            <div key={floor.id} className={styles.floorRow}>
+            <div key={sf.id || idx} className={styles.floorRow}>
               <div className={styles.floorInfo}>
-                <span className={styles.floorName}>{floor.name}</span>
-                <span className={styles.floorRooms}>{roomCount} ruangan</span>
+                <span className={styles.floorName}>{sf.floorNameSnapshot || sf.floor?.name || `Lantai ${idx + 1}`}</span>
+                <span className={styles.floorRooms}>{checkedCount} ruangan diperiksa</span>
               </div>
               <div className={styles.floorStatus}>
-                <span className="badge badge-success">Selesai</span>
-                <span className={styles.qrBadge}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
-                  QR ✓
-                </span>
+                {isCompleted ? (
+                  <>
+                    <span className="badge badge-success">Selesai</span>
+                    {sf.qrValidated && (
+                      <span className={styles.qrBadge}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                        QR ✓
+                      </span>
+                    )}
+                  </>
+                ) : isPartial ? (
+                  <span className="badge badge-warning">Sebagian</span>
+                ) : (
+                  <span className="badge badge-neutral">Belum</span>
+                )}
               </div>
             </div>
           );

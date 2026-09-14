@@ -39,8 +39,8 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const totalRooms = floors.reduce((s, f) => s + getRoomsByFloor(f.id).length, 0);
-  const startTime = session.startedAt ? new Date(session.startedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-';
-  const endTime = session.completedAt ? new Date(session.completedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-';
+  const startTime = session.startedAt ? new Date(session.startedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }) : '-';
+  const endTime = session.completedAt ? new Date(session.completedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }) : '-';
 
   // Count total checks and findings dynamically
   let totalChecked = 0;

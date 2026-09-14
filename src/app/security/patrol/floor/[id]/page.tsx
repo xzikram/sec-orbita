@@ -81,16 +81,16 @@ export default function FloorDetailPage({
         }
 
         // 2. Resolve floor from IndexedDB master_floors if available
+        let matchedFloor: any = null;
         const dbMod = await import('@/lib/db').catch(() => null);
         if (dbMod && dbMod.getCachedFloors) {
           try {
             const cachedFloors = await dbMod.getCachedFloors();
-            const cleanTargetId = String(id).trim().toLowerCase();
-            const matchedFloor = cachedFloors.find((f: any) =>
-              String(f.id).toLowerCase() === cleanTargetId ||
-              String(f.code || '').toLowerCase() === cleanTargetId ||
-              `floor-${String(f.code || '').toLowerCase()}` === cleanTargetId ||
-              `sf-${String(f.code || '').toLowerCase()}` === cleanTargetId
+            matchedFloor = cachedFloors.find((f: any) =>
+              dbMod.matchFloor ? dbMod.matchFloor(f, id) : (
+                String(f.id).toLowerCase() === String(id).toLowerCase() ||
+                String(f.code || '').toLowerCase() === String(id).toLowerCase()
+              )
             );
             if (matchedFloor) {
               setDbFloor(matchedFloor);
@@ -99,9 +99,10 @@ export default function FloorDetailPage({
         }
 
         // 3. Resolve rooms from IndexedDB master_rooms
-        const resolvedFloor = fallbackFloor;
+        const resolvedFloor = matchedFloor || fallbackFloor;
+        const targetFloorIdentifier = resolvedFloor ? (resolvedFloor.code || resolvedFloor.id) : id;
         const { getResilientRoomsForFloor } = await import('@/lib/offline-cache');
-        const defaultRooms = await getResilientRoomsForFloor(resolvedFloor ? resolvedFloor.id : id);
+        const defaultRooms = await getResilientRoomsForFloor(targetFloorIdentifier);
 
         const savedOrder = localStorage.getItem(`patrol-order-${empId}-${id}`);
         if (savedOrder) {
@@ -145,7 +146,7 @@ export default function FloorDetailPage({
 
           Promise.all([
             fetch('/api/auth/me', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
-            fetch('/api/patrol/sessions', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch('/api/patrol/sessions?personal=true', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
           ]).then(([meData, sessions]) => {
             clearTimeout(timer);
             if (meData?.user) {
@@ -154,7 +155,7 @@ export default function FloorDetailPage({
             }
             if (Array.isArray(sessions)) {
               const myId = meData?.user?.id || currentUser?.id;
-              const active = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === myId || !s.userId)) || null;
+              const active = sessions.find((s: any) => s.status === 'in_progress' && (!myId || s.userId === myId)) || null;
               if (active) {
                 setSession(active);
                 try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}

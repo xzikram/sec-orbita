@@ -128,7 +128,7 @@ export default function PatrolPage() {
 
           Promise.all([
             fetch('/api/auth/me', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
-            fetch('/api/patrol/sessions', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch('/api/patrol/sessions?personal=true', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
           ]).then(([meData, sessions]) => {
             clearTimeout(timer);
             if (meData?.user) {
@@ -141,7 +141,7 @@ export default function PatrolPage() {
             }
             if (Array.isArray(sessions)) {
               const myId = meData?.user?.id || currentUserId;
-              const active = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === myId || !s.userId)) || null;
+              const active = sessions.find((s: any) => s.status === 'in_progress' && (!myId || s.userId === myId)) || null;
               if (active) {
                 setSession(active);
                 try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}

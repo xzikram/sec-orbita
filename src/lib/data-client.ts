@@ -155,13 +155,12 @@ export async function fetchActiveSession() {
         currentUserId = u.id || null;
       } catch {}
     }
-    const today = new Date().toISOString().split('T')[0];
-    const res = await fetch(`/api/patrol/sessions?date=${today}`);
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+    const res = await fetch(`/api/patrol/sessions?date=${today}&personal=true`);
     if (!res.ok) return null;
     const data = await res.json();
     if (!Array.isArray(data)) return null;
     return data.find((s: { status: string; userId?: string }) => s.status === 'in_progress' && (!currentUserId || s.userId === currentUserId))
-      || data.find((s: { status: string }) => s.status === 'in_progress')
       || null;
   } catch {
     return null;

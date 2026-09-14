@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import styles from './history.module.css';
 
 interface PatrolSession {
@@ -25,11 +26,11 @@ export default function HistoryPage() {
         for (let i = 0; i < 7; i++) {
           const d = new Date();
           d.setDate(d.getDate() - i);
-          dates.push(d.toISOString().split('T')[0]);
+          dates.push(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(d));
         }
 
         const responses = await Promise.all(
-          dates.map(date => fetch(`/api/patrol/sessions?date=${date}`).then(r => r.ok ? r.json() : []).catch(() => []))
+          dates.map(date => fetch(`/api/patrol/sessions?date=${date}&personal=true`).then(r => r.ok ? r.json() : []).catch(() => []))
         );
         const allSessions: PatrolSession[] = responses.flat();
         setSessions(allSessions);
@@ -56,7 +57,7 @@ export default function HistoryPage() {
   const grouped = sessions.reduce((acc, session) => {
     const date = typeof session.patrolDate === 'string'
       ? session.patrolDate.split('T')[0]
-      : new Date(session.patrolDate).toISOString().split('T')[0];
+      : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date(session.patrolDate));
     if (!acc[date]) acc[date] = [];
     acc[date].push(session);
     return acc;
@@ -120,9 +121,11 @@ export default function HistoryPage() {
           <h3 className={styles.dateLabel}>{formatDate(date)}</h3>
           <div className={styles.sessionList}>
             {dateSessions.map((session, index) => (
-              <div
+              <Link
                 key={session.id}
+                href={`/security/history/${session.id}`}
                 className={`card ${styles.sessionCard} animate-slide-up stagger-${Math.min(index + 1, 6)}`}
+                style={{ textDecoration: 'none', color: 'inherit', display: 'block', cursor: 'pointer' }}
               >
                 <div className="card-body">
                   <div className={styles.sessionHeader}>
@@ -134,7 +137,12 @@ export default function HistoryPage() {
                         {session.schedule?.startTime} - {session.schedule?.endTime}
                       </p>
                     </div>
-                    {getStatusBadge(session.status)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {getStatusBadge(session.status)}
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" style={{ opacity: 0.5 }}>
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </div>
                   </div>
 
                   <div className={styles.sessionDetails}>
@@ -162,7 +170,7 @@ export default function HistoryPage() {
                     )}
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

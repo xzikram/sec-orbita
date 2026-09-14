@@ -65,6 +65,8 @@ export default function SecurityDashboard() {
   const [isPreparingOffline, setIsPreparingOffline] = useState(false);
   const [prepareProgress, setPrepareProgress] = useState(0);
   const [prepareStatusText, setPrepareStatusText] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
   // Stale date / cross-day session expiry detection helper
   const isSessionStaleOrPastDay = (session: any): boolean => {
@@ -272,7 +274,7 @@ export default function SecurityDashboard() {
     // Fetch real data from APIs
     async function loadDashboard() {
       try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
         const [meRes, sessionsRes, findingsRes, floorsRes, staffRes, shiftsRes] = await Promise.all([
           fetch('/api/auth/me').catch(() => null),
           fetch(`/api/patrol/sessions?date=${today}`).catch(() => null),
@@ -397,6 +399,7 @@ export default function SecurityDashboard() {
 
     loadDashboard();
     fetchHandover();
+    setLastRefreshTime(new Date());
 
     // Background pre-download of offline patrol package
     import('@/lib/offline-cache').then(({ downloadPatrolPackage }) => {
@@ -446,8 +449,89 @@ export default function SecurityDashboard() {
     );
   }
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+      const [meRes, sessionsRes, findingsRes, floorsRes] = await Promise.all([
+        fetch('/api/auth/me').catch(() => null),
+        fetch(`/api/patrol/sessions?date=${today}`).catch(() => null),
+        fetch('/api/findings?status=new&limit=100').catch(() => null),
+        fetch('/api/floors').catch(() => null),
+      ]);
+
+      let loggedInUser = currentUser;
+      if (meRes && meRes.ok) {
+        const meData = await meRes.json();
+        loggedInUser = meData.user || loggedInUser;
+        setCurrentUser(loggedInUser);
+      }
+
+      const sessions = sessionsRes && sessionsRes.ok ? await sessionsRes.json() : [];
+      const findingsData = findingsRes && findingsRes.ok ? await findingsRes.json() : { data: [], total: 0 };
+      let floors = floorsRes && floorsRes.ok ? await floorsRes.json() : [];
+
+      if (!Array.isArray(floors) || floors.length === 0) {
+        const { floors: fallbackFloors } = await import('@/lib/dummy-data');
+        floors = fallbackFloors;
+      }
+
+      const currentUid = loggedInUser?.id;
+      const myActiveSession = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === currentUid || !s.userId)) || null;
+      const activeOtherSessions = sessions.filter((s: any) => s.status === 'in_progress' && currentUid && s.userId && s.userId !== currentUid);
+      setOtherOfficers(activeOtherSessions);
+
+      let activeSession = myActiveSession;
+      const totalRooms = floors.reduce((sum: number, f: any) => sum + (f.rooms?.length || 0), 0) || 133;
+
+      let checkedRooms = 0;
+      let floorsCompleted = 0;
+      if (activeSession && Array.isArray(activeSession.sessionFloors)) {
+        for (const sf of activeSession.sessionFloors) {
+          const dbCheckedRoomCodes = sf.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
+          checkedRooms += dbCheckedRoomCodes.length;
+          if (sf.status === 'completed' || sf.qrValidated) floorsCompleted++;
+        }
+      }
+
+      const findingsCount = typeof findingsData === 'object' && 'total' in findingsData
+        ? findingsData.total
+        : Array.isArray(findingsData) ? findingsData.length : 0;
+
+      setData({ session: activeSession, totalRooms, checkedRooms, findingsCount, floorsCompleted });
+      setLastRefreshTime(new Date());
+      fetchHandover();
+    } catch (err) {
+      console.error('Refresh error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className="page-content">
+      {/* Refresh Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+          {lastRefreshTime ? `Update: ${lastRefreshTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' })} WITA` : ''}
+        </span>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="btn btn-outline btn-xs"
+          id="btn-refresh-dashboard"
+          style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }}>
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+          {isRefreshing ? 'Memuat...' : 'Refresh'}
+        </button>
+      </div>
+
       {/* Pending Handover Banner */}
       {pendingHandover && (
         <div className="card animate-slide-up" style={{ marginBottom: '14px', borderLeft: '4px solid var(--color-warning-500)', background: 'var(--color-warning-50)', color: 'var(--color-neutral-900)' }}>

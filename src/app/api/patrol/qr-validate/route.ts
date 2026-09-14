@@ -41,8 +41,10 @@ export async function POST(request: NextRequest) {
       const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
       const patrolDate = new Date(todayStr);
 
+      // Priority: find this user's own active session first
       const activeSession = await prisma.patrolSession.findFirst({
         where: {
+          userId: auth.id,
           patrolDate,
           status: 'in_progress',
         },
@@ -54,6 +56,7 @@ export async function POST(request: NextRequest) {
         orderBy: { startedAt: 'desc' }
       }) || await prisma.patrolSession.findFirst({
         where: {
+          userId: auth.id,
           status: 'in_progress',
         },
         include: {

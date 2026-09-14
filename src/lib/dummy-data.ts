@@ -424,7 +424,18 @@ export function getFloorById(floorId: string): Floor | undefined {
 export function getRoomsByFloor(floorId: string): Room[] {
   const floor = getFloorById(floorId);
   const targetId = floor ? floor.id : floorId;
-  return rooms.filter(r => r.floorId === targetId || (floor && r.floorId === floor.id)).sort((a, b) => a.patrolOrder - b.patrolOrder);
+  const targetCode = floor?.code?.toUpperCase();
+
+  return rooms
+    .filter(r => {
+      // If floor code is known, guarantee room matches floor code prefix (e.g. L1-01 -> L1, P4-01 -> P4)
+      if (targetCode && r.code) {
+        const roomPrefix = r.code.split('-')[0].toUpperCase();
+        return roomPrefix === targetCode;
+      }
+      return r.floorId === targetId || (floor && r.floorId === floor.id);
+    })
+    .sort((a, b) => a.patrolOrder - b.patrolOrder);
 }
 
 export function getRoomById(roomId: string): Room | undefined {

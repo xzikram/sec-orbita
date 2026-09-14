@@ -72,9 +72,10 @@ export async function POST(request: NextRequest) {
       const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
       const patrolDate = new Date(todayStr);
 
-      // Check if there is an in_progress session today (collaborative team round)
+      // Check if there is an in_progress session today for THIS specific user
       let session = await prisma.patrolSession.findFirst({
         where: {
+          userId: auth.id,
           patrolDate,
           status: 'in_progress',
         },
@@ -147,9 +148,10 @@ export async function POST(request: NextRequest) {
 
         const schedule = selectedSchedule;
 
-        // Check if session for this schedule already exists today (collaborative round)
+        // Check if this user already has a session for this schedule today
         session = await prisma.patrolSession.findFirst({
           where: {
+            userId: auth.id,
             scheduleId: schedule.id,
             patrolDate,
           },

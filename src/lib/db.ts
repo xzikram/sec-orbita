@@ -170,20 +170,79 @@ export async function getCachedFloors(): Promise<CachedFloor[]> {
   }
 }
 
+import { dbFloorMap } from './dummy-data';
+
+export function matchFloor(f: CachedFloor, query: string): boolean {
+  if (!f || !query) return false;
+  const q = String(query).trim().toLowerCase();
+  const fId = String(f.id).trim().toLowerCase();
+  const fCode = String(f.code || '').trim().toLowerCase();
+  const fName = String(f.name || '').trim().toLowerCase();
+
+  // 1. Direct ID match
+  if (fId === q) return true;
+
+  // 2. Direct code match (e.g. 'l1', 'sb', 'p4')
+  if (fCode === q) return true;
+
+  // 3. Name exact match
+  if (fName === q) return true;
+
+  // 4. Prefix match e.g. floor-l1, floor-sb, sf-l1
+  if (`floor-${fCode}` === q || `sf-${fCode}` === q) return true;
+
+  // 5. DB floor map check (for UUIDs)
+  if (dbFloorMap[q] && dbFloorMap[q].toLowerCase() === fCode) return true;
+  if (dbFloorMap[fId] && dbFloorMap[fId].toLowerCase() === q) return true;
+
+  // 6. Clean stripped prefix: 'floor-1' -> '1', 'floor-p4' -> 'p4'
+  const cleanQ = q.replace(/^floor-/, '').replace(/^sf-/, '');
+  if (cleanQ === fCode) return true;
+
+  // 7. Canonical numeric/code mapping for RS Mata JEC ORBITA
+  const aliasMap: Record<string, string> = {
+    '0': 'sb',
+    'sb': 'sb',
+    'semi basement': 'sb',
+    '1': 'l1',
+    'l1': 'l1',
+    '2': 'p2',
+    'p2': 'p2',
+    '3': 'p3',
+    'p3': 'p3',
+    '4': 'p4',
+    'p4': 'p4',
+    '5': 'l5',
+    'l5': 'l5',
+    '6': 'l6',
+    'l6': 'l6',
+    '7': 'l7',
+    'l7': 'l7',
+    '8': 'l8',
+    'l8': 'l8',
+    '9': 'l9',
+    'l9': 'l9',
+    '10': 'l10',
+    'l10': 'l10',
+    '11': 'l11',
+    'l11': 'l11',
+  };
+
+  if (aliasMap[cleanQ] && aliasMap[cleanQ] === fCode) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function getCachedRoomsByFloor(floorIdOrCode: string): Promise<CachedRoom[]> {
   try {
     const db = await openDB();
-    const cleanQuery = String(floorIdOrCode).toLowerCase().replace(/^floor-/, '').replace(/^sf-/, '');
-    
-    // First get all floors to match ID or Code
     const allFloors = await getCachedFloors();
-    const matchedFloor = allFloors.find(f => 
-      f.id.toLowerCase() === floorIdOrCode.toLowerCase() || 
-      f.code.toLowerCase() === cleanQuery ||
-      f.id.toLowerCase().includes(cleanQuery)
-    );
+    const matchedFloor = allFloors.find(f => matchFloor(f, floorIdOrCode));
 
     const targetFloorId = matchedFloor ? matchedFloor.id : floorIdOrCode;
+    const targetFloorCode = matchedFloor ? matchedFloor.code.toUpperCase() : null;
 
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_MASTER_ROOMS, 'readonly');
@@ -192,7 +251,15 @@ export async function getCachedRoomsByFloor(floorIdOrCode: string): Promise<Cach
       req.onsuccess = () => {
         const allRooms: CachedRoom[] = req.result || [];
         const filtered = allRooms
-          .filter(r => r.floorId === targetFloorId || r.floorId === floorIdOrCode)
+          .filter(r => {
+            // Priority 1: Strict room code prefix check (e.g. L1-01 -> L1, P4-01 -> P4)
+            if (targetFloorCode && r.code) {
+              const roomPrefix = r.code.split('-')[0].toUpperCase();
+              return roomPrefix === targetFloorCode;
+            }
+            // Priority 2: Fallback to floorId match
+            return r.floorId === targetFloorId || r.floorId === floorIdOrCode;
+          })
           .sort((a, b) => a.patrolOrder - b.patrolOrder);
         resolve(filtered);
       };
