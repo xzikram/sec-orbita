@@ -20,10 +20,25 @@ export default function RoomCheckPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params);
+  const { id: paramId } = use(params);
   const router = useRouter();
 
-  const [room, setRoom] = useState<any>(() => getRoomById(id));
+  // Support instant in-memory SPA room switching — Zero network calls, zero RSC fetch!
+  const [currentRoomId, setCurrentRoomId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const match = window.location.pathname.match(/\/security\/patrol\/room\/([^/?#]+)/);
+      if (match && match[1]) return decodeURIComponent(match[1]);
+    }
+    return paramId;
+  });
+
+  useEffect(() => {
+    if (paramId && paramId !== currentRoomId) {
+      setCurrentRoomId(paramId);
+    }
+  }, [paramId]);
+
+  const [room, setRoom] = useState<any>(() => getRoomById(currentRoomId));
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
@@ -33,7 +48,7 @@ export default function RoomCheckPage({
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [acStatus, setAcStatus] = useState<ACStatus | null>(() => {
-    const initialRoom = getRoomById(id);
+    const initialRoom = getRoomById(currentRoomId);
     return initialRoom && !initialRoom.hasAc ? 'not_available' : null;
   });
   const [lightStatus, setLightStatus] = useState<LightStatus | null>(null);
@@ -98,20 +113,23 @@ export default function RoomCheckPage({
         }
 
         // 2. Resilient room resolution (IndexedDB master_rooms -> static catalog)
-        let resolvedRoom = room;
+        let resolvedRoom = getRoomById(currentRoomId);
         const { getResilientRoomById, getResilientRoomsForFloor } = await import('@/lib/offline-cache');
-        if (!resolvedRoom || !resolvedRoom.name) {
-          resolvedRoom = await getResilientRoomById(id);
-          if (resolvedRoom) {
-            setRoom(resolvedRoom);
-            if (!resolvedRoom.hasAc) {
-              setAcStatus('not_available');
-            }
-          }
+        const dbRoom = await getResilientRoomById(currentRoomId);
+        if (dbRoom) {
+          resolvedRoom = dbRoom;
         }
 
-        // 3. Resilient floor rooms list for progression
         if (resolvedRoom) {
+          setRoom(resolvedRoom);
+          if (!resolvedRoom.hasAc) {
+            setAcStatus('not_available');
+          } else {
+            setAcStatus(null);
+          }
+          setLightStatus(null);
+
+          // 3. Resilient floor rooms list for progression
           const fRooms = await getResilientRoomsForFloor(resolvedRoom.floorId);
           if (fRooms && fRooms.length > 0) {
             setFloorRooms(fRooms);
@@ -161,7 +179,7 @@ export default function RoomCheckPage({
       }
     }
     loadData();
-  }, [id]);
+  }, [currentRoomId]);
 
   const [floorRooms, setFloorRooms] = useState<any[]>([]);
 
@@ -403,8 +421,21 @@ export default function RoomCheckPage({
           activeFloorRooms.find(r => !updatedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code);
 
         if (nextRoom) {
-          // Seamless client-side SPA navigation — 100% offline in-memory routing
-          router.push(`/security/patrol/room/${nextRoom.id}`);
+          // Instant client-side SPA navigation — 100% offline in-memory routing
+          // Zero network request, zero RSC fetch, zero page reload!
+          setShowSuccess(false);
+          setPhoto(null);
+          setPhotoFile(null);
+          setRemarks('');
+          setFindingCategory(null);
+          setFindingDescription('');
+          setCondition(null);
+          setAcStatus(nextRoom.hasAc ? null : 'not_available');
+          setLightStatus(null);
+          setCurrentRoomId(nextRoom.id);
+          if (typeof window !== 'undefined') {
+            window.history.replaceState(null, '', `/security/patrol/room/${nextRoom.id}`);
+          }
         } else {
           // All rooms done, go to floor page for QR scan
           const floorTarget = floor ? floor.id : room.floorId;
@@ -415,7 +446,7 @@ export default function RoomCheckPage({
         // Fallback: go to patrol route
         router.push('/security/patrol');
       }
-    }, 1100);
+    }, 1000);
   };
 
   if (showSuccess) {

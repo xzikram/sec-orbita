@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v9';
+const CACHE_NAME = 'sec-patrol-v10';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -75,7 +75,8 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // 3. Next.js RSC requests (_rsc query or RSC header) — cache with hierarchical fallback
+  // 3. Next.js RSC requests (_rsc query or RSC header)
+  // NEVER cross-serve RSC from Room A to Room B (causes client route crash)
   const isRscRequest = url.searchParams.has('_rsc') || 
                        e.request.headers.get('RSC') === '1' || 
                        e.request.headers.get('accept')?.includes('text/x-component');
@@ -84,7 +85,7 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       caches.match(e.request).then((cached) => {
         if (cached) {
-          // Serve cached RSC immediately, update cache in background if online
+          // Serve exact match if cached
           fetch(e.request)
             .then(res => {
               if (res.status === 200) {
@@ -104,27 +105,9 @@ self.addEventListener('fetch', (e) => {
             }
             return response;
           })
-          .catch(async () => {
-            // If offline and RSC not cached for this specific item, check if we have a matching type RSC shell
-            try {
-              const cache = await caches.open(CACHE_NAME);
-              const keys = await cache.keys();
-              
-              if (url.pathname.includes('/room/')) {
-                const rscKey = keys.find(k => k.url.includes('/room/'));
-                if (rscKey) {
-                  const rscRes = await cache.match(rscKey);
-                  if (rscRes) return rscRes;
-                }
-              } else if (url.pathname.includes('/floor/')) {
-                const rscKey = keys.find(k => k.url.includes('/floor/'));
-                if (rscKey) {
-                  const rscRes = await cache.match(rscKey);
-                  if (rscRes) return rscRes;
-                }
-              }
-            } catch {}
-
+          .catch(() => {
+            // When offline and exact RSC not cached, return 503 so client router initiates clean hard navigation
+            // Hard navigation will receive the real HTML document shell!
             return new Response('Offline RSC', { status: 503, statusText: 'Offline' });
           });
       })
@@ -132,7 +115,8 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // 4. HTML navigation pages — network-first with 1.2s timeout for fast offline fallback
+  // 4. HTML navigation pages — network-first with 1000ms timeout
+  // STRICT RULE: Navigation requests MUST ONLY return valid text/html, NEVER raw RSC stream!
   if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
     e.respondWith(
       new Promise((resolve) => {
@@ -142,60 +126,81 @@ self.addEventListener('fetch', (e) => {
           if (isResolved) return;
           isResolved = true;
 
-          // A. Try exact URL match in cache
-          const exactCached = await caches.match(e.request);
-          if (exactCached) return resolve(exactCached);
+          try {
+            const cache = await caches.open(CACHE_NAME);
 
-          // B. Hierarchical shell fallback for /security/patrol/**
-          if (url.pathname.startsWith('/security/patrol')) {
-            try {
-              const cache = await caches.open(CACHE_NAME);
+            // A. Exact URL match in cache — ONLY accept if it is actual text/html
+            const exactCached = await cache.match(e.request);
+            if (exactCached) {
+              const ct = exactCached.headers.get('content-type') || '';
+              if (ct.includes('text/html') || !exactCached.url.includes('_rsc')) {
+                return resolve(exactCached);
+              }
+            }
+
+            // B. Hierarchical shell fallback for /security/patrol/**
+            // STRICTLY filter out any cached items containing '_rsc' or 'text/x-component'
+            if (url.pathname.startsWith('/security/patrol')) {
               const keys = await cache.keys();
+              const validHtmlKeys = keys.filter(k => 
+                !k.url.includes('_rsc') && 
+                !k.url.includes('text/x-component') &&
+                !k.url.includes('.json')
+              );
 
-              // 1. If room inspection: find any cached room shell
+              // 1. Room inspection: find cached room HTML
               if (url.pathname.includes('/room/')) {
-                const roomKey = keys.find(k => k.url.includes('/security/patrol/room/'));
+                const roomKey = validHtmlKeys.find(k => k.url.includes('/security/patrol/room/'));
                 if (roomKey) {
                   const roomRes = await cache.match(roomKey);
-                  if (roomRes) return resolve(roomRes);
+                  if (roomRes && !roomRes.headers.get('content-type')?.includes('text/x-component')) {
+                    return resolve(roomRes);
+                  }
                 }
               }
 
-              // 2. If QR scan: find any cached qr-scan shell
+              // 2. QR scan: find cached qr-scan HTML
               if (url.pathname.includes('/qr-scan')) {
-                const qrKey = keys.find(k => k.url.includes('/qr-scan'));
+                const qrKey = validHtmlKeys.find(k => k.url.includes('/qr-scan'));
                 if (qrKey) {
                   const qrRes = await cache.match(qrKey);
-                  if (qrRes) return resolve(qrRes);
+                  if (qrRes && !qrRes.headers.get('content-type')?.includes('text/x-component')) {
+                    return resolve(qrRes);
+                  }
                 }
               }
 
-              // 3. If floor page: find any cached floor shell
+              // 3. Floor page: find cached floor HTML
               if (url.pathname.includes('/floor/')) {
-                const floorKey = keys.find(k => k.url.includes('/security/patrol/floor/') && !k.url.includes('/qr-scan'));
+                const floorKey = validHtmlKeys.find(k => k.url.includes('/security/patrol/floor/') && !k.url.includes('/qr-scan'));
                 if (floorKey) {
                   const floorRes = await cache.match(floorKey);
-                  if (floorRes) return resolve(floorRes);
+                  if (floorRes && !floorRes.headers.get('content-type')?.includes('text/x-component')) {
+                    return resolve(floorRes);
+                  }
                 }
               }
 
-              // 4. Default patrol shell
+              // 4. Default patrol shell (Guaranteed pure HTML)
               const patrolShell = (await cache.match('/security/patrol')) ||
                                   (await cache.match('/security/patrol/summary'));
               if (patrolShell) return resolve(patrolShell);
-            } catch {}
+            }
+
+            // C. Fallback to offline notice page for other routes
+            const offlinePage = await cache.match('/offline.html');
+            if (offlinePage) return resolve(offlinePage);
+          } catch (err) {
+            console.warn('Offline navigation fallback error:', err);
           }
 
-          // C. Fallback to offline notice page only for non-patrol routes (admin/supervisor)
-          const offlinePage = await caches.match('/offline.html');
-          if (offlinePage) return resolve(offlinePage);
-
-          resolve(new Response('Server RS Mata JEC ORBITA tidak dapat dijangkau. Data patroli tersimpan aman di HP Anda.', {
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-          }));
+          resolve(new Response(
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>RS Mata JEC ORBITA - Offline</title><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:sans-serif;padding:2rem;text-align:center;background:#0f172a;color:#fff"><h2>Mode Offline</h2><p>Data tersimpan di HP Anda. Silakan kembali ke rute patroli.</p><a href="/security/patrol" style="display:inline-block;margin-top:1rem;padding:0.75rem 1.5rem;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px">Ke Rute Patroli</a></body></html>',
+            { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+          ));
         };
 
-        const timeoutId = setTimeout(handleOfflineOrTimeout, 1200);
+        const timeoutId = setTimeout(handleOfflineOrTimeout, 1000);
 
         fetch(e.request)
           .then((response) => {
