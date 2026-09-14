@@ -56,15 +56,9 @@ export default function SecurityDashboard() {
   const [shiftsList, setShiftsList] = useState<any[]>([]);
   const [submittingHandover, setSubmittingHandover] = useState(false);
 
-  // Collaborative & Override state
+  // Active user & multi-officer state
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [schedules, setSchedules] = useState<any[]>([]);
-  const [joiningRound, setJoiningRound] = useState(false);
-  const [showOverrideModal, setShowOverrideModal] = useState(false);
-  const [selectedNextScheduleId, setSelectedNextScheduleId] = useState('');
-  const [overrideReason, setOverrideReason] = useState('Petugas sebelumnya lupa checkout / pergantian giliran');
-  const [overrideCustomNotes, setOverrideCustomNotes] = useState('');
-  const [submittingOverride, setSubmittingOverride] = useState(false);
+  const [otherOfficers, setOtherOfficers] = useState<any[]>([]);
 
   // Router & Offline pre-caching state (Option A)
   const router = useRouter();
@@ -121,7 +115,7 @@ export default function SecurityDashboard() {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          if (isSessionStaleOrPastDay(parsed)) {
+          if (isSessionStaleOrPastDay(parsed) || (currentUser?.id && parsed.userId && parsed.userId !== currentUser.id)) {
             localStorage.removeItem('cached-active-session');
             localStorage.removeItem('lastPatrolState');
             cached = null;
@@ -131,11 +125,30 @@ export default function SecurityDashboard() {
         }
       }
 
+      // If online and no active session for this user, start session on server
+      if (!cached && typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          const sessRes = await fetch('/api/patrol/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+          if (sessRes.ok) {
+            const newSess = await sessRes.json();
+            cached = JSON.stringify(newSess);
+            localStorage.setItem('cached-active-session', cached);
+          }
+        } catch (postErr) {
+          console.error('Online session start error:', postErr);
+        }
+      }
+
       if (!cached) {
         const { floors: fallbackFloors, getCurrentSchedule } = await import('@/lib/dummy-data');
         const sched = getCurrentSchedule();
         const offlineSession = {
           id: `offline-sess-${Date.now()}`,
+          userId: currentUser?.id || undefined,
           patrolNumber: sched.patrolNumber || 1,
           status: 'in_progress',
           scheduleId: sched.id,
@@ -236,59 +249,7 @@ export default function SecurityDashboard() {
     }
   };
 
-  // Join active collaborative round
-  const handleJoinActiveRound = async () => {
-    if (!data?.session) return;
-    setJoiningRound(true);
-    try {
-      const res = await fetch('/api/patrol/sessions/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: data.session.id }),
-      });
-      if (res.ok) {
-        window.location.href = '/security/patrol';
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Gagal bergabung ke sesi patroli');
-      }
-    } catch {
-      alert('Terjadi kesalahan jaringan saat bergabung ke sesi.');
-    } finally {
-      setJoiningRound(false);
-    }
-  };
 
-  // Force close previous round and start the new round
-  const handleConfirmOverride = async () => {
-    if (!selectedNextScheduleId) {
-      alert('Silakan pilih jadwal ronda yang ingin dimulai');
-      return;
-    }
-    setSubmittingOverride(true);
-    try {
-      const res = await fetch('/api/patrol/sessions/override-next', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scheduleId: selectedNextScheduleId,
-          previousSessionId: data?.session?.id,
-          reason: overrideReason,
-          notes: overrideCustomNotes,
-        }),
-      });
-      if (res.ok) {
-        window.location.href = '/security/patrol';
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Gagal memulai ronda baru');
-      }
-    } catch {
-      alert('Terjadi kesalahan jaringan saat menutup ronda sebelumnya.');
-    } finally {
-      setSubmittingOverride(false);
-    }
-  };
 
   useEffect(() => {
     setCurrentTime(new Date());
@@ -312,12 +273,11 @@ export default function SecurityDashboard() {
     async function loadDashboard() {
       try {
         const today = new Date().toISOString().split('T')[0];
-        const [meRes, sessionsRes, findingsRes, floorsRes, schedRes, staffRes, shiftsRes] = await Promise.all([
+        const [meRes, sessionsRes, findingsRes, floorsRes, staffRes, shiftsRes] = await Promise.all([
           fetch('/api/auth/me').catch(() => null),
           fetch(`/api/patrol/sessions?date=${today}`).catch(() => null),
           fetch('/api/findings?status=new&limit=100').catch(() => null),
           fetch('/api/floors').catch(() => null),
-          fetch('/api/schedules').catch(() => null),
           fetch('/api/users?role=security').catch(() => null),
           fetch('/api/shifts').catch(() => null),
         ]);
@@ -353,12 +313,6 @@ export default function SecurityDashboard() {
           }
         }
 
-        const schedList = schedRes && schedRes.ok ? await schedRes.json() : [];
-        setSchedules(schedList);
-        if (schedList.length > 0) {
-          setSelectedNextScheduleId(schedList[0].id);
-        }
-
         const sessions: PatrolSession[] = sessionsRes && sessionsRes.ok ? await sessionsRes.json() : [];
         const findingsData = findingsRes && findingsRes.ok ? await findingsRes.json() : { data: [], total: 0 };
         let floors = floorsRes && floorsRes.ok ? await floorsRes.json() : [];
@@ -374,24 +328,28 @@ export default function SecurityDashboard() {
           floors = fallbackFloors;
         }
 
-        // Find active session for today (online API -> localStorage offline cache)
-        let activeSession = sessions.find(s => s.status === 'in_progress') || null;
+        // Find active session for current user (online API -> localStorage offline cache)
+        const currentUid = loggedInUser?.id;
+        const myActiveSession = sessions.find(s => s.status === 'in_progress' && (s.userId === currentUid || !s.userId)) || null;
+        const activeOtherSessions = sessions.filter(s => s.status === 'in_progress' && currentUid && s.userId && s.userId !== currentUid);
+        setOtherOfficers(activeOtherSessions);
+
+        let activeSession = myActiveSession;
         if (!activeSession) {
           try {
             const cachedSess = localStorage.getItem('cached-active-session');
             if (cachedSess) {
               const parsed = JSON.parse(cachedSess);
-              if (isSessionStaleOrPastDay(parsed)) {
-                localStorage.removeItem('cached-active-session');
-                localStorage.removeItem('lastPatrolState');
+              if (isSessionStaleOrPastDay(parsed) || (currentUid && parsed.userId && parsed.userId !== currentUid)) {
+                if (isSessionStaleOrPastDay(parsed)) {
+                  localStorage.removeItem('cached-active-session');
+                  localStorage.removeItem('lastPatrolState');
+                }
               } else if (parsed.status === 'in_progress') {
                 activeSession = parsed;
               }
             }
           } catch {}
-        }
-        if (!activeSession && sessions.length > 0) {
-          activeSession = sessions[sessions.length - 1];
         }
 
         // Count total rooms from floors
@@ -488,16 +446,6 @@ export default function SecurityDashboard() {
     );
   }
 
-  const isCurrentUserOwner = Boolean(
-    currentUser && data?.session?.userId && data.session.userId === currentUser.id
-  );
-  const isCurrentUserJoined = Boolean(
-    currentUser &&
-    data?.session?.notes &&
-    data.session.notes.includes(`[BERGABUNG: ${currentUser.name}`)
-  );
-  const isParticipating = isCurrentUserOwner || isCurrentUserJoined;
-
   return (
     <div className="page-content">
       {/* Pending Handover Banner */}
@@ -563,74 +511,28 @@ export default function SecurityDashboard() {
         </div>
       )}
 
-      {/* Collaborative Join Round Banner: If someone else is running the round */}
-      {data?.session && data.session.status === 'in_progress' && !isParticipating && (
+      {/* Other Officers On-Duty Notice */}
+      {otherOfficers.length > 0 && (
         <div
           className="card animate-slide-up"
           style={{
-            background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
-            color: '#fff',
-            padding: '16px',
-            borderRadius: '14px',
-            marginBottom: '16px',
-            boxShadow: '0 4px 16px rgba(4, 120, 87, 0.25)',
-            border: '1px solid rgba(52, 211, 153, 0.3)',
+            marginBottom: '14px',
+            background: 'var(--color-primary-50, #eff6ff)',
+            borderLeft: '4px solid var(--color-primary-500)',
+            padding: '12px 16px',
+            borderRadius: '12px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '20px' }}>🛡️</span>
             <div>
-              <span
-                style={{
-                  fontSize: '11px',
-                  background: 'rgba(255,255,255,0.2)',
-                  padding: '3px 8px',
-                  borderRadius: '12px',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}
-              >
-                📢 Ronda #{data.session.patrolNumber} Sedang Berjalan
-              </span>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '8px 0 4px', color: '#fff' }}>
-                {data.session.schedule?.name || `Putaran Ronda #${data.session.patrolNumber}`}
-              </h3>
-              <p style={{ fontSize: '12px', opacity: 0.95, margin: '0 0 10px' }}>
-                Dimulai oleh: <strong>{data.session.user?.name || 'Rekan Security'}</strong> • Progress: <strong>{data.checkedRooms}/{data.totalRooms} Ruangan ({overallProgress}%)</strong>
+              <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--color-primary-900)' }}>
+                {otherOfficers.length} Rekan Security Sedang Berpatroli
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--color-primary-700)' }}>
+                {otherOfficers.map(o => `${o.user?.name || 'Petugas'} (Ronda #${o.patrolNumber})`).join(', ')}
               </p>
             </div>
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            <button
-              onClick={handleJoinActiveRound}
-              disabled={joiningRound}
-              className="btn btn-sm"
-              style={{
-                background: '#fff',
-                color: '#065f46',
-                fontWeight: 'bold',
-                border: 'none',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                padding: '8px 14px',
-              }}
-              id="btn-join-round"
-            >
-              {joiningRound ? 'Bergabung...' : `🤝 Ikut Bergabung (Join Ronda #${data.session.patrolNumber})`}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowOverrideModal(true)}
-              className="btn btn-sm"
-              style={{
-                background: 'rgba(255,255,255,0.15)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.3)',
-                padding: '8px 12px',
-              }}
-              id="btn-override-open"
-            >
-              ⚡ Tutup & Mulai Ronda Baru
-            </button>
           </div>
         </div>
       )}
@@ -673,7 +575,7 @@ export default function SecurityDashboard() {
                 </p>
                 {data.session.user?.name && (
                   <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', margin: '4px 0 0' }}>
-                    Petugas: <strong>{data.session.user.name}</strong> {isCurrentUserJoined && '(Anda bergabung)'}
+                    Petugas: <strong>{data.session.user.name}</strong>
                   </p>
                 )}
               </div>
@@ -893,55 +795,18 @@ export default function SecurityDashboard() {
       {/* Start Patrol CTA */}
       <div className={`${styles.ctaSection} animate-slide-up`} style={{ marginTop: '16px' }}>
         {data?.session && data.session.status === 'in_progress' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-            {isParticipating ? (
-              <button
-                type="button"
-                onClick={handleNavigateToPatrolWithPreDownload}
-                disabled={isPreparingOffline}
-                className="btn btn-primary btn-xl"
-                id="btn-start-patrol"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                Lanjutkan Patroli (Ronda #{data.session.patrolNumber})
-              </button>
-            ) : (
-              <button
-                onClick={handleJoinActiveRound}
-                disabled={joiningRound}
-                className="btn btn-primary btn-xl"
-                style={{ background: '#059669', borderColor: '#059669' }}
-                id="btn-start-patrol"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-                {joiningRound ? 'Bergabung...' : `Ikut Bergabung Ronda #${data.session.patrolNumber}`}
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowOverrideModal(true)}
-              className="btn btn-outline btn-sm"
-              style={{
-                color: '#b91c1c',
-                borderColor: 'rgba(185, 28, 28, 0.3)',
-                padding: '8px 12px',
-                fontSize: '12px',
-                fontWeight: 600,
-                width: '100%',
-              }}
-              id="btn-open-override-modal"
-            >
-              ⚡ Tutup Ronda Ini & Mulai Putaran Baru
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleNavigateToPatrolWithPreDownload}
+            disabled={isPreparingOffline}
+            className="btn btn-primary btn-xl"
+            id="btn-start-patrol"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            Lanjutkan Patroli (Ronda #{data.session.patrolNumber})
+          </button>
         ) : (
           <button
             type="button"
@@ -953,145 +818,10 @@ export default function SecurityDashboard() {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            Mulai Patroli
+            Mulai Patroli Baru
           </button>
         )}
       </div>
-
-      {/* Override Next Round Modal */}
-      {showOverrideModal && (
-        <div
-          className="modal-backdrop animate-fade-in"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.65)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '16px',
-          }}
-        >
-          <div
-            className="modal-card card"
-            style={{
-              maxWidth: '430px',
-              width: '100%',
-              borderRadius: '16px',
-              padding: '20px',
-              background: 'var(--color-surface, #fff)',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-              <span style={{ fontSize: '26px' }}>⚠️</span>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Ronda #{data?.session?.patrolNumber} Belum Ditutup
-                </h3>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  Dimulai oleh: <strong>{data?.session?.user?.name || 'Petugas'}</strong>
-                </p>
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: 'var(--color-neutral-100, #f3f4f6)',
-                padding: '12px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                color: 'var(--text-secondary)',
-                marginBottom: '14px',
-              }}
-            >
-              <p style={{ margin: 0 }}>
-                Progress tersimpan: <strong>{data?.checkedRooms} dari {data?.totalRooms} ruangan</strong> ({overallProgress}%) telah selesai diperiksa.
-              </p>
-              <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
-                *Hasil scan ruangan sebelumnya tetap aman dan tercatat di matriks laporan.
-              </p>
-            </div>
-
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                Pilih Jadwal Ronda Baru yang Ingin Dimulai:
-              </label>
-              <select
-                className="form-input form-select"
-                value={selectedNextScheduleId}
-                onChange={(e) => setSelectedNextScheduleId(e.target.value)}
-                style={{ fontSize: '13px', width: '100%' }}
-              >
-                {schedules.map((s: any) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.startTime} - {s.endTime})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                Alasan Penutupan Ronda Sebelumnya:
-              </label>
-              <select
-                className="form-input form-select"
-                value={overrideReason}
-                onChange={(e) => setOverrideReason(e.target.value)}
-                style={{ fontSize: '13px', marginBottom: '8px', width: '100%' }}
-              >
-                <option value="Petugas sebelumnya lupa checkout / pergantian giliran">Petugas sebelumnya lupa checkout / pergantian giliran</option>
-                <option value="Terkendala panggilan darurat / insiden di IGD">Terkendala panggilan darurat / insiden di IGD</option>
-                <option value="Waktu putaran telah habis / masuk jam ronda berikutnya">Waktu putaran telah habis / masuk jam ronda berikutnya</option>
-                <option value="Lainnya">Lainnya (Tulis catatan)</option>
-              </select>
-              {overrideReason === 'Lainnya' && (
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Tuliskan catatan alasan..."
-                  value={overrideCustomNotes}
-                  onChange={(e) => setOverrideCustomNotes(e.target.value)}
-                  style={{ fontSize: '12px', width: '100%' }}
-                />
-              )}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <button
-                type="button"
-                disabled={submittingOverride}
-                onClick={handleConfirmOverride}
-                className="btn btn-primary"
-                style={{ width: '100%', background: '#dc2626', borderColor: '#dc2626', fontWeight: 700 }}
-                id="btn-confirm-override"
-              >
-                {submittingOverride ? 'Memproses...' : `⚡ Tutup Ronda #${data?.session?.patrolNumber} & Mulai Ronda Baru`}
-              </button>
-              {data?.session && (
-                <button
-                  type="button"
-                  onClick={handleJoinActiveRound}
-                  className="btn btn-outline"
-                  style={{ width: '100%', fontSize: '12px' }}
-                >
-                  🤝 Ikut Bergabung di Ronda #{data.session.patrolNumber} Saja
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowOverrideModal(false)}
-                className="btn btn-ghost"
-                style={{ width: '100%', fontSize: '12px' }}
-              >
-                Batal
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Offline Patrol Pre-Download Modal (Option A) */}
       {isPreparingOffline && (

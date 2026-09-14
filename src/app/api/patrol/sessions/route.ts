@@ -100,11 +100,35 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
-    const { scheduleId } = body;
+    const body = await request.json().catch(() => ({}));
+    const { scheduleId, notes } = body;
 
-    const schedule = await prisma.patrolSchedule.findUnique({ where: { id: scheduleId } });
-    if (!schedule) return NextResponse.json({ error: 'Jadwal tidak ditemukan' }, { status: 404 });
+    let schedule = null;
+    if (scheduleId) {
+      schedule = await prisma.patrolSchedule.findUnique({ where: { id: scheduleId } });
+    }
+
+    // Auto-resolve schedule based on current Makassar time if not specified
+    if (!schedule) {
+      const allSchedules = await prisma.patrolSchedule.findMany({ orderBy: { patrolNumber: 'asc' } });
+      const nowTime = new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Makassar',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date()).replace('.', ':');
+
+      schedule = allSchedules.find(s => {
+        if (s.startTime < s.endTime) {
+          return nowTime >= s.startTime && nowTime < s.endTime;
+        }
+        return nowTime >= s.startTime || nowTime < s.endTime;
+      }) || allSchedules[0];
+    }
+
+    if (!schedule) {
+      return NextResponse.json({ error: 'Jadwal patroli tidak ditemukan' }, { status: 404 });
+    }
 
     const todayMakassarStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
     const patrolDate = new Date(todayMakassarStr);
@@ -138,9 +162,11 @@ export async function POST(request: NextRequest) {
       console.error('Auto-close error before POST:', autoCloseErr);
     }
 
-    // 2. Strict Concurrency Guard: Only 1 active patrol round allowed at any time
-    const anyActiveSession = await prisma.patrolSession.findFirst({
+    // 2. Multi-officer On-Demand Concurrency:
+    // Only check if THIS SPECIFIC USER already has an active session in progress
+    const myActiveSession = await prisma.patrolSession.findFirst({
       where: {
+        userId: auth.id,
         patrolDate,
         status: 'in_progress',
       },
@@ -151,18 +177,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (anyActiveSession) {
-      // If the active session is for the exact schedule requested, return it (to resume/join)
-      if (anyActiveSession.scheduleId === scheduleId) {
-        return NextResponse.json(anyActiveSession, { status: 200 });
-      }
-
-      // If active session belongs to a different schedule and user didn't force-override:
-      return NextResponse.json({
-        error: `Sedang ada patroli yang berjalan oleh ${anyActiveSession.user?.name || 'petugas lain'} (Ronda #${anyActiveSession.patrolNumber} - ${anyActiveSession.schedule?.name || 'Jadwal'}). Silakan ikut bergabung atau tutup paksa ronda tersebut terlebih dahulu.`,
-        activeSession: anyActiveSession,
-        requiresAction: 'join_or_override',
-      }, { status: 409 });
+    if (myActiveSession) {
+      // User already has their own active round, return it to resume without error
+      return NextResponse.json(myActiveSession, { status: 200 });
     }
 
     // Resolve shift dynamically based on schedule and real-time clock
@@ -199,13 +216,13 @@ export async function POST(request: NextRequest) {
     const session = await prisma.patrolSession.create({
       data: {
         userId: auth.id,
-        scheduleId,
+        scheduleId: schedule.id,
         shiftId: sessionShiftId,
         patrolDate,
         patrolNumber: schedule.patrolNumber,
         status: 'in_progress',
         startedAt: now,
-        notes: earlyNotes,
+        notes: [notes, earlyNotes].filter(Boolean).join(' | ') || null,
         sessionFloors: {
           create: floors.map(f => ({
             floorId: f.id,

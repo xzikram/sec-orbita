@@ -23,6 +23,7 @@ export default function MonitoringPage() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [floors, setFloors] = useState<FloorWithRooms[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   const loadData = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
@@ -65,7 +66,8 @@ export default function MonitoringPage() {
   }, [loadData]);
 
   // Find active session
-  const activeSess = sessions.find((s) => s.status === 'in_progress');
+  const activeSessions = sessions.filter((s) => s.status === 'in_progress');
+  const activeSess = activeSessions.find((s) => s.id === selectedSessionId) || activeSessions[0] || null;
   const lastSession = !activeSess
     ? [...sessions].reverse().find((s) => s.status === 'completed' || s.status === 'incomplete')
     : null;
@@ -165,6 +167,29 @@ export default function MonitoringPage() {
         </div>
       ) : (
         <>
+          {/* Active Officers Pills Selector if multiple officers are running sessions */}
+          {activeSessions.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                Pilih Petugas ({activeSessions.length}):
+              </span>
+              {activeSessions.map((s) => {
+                const isSelected = activeSess?.id === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedSessionId(s.id)}
+                    className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-outline'}`}
+                    style={{ borderRadius: 20, padding: '4px 12px', fontSize: 12, whiteSpace: 'nowrap' }}
+                  >
+                    🛡️ {s.user?.name || 'Petugas'} (Ronda #{s.patrolNumber})
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Overall progress */}
           <div className={`card ${styles.overallCard}`}>
             <div className={styles.overallBody}>

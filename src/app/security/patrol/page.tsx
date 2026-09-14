@@ -75,11 +75,12 @@ export default function PatrolPage() {
 
     async function loadData() {
       try {
-        // 1. Read cached user and active session instantly from localStorage
+        let currentUserId: string | null = null;
         const cachedUser = localStorage.getItem('cached-user');
         if (cachedUser) {
           try {
             const u = JSON.parse(cachedUser);
+            currentUserId = u.id || null;
             const empId = u.employeeId || 'guest';
             const saved = localStorage.getItem(`patrol-reversed-${empId}`) || localStorage.getItem('patrol-reversed');
             if (saved === 'true') {
@@ -97,9 +98,11 @@ export default function PatrolPage() {
             const startedTime = parsed.startedAt ? new Date(parsed.startedAt).getTime() : 0;
             const isStale = (sessDate && sessDate < todayMakassar && Date.now() - startedTime > 4 * 60 * 60 * 1000) || (startedTime > 0 && Date.now() - startedTime > 4 * 60 * 60 * 1000);
 
-            if (isStale) {
-              localStorage.removeItem('cached-active-session');
-              localStorage.removeItem('lastPatrolState');
+            if (isStale || (currentUserId && parsed.userId && parsed.userId !== currentUserId)) {
+              if (isStale) {
+                localStorage.removeItem('cached-active-session');
+                localStorage.removeItem('lastPatrolState');
+              }
             } else {
               setSession(parsed);
             }
@@ -137,11 +140,13 @@ export default function PatrolPage() {
               try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
             }
             if (Array.isArray(sessions)) {
-              const active = sessions.find((s: any) => s.status === 'in_progress') || null;
+              const myId = meData?.user?.id || currentUserId;
+              const active = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === myId || !s.userId)) || null;
               if (active) {
                 setSession(active);
                 try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
               } else {
+                setSession(null);
                 try { localStorage.removeItem('cached-active-session'); } catch {}
               }
             }
