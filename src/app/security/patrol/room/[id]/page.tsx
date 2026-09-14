@@ -4,6 +4,8 @@ import { use, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import CameraCapture from '@/components/CameraCapture';
 import { submitRoomCheck, submitFinding } from '@/lib/data-client';
+import { getCachedSettings } from '@/lib/settings-client';
+import { reportClientError } from '@/lib/error-reporter';
 import {
   getRoomById,
   getFloorById,
@@ -346,7 +348,9 @@ export default function RoomCheckPage({
   };
 
   const canSubmit = () => {
-    if (!photo) return false;
+    const settings = getCachedSettings();
+    const photoRequired = settings.require_photo !== 'false';
+    if (photoRequired && !photo) return false;
     if (room.hasAc && !acStatus) return false;
     if (room.hasLight && !lightStatus) return false;
     if (!condition) return false;
@@ -357,98 +361,114 @@ export default function RoomCheckPage({
   const handleSubmit = async () => {
     if (!canSubmit()) return;
 
-    const sessionFloorId = sessionFloor?.id || `sf-${(floor?.code || 'dummy').toLowerCase()}`;
-
-    // Call submitRoomCheck helper with rich metadata
-    const result = await submitRoomCheck({
-      sessionFloorId,
-      roomId: room.id,
-      roomCode: room.code,
-      floorId: room.floorId,
-      floorCode: floor?.code || '',
-      acStatus: acStatus || 'not_available',
-      lightStatus: lightStatus === 'not_available' ? 'off' : (lightStatus || 'off'),
-      condition: condition || 'normal',
-      remarks: remarks || undefined,
-      photoBase64: photo || '',
-    });
-
-    // If there is a finding, submit it as well
-    if (condition === 'finding' && findingCategory && findingDescription) {
-      await submitFinding({
-        checkId: result.checkId || undefined,
-        sessionId: sessionFloor?.sessionId || 'session-dummy',
-        floorId: room.floorId,
-        roomId: room.id,
-        floorNameSnapshot: floor?.name || 'Unknown',
-        roomNameSnapshot: room.name,
-        category: findingCategory,
-        description: findingDescription,
-      });
-    }
-
-    // Save patrol checkpoint state
     try {
-      const lastPatrolState = {
-        sessionId: sessionFloor?.sessionId || 'session-dummy',
-        floorId: room.floorId,
-        floorName: floor?.name || 'Lantai',
+      const activeSessionId = sessionFloor?.sessionId || currentSession?.id || 'session-active';
+      const sessionFloorId = sessionFloor?.id || `sf-${(floor?.code || 'l1').toLowerCase()}`;
+
+      // Call submitRoomCheck helper with rich metadata
+      const result = await submitRoomCheck({
+        sessionFloorId,
         roomId: room.id,
-        roomName: room.name,
-        timestamp: new Date().toISOString(),
-      };
-      localStorage.setItem('lastPatrolState', JSON.stringify(lastPatrolState));
-    } catch (e) {
-      console.error('Failed to save lastPatrolState:', e);
-    }
+        roomCode: room.code,
+        floorId: room.floorId,
+        floorCode: floor?.code || '',
+        acStatus: acStatus || 'not_available',
+        lightStatus: lightStatus === 'not_available' ? 'off' : (lightStatus || 'off'),
+        condition: condition || 'normal',
+        remarks: remarks || undefined,
+        photoBase64: photo || '',
+      });
 
-    // Show success screen immediately
-    setSyncMode(result.mode);
-    setShowSuccess(true);
+      // If there is a finding, submit it as well
+      if (condition === 'finding' && findingCategory && findingDescription) {
+        await submitFinding({
+          checkId: result.checkId || undefined,
+          sessionId: activeSessionId,
+          floorId: room.floorId,
+          roomId: room.id,
+          floorNameSnapshot: floor?.name || 'Unknown',
+          roomNameSnapshot: room.name,
+          category: findingCategory,
+          description: findingDescription,
+        });
+      }
 
-    // Refresh cached session data in background during success animation
-    fetch('/api/patrol/sessions')
-      .then(res => (res && res.ok ? res.json() : null))
-      .then(sessions => {
-        if (sessions) {
-          const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
-          if (active) {
-            localStorage.setItem('cached-active-session', JSON.stringify(active));
-          }
-        }
-      })
-      .catch(() => {});
-
-    // Build an up-to-date checked set that includes the current room
-    const updatedCheckedSet = new Set(combinedCheckedSet);
-    updatedCheckedSet.add(room.code);
-
-    // Find next unchecked room
-    setTimeout(() => {
+      // Save patrol checkpoint state
       try {
-        const currentIndex = activeFloorRooms.findIndex(r => r.id === room.id || r.code === room.code);
-        const nextRoom = 
-          (currentIndex !== -1 ? activeFloorRooms.slice(currentIndex + 1).find(r => !updatedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code) : null) ||
-          activeFloorRooms.find(r => !updatedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code);
+        const lastPatrolState = {
+          sessionId: activeSessionId,
+          floorId: room.floorId,
+          floorName: floor?.name || 'Lantai',
+          roomId: room.id,
+          roomName: room.name,
+          timestamp: new Date().toISOString(),
+        };
+        localStorage.setItem('lastPatrolState', JSON.stringify(lastPatrolState));
+      } catch (e) {
+        console.error('Failed to save lastPatrolState:', e);
+      }
 
-        if (nextRoom) {
-          // Instant client-side SPA navigation — 100% offline in-memory routing
-          // Zero network request, zero RSC fetch, zero page reload!
-          setShowSuccess(false);
-          setPhoto(null);
-          setPhotoFile(null);
-          setRemarks('');
-          setFindingCategory(null);
-          setFindingDescription('');
-          setCondition(null);
-          setAcStatus(nextRoom.hasAc ? null : 'not_available');
-          setLightStatus(null);
-          setCurrentRoomId(nextRoom.id);
-          if (typeof window !== 'undefined') {
-            window.history.replaceState(null, '', `/security/patrol/room/${nextRoom.id}`);
+      // Show success screen immediately
+      setSyncMode(result.mode);
+      setShowSuccess(true);
+
+      // Refresh cached session data in background during success animation
+      fetch('/api/patrol/sessions')
+        .then(res => (res && res.ok ? res.json() : null))
+        .then(sessions => {
+          if (sessions) {
+            const active = sessions.find((s: any) => s.status === 'in_progress') || sessions[sessions.length - 1] || null;
+            if (active) {
+              localStorage.setItem('cached-active-session', JSON.stringify(active));
+            }
           }
-        } else {
-          // All rooms done on this floor! Go straight to floor QR Scan
+        })
+        .catch(() => {});
+
+      // Build an up-to-date checked set that includes the current room
+      const updatedCheckedSet = new Set(combinedCheckedSet);
+      updatedCheckedSet.add(room.code);
+
+      // Find next unchecked room
+      setTimeout(() => {
+        try {
+          const currentIndex = activeFloorRooms.findIndex(r => r.id === room.id || r.code === room.code);
+          const nextRoom = 
+            (currentIndex !== -1 ? activeFloorRooms.slice(currentIndex + 1).find(r => !updatedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code) : null) ||
+            activeFloorRooms.find(r => !updatedCheckedSet.has(r.code) && r.id !== room.id && r.code !== room.code);
+
+          if (nextRoom) {
+            // Instant client-side SPA room switching — 100% offline in-memory routing
+            setShowSuccess(false);
+            setPhoto(null);
+            setPhotoFile(null);
+            setRemarks('');
+            setFindingCategory(null);
+            setFindingDescription('');
+            setCondition(null);
+            setAcStatus(nextRoom.hasAc ? null : 'not_available');
+            setLightStatus(null);
+            setCurrentRoomId(nextRoom.id);
+            if (typeof window !== 'undefined') {
+              window.history.replaceState(null, '', `/security/patrol/room/${nextRoom.id}`);
+            }
+          } else {
+            // All rooms done on this floor! Go straight to floor QR Scan
+            const floorTarget = floor ? floor.id : room.floorId;
+            const targetUrl = `/security/patrol/floor/${floorTarget}/qr-scan`;
+            if (typeof window !== 'undefined' && !navigator.onLine) {
+              window.location.href = targetUrl;
+            } else {
+              router.push(targetUrl);
+            }
+          }
+        } catch (navErr: any) {
+          console.error('Navigation error after submit:', navErr);
+          reportClientError({
+            message: navErr?.message || 'Error navigasi setelah simpan ruangan',
+            stack: navErr?.stack,
+            url: window.location.href,
+          });
           const floorTarget = floor ? floor.id : room.floorId;
           const targetUrl = `/security/patrol/floor/${floorTarget}/qr-scan`;
           if (typeof window !== 'undefined' && !navigator.onLine) {
@@ -457,17 +477,17 @@ export default function RoomCheckPage({
             router.push(targetUrl);
           }
         }
-      } catch (navErr) {
-        console.error('Navigation error after submit:', navErr);
-        const floorTarget = floor ? floor.id : room.floorId;
-        const targetUrl = `/security/patrol/floor/${floorTarget}/qr-scan`;
-        if (typeof window !== 'undefined' && !navigator.onLine) {
-          window.location.href = targetUrl;
-        } else {
-          router.push(targetUrl);
-        }
-      }
-    }, 1000);
+      }, 1000);
+    } catch (submitErr: any) {
+      console.error('Submit room check error:', submitErr);
+      reportClientError({
+        message: submitErr?.message || 'Gagal menyimpan pemeriksaan ruangan',
+        stack: submitErr?.stack || null,
+        url: window.location.href,
+        details: { roomId: room.id, roomCode: room.code },
+      });
+      alert('Terjadi kendala saat menyimpan pemeriksaan. Silakan coba kembali.');
+    }
   };
 
   if (showSuccess) {

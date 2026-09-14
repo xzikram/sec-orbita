@@ -98,6 +98,34 @@ export default function AdminErrorLogsPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const [testingLog, setTestingLog] = useState(false);
+
+  const handleTestError = async () => {
+    setTestingLog(true);
+    try {
+      const res = await fetch('/api/system/error-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Uji Coba Pengiriman Error Sistem IT (Admin Test Event)',
+          stack: 'Error: Test Dispatch Verified\n  at AdminErrorLogsPage (src/app/admin/error-logs/page.tsx)',
+          url: window.location.href,
+        }),
+      });
+      if (res.ok) {
+        alert('Berhasil mengirim error log uji coba! Data langsung tercatat di tabel.');
+        await fetchLogs();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Gagal mengirim error log uji coba');
+      }
+    } catch {
+      alert('Terjadi kesalahan koneksi saat mengirim log uji coba');
+    } finally {
+      setTestingLog(false);
+    }
+  };
+
   const unresolvedCount = logs.filter(l => l.status === 'unresolved').length;
   const investigatedCount = logs.filter(l => l.status === 'investigated').length;
   const resolvedCount = logs.filter(l => l.status === 'resolved').length;
@@ -113,13 +141,23 @@ export default function AdminErrorLogsPage() {
             Pencatatan otomatis seluruh error teknis dari aplikasi security agar Tim IT dapat meninjau kode error & stack trace
           </p>
         </div>
-        <button
-          onClick={fetchLogs}
-          className="btn btn-outline btn-sm"
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          🔄 Refresh
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={handleTestError}
+            className="btn btn-outline btn-sm"
+            disabled={testingLog}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            🧪 {testingLog ? 'Mengirim...' : 'Uji Kirim Log'}
+          </button>
+          <button
+            onClick={fetchLogs}
+            className="btn btn-outline btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            🔄 Refresh
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards */}

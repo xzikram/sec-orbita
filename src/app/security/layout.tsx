@@ -6,6 +6,8 @@ import Link from 'next/link';
 import SyncStatus from '@/components/SyncStatus';
 import ConnectionStatus from '@/components/ConnectionStatus';
 import { getRealtimeShift, ShiftInfo } from '@/lib/shifts';
+import { reportClientError, flushQueuedSystemErrors } from '@/lib/error-reporter';
+import { fetchAndCacheSettings } from '@/lib/settings-client';
 import styles from './security.module.css';
 
 interface LayoutUser {
@@ -123,6 +125,8 @@ export default function SecurityLayout({
     const handleOnline = async () => {
       setIsOnline(true);
       try {
+        flushQueuedSystemErrors().catch(() => {});
+        fetchAndCacheSettings().catch(() => {});
         const { syncOfflineData } = await import('@/lib/sync');
         const res = await syncOfflineData();
         if (res.checksSynced > 0 || res.findingsSynced > 0) {
@@ -136,6 +140,10 @@ export default function SecurityLayout({
     setIsOnline(navigator.onLine);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // Initial background flush of queued errors and settings sync
+    flushQueuedSystemErrors().catch(() => {});
+    fetchAndCacheSettings().catch(() => {});
 
     // Check offline data count
     const checkOffline = async () => {
@@ -177,16 +185,12 @@ export default function SecurityLayout({
     const handleGlobalError = (event: ErrorEvent) => {
       try {
         const errorMsg = event.message || 'Window Error';
-        if (errorMsg.includes('ResizeObserver') || errorMsg.includes('Script error')) return;
-        fetch('/api/system/error-logs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: errorMsg,
-            stack: event.error?.stack || `${event.filename}:${event.lineno}:${event.colno}`,
-            url: window.location.href,
-          }),
-        }).catch(() => {});
+        if (errorMsg.includes('ResizeObserver')) return;
+        reportClientError({
+          message: errorMsg,
+          stack: event.error?.stack || `${event.filename}:${event.lineno}:${event.colno}`,
+          url: window.location.href,
+        });
       } catch {}
     };
 
@@ -195,15 +199,11 @@ export default function SecurityLayout({
         const reason = event.reason;
         const msg = typeof reason === 'string' ? reason : reason?.message || 'Unhandled Promise Rejection';
         if (msg.includes('AbortError')) return;
-        fetch('/api/system/error-logs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: msg,
-            stack: reason?.stack || null,
-            url: window.location.href,
-          }),
-        }).catch(() => {});
+        reportClientError({
+          message: msg,
+          stack: reason?.stack || null,
+          url: window.location.href,
+        });
       } catch {}
     };
 

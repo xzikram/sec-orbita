@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
+import { getCachedSettings } from '@/lib/settings-client';
 import styles from './camera-capture.module.css';
 
 interface CameraCaptureProps {
@@ -50,7 +51,7 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
       } else if (err instanceof DOMException && err.name === 'NotFoundError') {
         setError('Kamera tidak ditemukan pada perangkat ini.');
       } else {
-        setError('Gagal mengakses kamera. Pastikan browser mendukung akses kamera.');
+        setError('Gagal mengakses kamera. Gunakan tombol di bawah untuk mengambil foto.');
       }
     } finally {
       setIsStarting(false);
@@ -72,6 +73,10 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
   };
 
   const addWatermark = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    const settings = getCachedSettings();
+    const hospitalName = settings.hospital_name || 'RS Mata JEC ORBITA';
+    const showTimestamp = settings.watermark_timestamp !== 'false';
+
     const now = new Date();
     const timestamp = now.toLocaleString('id-ID', {
       day: '2-digit', month: '2-digit', year: 'numeric',
@@ -90,20 +95,23 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
     ctx.textBaseline = 'middle';
 
     const leftText = roomName || watermarkText || 'Security Patrol';
-    const rightText = timestamp;
-    const bottomText = officerName ? `📷 ${officerName}` : 'JEC ORBITA';
+    const rightText = showTimestamp ? timestamp : '';
+    const bottomText = officerName ? `📷 ${officerName}` : hospitalName;
 
     ctx.fillText(leftText, 12, height - barHeight + 18);
 
     ctx.font = '12px Inter, Arial, sans-serif';
     ctx.fillText(bottomText, 12, height - barHeight + 38);
 
-    ctx.font = 'bold 13px Inter, Arial, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(rightText, width - 12, height - barHeight + 18);
+    if (showTimestamp) {
+      ctx.font = 'bold 13px Inter, Arial, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(rightText, width - 12, height - barHeight + 18);
+    }
 
     ctx.font = '11px Inter, Arial, sans-serif';
-    ctx.fillText('RS Mata JEC ORBITA', width - 12, height - barHeight + 38);
+    ctx.textAlign = 'right';
+    ctx.fillText(hospitalName, width - 12, height - barHeight + 38);
     ctx.textAlign = 'left';
 
     // Small logo-like shield top-right
@@ -114,6 +122,10 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
 
   const takePhoto = async () => {
     if (!videoRef.current || !canvasRef.current) return;
+
+    const settings = getCachedSettings();
+    const qualityNum = parseInt(settings.compression_quality || '80', 10);
+    const quality = Math.max(0.3, Math.min(1.0, isNaN(qualityNum) ? 0.8 : qualityNum / 100));
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -126,9 +138,9 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
     // Add watermark
     addWatermark(ctx, canvas.width, canvas.height);
 
-    // Compress
+    // Compress using dynamic quality from system settings
     const blob = await new Promise<Blob>((resolve) => {
-      canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.80);
+      canvas.toBlob(b => resolve(b!), 'image/jpeg', quality);
     });
 
     // Further compress if too large (> 700KB)

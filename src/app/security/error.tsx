@@ -30,26 +30,16 @@ export default function SecurityErrorPage({
   useEffect(() => {
     console.error('Security Error caught by boundary:', error?.message, error);
 
-    // Otomatis kirim error log ke Tim IT / Admin
+    // Otomatis kirim error log ke Tim IT / Admin (resilient & offline queued)
     try {
-      const logKey = `err_logged_${error?.digest || error?.message || 'security'}`;
-      if (!sessionStorage.getItem(logKey)) {
-        sessionStorage.setItem(logKey, 'true');
-        fetch('/api/system/error-logs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: error?.message || 'Security App Runtime Error',
-            stack: error?.stack || null,
-            digest: error?.digest || null,
-            url: typeof window !== 'undefined' ? window.location.href : '',
-          }),
-        })
-          .then(() => setReported(true))
-          .catch(() => setReported(true));
-      } else {
-        setReported(true);
-      }
+      import('@/lib/error-reporter').then(({ reportClientError }) => {
+        reportClientError({
+          message: error?.message || 'Security App Runtime Error',
+          stack: error?.stack || null,
+          digest: error?.digest || null,
+          url: typeof window !== 'undefined' ? window.location.href : '',
+        }).then(() => setReported(true)).catch(() => setReported(true));
+      }).catch(() => setReported(true));
     } catch {
       setReported(true);
     }

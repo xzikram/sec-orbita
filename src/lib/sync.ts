@@ -15,6 +15,7 @@ import {
   type OfflineFinding,
   type OfflineQrScan,
 } from './db';
+import { flushQueuedSystemErrors } from './error-reporter';
 
 export interface SyncResult {
   success: boolean;
@@ -36,6 +37,9 @@ export async function syncOfflineData(onProgress?: SyncProgressCallback): Promis
   if (typeof window !== 'undefined' && !navigator.onLine) {
     return { success: false, checksSynced: 0, findingsSynced: 0, qrScansSynced: 0, error: 'Perangkat offline' };
   }
+
+  // Also flush queued error logs to server
+  flushQueuedSystemErrors().catch(() => {});
 
   let checksSynced = 0;
   let findingsSynced = 0;
