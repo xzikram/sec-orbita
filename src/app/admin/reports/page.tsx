@@ -242,8 +242,9 @@ export default function AdminReportsPage() {
             href="/admin/reports/export"
             className="btn btn-primary btn-sm"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
+            title="Buka Rekapitulasi, Form Kepatuhan Bulanan, dan Peringkat Kinerja Security"
           >
-            📄 Report
+            📊 Form Kepatuhan & Rekap
           </Link>
         </div>
       </div>

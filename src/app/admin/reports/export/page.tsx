@@ -116,14 +116,91 @@ interface ReportData {
   };
 }
 
+interface ComplianceSessionItem {
+  patrolNumber: number;
+  scheduleName: string;
+  scheduledRange: string;
+  startTime: string;
+  endTime: string;
+  shiftName: string;
+  isRun: boolean;
+  status: string;
+  actualTimeRange: string;
+  checkedRooms: number;
+  totalRooms: number;
+  complianceRate: number;
+  officer: string;
+  officerEmployeeId: string;
+  findingsCount: number;
+  remarks: string;
+}
+
+interface ComplianceDayItem {
+  day: number;
+  date: string;
+  dayOfWeek: string;
+  sessions: ComplianceSessionItem[];
+}
+
+interface ComplianceReportData {
+  period: {
+    year: number;
+    month: number;
+    monthName: string;
+    label: string;
+    daysInMonth: number;
+    totalRooms: number;
+  };
+  summary: {
+    totalScheduledSessions: number;
+    totalRunSessions: number;
+    missedSessionsCount: number;
+    overallRate: number;
+    perfectSessionsCount: number;
+    partialSessionsCount: number;
+    totalChecksSum: number;
+    totalFindingsInMonth: number;
+  };
+  days: ComplianceDayItem[];
+}
+
+interface RankingUserItem {
+  id: string;
+  name: string;
+  employeeId: string;
+  score: number;
+  streak: number;
+  completedPatrols: number;
+  findingsCount: number;
+  onTimeRate: number;
+  achievements: string[];
+}
+
+interface RankingReportData {
+  period: {
+    monthParam: string;
+    year: number;
+    month: number;
+    monthName: string;
+    label: string;
+  };
+  leaderboard: RankingUserItem[];
+}
+
 export default function ExportReportPage() {
-  const [activeTab, setActiveTab] = useState<'checklist' | 'matrix' | 'summary'>('checklist');
-  const [type, setType] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [activeTab, setActiveTab] = useState<'compliance' | 'ranking' | 'checklist' | 'matrix' | 'summary'>('compliance');
+  const [type, setType] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [date, setDate] = useState('');
   const [shiftFilter, setShiftFilter] = useState<'all' | 'pagi' | 'siang' | 'malam'>('all');
   const [floorFilter, setFloorFilter] = useState<string>('all');
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Compliance & Ranking States
+  const [complianceData, setComplianceData] = useState<ComplianceReportData | null>(null);
+  const [rankingData, setRankingData] = useState<RankingReportData | null>(null);
+  const [complianceLoading, setComplianceLoading] = useState(false);
+  const [rankingLoading, setRankingLoading] = useState(false);
 
   // Default date to today
   useEffect(() => {
@@ -151,12 +228,41 @@ export default function ExportReportPage() {
     fetchReport();
   }, [type, date]);
 
+  // Fetch compliance and ranking data when tab or date changes
+  useEffect(() => {
+    if (!date) return;
+    const [yStr, mStr] = date.split('-');
+    const targetY = parseInt(yStr, 10);
+    const targetM = parseInt(mStr, 10);
+
+    if (activeTab === 'compliance' || type === 'monthly') {
+      setComplianceLoading(true);
+      fetch(`/api/reports/compliance-monthly?year=${targetY}&month=${targetM}`)
+        .then(res => res.json())
+        .then(json => setComplianceData(json))
+        .catch(err => console.error('Error loading compliance report:', err))
+        .finally(() => setComplianceLoading(false));
+    }
+
+    if (activeTab === 'ranking' || type === 'monthly') {
+      setRankingLoading(true);
+      fetch(`/api/leaderboard?month=${yStr}-${mStr}`)
+        .then(res => res.json())
+        .then(json => setRankingData(json))
+        .catch(err => console.error('Error loading ranking report:', err))
+        .finally(() => setRankingLoading(false));
+    }
+  }, [activeTab, date, type]);
+
   const handlePrint = () => {
     window.print();
   };
 
   const handleDownloadExcel = () => {
-    const url = `/api/reports/excel?type=${type}&date=${date}&shift=${shiftFilter}`;
+    let exportType: string = type;
+    if (activeTab === 'compliance') exportType = 'compliance';
+    else if (activeTab === 'ranking') exportType = 'ranking';
+    const url = `/api/reports/excel?type=${exportType}&date=${date}&shift=${shiftFilter}`;
     window.open(url, '_blank');
   };
 
@@ -290,6 +396,18 @@ export default function ExportReportPage() {
       {/* Tab Switcher for Sheet View */}
       <div className={styles.tabSwitcher}>
         <button
+          className={`${styles.tabBtn} ${activeTab === 'compliance' ? styles.tabBtnActive : ''}`}
+          onClick={() => setActiveTab('compliance')}
+        >
+          📝 Form Kepatuhan Bulanan
+        </button>
+        <button
+          className={`${styles.tabBtn} ${activeTab === 'ranking' ? styles.tabBtnActive : ''}`}
+          onClick={() => setActiveTab('ranking')}
+        >
+          🏆 Peringkat Kinerja Security
+        </button>
+        <button
           className={`${styles.tabBtn} ${activeTab === 'checklist' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('checklist')}
         >
@@ -299,7 +417,7 @@ export default function ExportReportPage() {
           className={`${styles.tabBtn} ${activeTab === 'matrix' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('matrix')}
         >
-          📅 Matriks Kontrol 8 Patroli (Shift Pagi & Malam)
+          📅 Matriks Kontrol 8 Patroli
         </button>
         <button
           className={`${styles.tabBtn} ${activeTab === 'summary' ? styles.tabBtnActive : ''}`}
@@ -310,34 +428,305 @@ export default function ExportReportPage() {
       </div>
 
       {/* Printable Sheet */}
-      {loading ? (
+      {loading && activeTab !== 'compliance' && activeTab !== 'ranking' ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ width: 32, height: 32, border: '3px solid var(--color-neutral-200)', borderTop: '3px solid var(--color-primary-500)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
             <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Mengompilasi data laporan patroli...</p>
           </div>
         </div>
-      ) : data ? (
+      ) : (data || complianceData || rankingData) ? (
         <div className={styles.sheet}>
           {/* Hospital Header */}
           <div className={styles.header}>
             <h1 className={styles.hospitalTitle}>RS MATA JEC ORBITA @ MAKASSAR</h1>
             <h2 className={styles.reportTitle}>
+              {activeTab === 'compliance' && `FORM KEPATUHAN PATROLI KEAMANAN BULAN ${(complianceData?.period.monthName || '').toUpperCase()} ${complianceData?.period.year || ''}`}
+              {activeTab === 'ranking' && `LAPORAN PERINGKAT & EVALUASI KINERJA SECURITY BULAN ${(rankingData?.period.monthName || '').toUpperCase()} ${rankingData?.period.year || ''}`}
               {activeTab === 'checklist' && 'LEMBAR BUKTI CEKLIST FISIK PEMERIKSAAN RUANGAN & FASILITAS'}
               {activeTab === 'matrix' && 'MATRIKS KONTROL 8 SESI PATROLI KEAMANAN RUANGAN (SHIFT PAGI & SHIFT MALAM)'}
               {activeTab === 'summary' && 'LAPORAN REKAPITULASI PATROLI SECURITY DIGITAL'}
             </h2>
             <p className={styles.reportMeta}>
-              {getPeriodLabel()} 
+              {activeTab === 'compliance' && complianceData && `Periode: 01 s/d ${complianceData.period.daysInMonth} ${complianceData.period.monthName} ${complianceData.period.year} • Target Standar: 133 Ruangan / Sesi`}
+              {activeTab === 'ranking' && rankingData && `Periode: ${rankingData.period.label} • Evaluasi Kepatuhan & Disiplin Jaga`}
+              {activeTab !== 'compliance' && activeTab !== 'ranking' && getPeriodLabel()} 
               {activeTab === 'checklist' && shiftFilter !== 'all' && ` • Shift: ${shiftFilter.toUpperCase()}`}
-              {activeTab === 'matrix' && floorFilter !== 'all' && ` • Filter: ${data.matrix?.floors?.find(f => f.id === floorFilter)?.name}`}
+              {activeTab === 'matrix' && floorFilter !== 'all' && ` • Filter: ${data?.matrix?.floors?.find(f => f.id === floorFilter)?.name}`}
             </p>
           </div>
 
           {/* ==================================================== */}
+          {/* TAB: FORM KEPATUHAN BULANAN (TGL 1-16 & 17-31)       */}
+          {/* ==================================================== */}
+          {activeTab === 'compliance' && (
+            <div>
+              {complianceLoading ? (
+                <div style={{ textAlign: 'center', padding: '3rem' }}>
+                  <div style={{ width: 32, height: 32, border: '3px solid var(--color-neutral-200)', borderTop: '3px solid var(--color-primary-500)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Memuat data formulir kepatuhan bulanan...</p>
+                </div>
+              ) : complianceData ? (
+                <div>
+                  {/* KPI Executive Summary */}
+                  <div className={styles.complianceSummaryGrid}>
+                    <div className={styles.kpiCard}>
+                      <div className={styles.kpiLabel}>Rata-rata Kepatuhan</div>
+                      <div className={styles.kpiValue} style={{ color: complianceData.summary.overallRate >= 95 ? '#15803d' : '#d97706' }}>
+                        {complianceData.summary.overallRate}%
+                      </div>
+                      <div className={styles.kpiSub}>Target Akreditasi &gt;95%</div>
+                    </div>
+                    <div className={styles.kpiCard}>
+                      <div className={styles.kpiLabel}>Total Sesi Terlaksana</div>
+                      <div className={styles.kpiValue}>{complianceData.summary.totalRunSessions} <span style={{ fontSize: '13px', fontWeight: 500, color: '#64748b' }}>/ {complianceData.summary.totalScheduledSessions}</span></div>
+                      <div className={styles.kpiSub}>{complianceData.summary.missedSessionsCount} Sesi Terlewat</div>
+                    </div>
+                    <div className={styles.kpiCard}>
+                      <div className={styles.kpiLabel}>Sesi Sempurna (100%)</div>
+                      <div className={styles.kpiValue} style={{ color: '#15803d' }}>{complianceData.summary.perfectSessionsCount}</div>
+                      <div className={styles.kpiSub}>133 Ruangan Lengkap</div>
+                    </div>
+                    <div className={styles.kpiCard}>
+                      <div className={styles.kpiLabel}>Sesi Sebagian (80-99%)</div>
+                      <div className={styles.kpiValue} style={{ color: '#d97706' }}>{complianceData.summary.partialSessionsCount}</div>
+                      <div className={styles.kpiSub}>Ada Ruangan Terlewat</div>
+                    </div>
+                    <div className={styles.kpiCard}>
+                      <div className={styles.kpiLabel}>Temuan Bahaya/Kendala</div>
+                      <div className={styles.kpiValue} style={{ color: complianceData.summary.totalFindingsInMonth > 0 ? '#b91c1c' : '#15803d' }}>
+                        {complianceData.summary.totalFindingsInMonth}
+                      </div>
+                      <div className={styles.kpiSub}>Laporan di Bulan Ini</div>
+                    </div>
+                  </div>
+
+                  {/* Side-by-Side 2 Block Tables (Tgl 1-16 di kiri, Tgl 17-31 di kanan) */}
+                  <div className={styles.complianceSideBySide}>
+                    {/* Left Side: Tanggal 1 s/d 16 */}
+                    <div className={styles.complianceTableWrapper}>
+                      <table className={styles.complianceTable}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '12%' }}>Tanggal</th>
+                            <th style={{ width: '22%' }}>Jam Jadwal</th>
+                            <th style={{ width: '22%' }}>Jam Aktual</th>
+                            <th style={{ width: '18%' }}>% Kepatuhan</th>
+                            <th style={{ width: '26%' }}>Paraf Petugas</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {complianceData.days.slice(0, 16).map(day => (
+                            day.sessions.map((sess, sIdx) => (
+                              <tr key={`left_${day.day}_${sess.patrolNumber}`}>
+                                {sIdx === 0 && (
+                                  <td rowSpan={8} className={styles.dayCell}>
+                                    <div style={{ fontSize: '15px' }}>{day.day}</div>
+                                    <div style={{ fontSize: '10px', color: '#64748b' }}>{day.dayOfWeek}</div>
+                                  </td>
+                                )}
+                                <td style={{ textAlign: 'center', fontSize: '10.5px' }}>
+                                  <strong>P{sess.patrolNumber}</strong> ({sess.startTime})
+                                </td>
+                                <td style={{ fontSize: '10px', textAlign: 'center', color: sess.isRun ? '#0f172a' : '#94a3b8' }}>
+                                  {sess.actualTimeRange}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span className={`${styles.badgeRate} ${sess.complianceRate === 100 ? styles.rate100 : (sess.complianceRate > 0 ? styles.ratePartial : styles.rateZero)}`}>
+                                    {sess.complianceRate > 0 ? `${sess.complianceRate}%` : '0%'}
+                                  </span>
+                                </td>
+                                <td style={{ fontSize: '10.5px', fontWeight: sess.isRun ? 700 : 400, color: sess.isRun ? '#0f172a' : '#94a3b8' }}>
+                                  {sess.officer}
+                                  {sess.findingsCount > 0 && (
+                                    <span style={{ display: 'block', fontSize: '9.5px', color: '#b91c1c', fontWeight: 600 }}>
+                                      ⚠️ {sess.findingsCount} Temuan
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Right Side: Tanggal 17 s/d Akhir Bulan */}
+                    <div className={styles.complianceTableWrapper}>
+                      <table className={styles.complianceTable}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '12%' }}>Tanggal</th>
+                            <th style={{ width: '22%' }}>Jam Jadwal</th>
+                            <th style={{ width: '22%' }}>Jam Aktual</th>
+                            <th style={{ width: '18%' }}>% Kepatuhan</th>
+                            <th style={{ width: '26%' }}>Paraf Petugas</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {complianceData.days.slice(16).map(day => (
+                            day.sessions.map((sess, sIdx) => (
+                              <tr key={`right_${day.day}_${sess.patrolNumber}`}>
+                                {sIdx === 0 && (
+                                  <td rowSpan={8} className={styles.dayCell}>
+                                    <div style={{ fontSize: '15px' }}>{day.day}</div>
+                                    <div style={{ fontSize: '10px', color: '#64748b' }}>{day.dayOfWeek}</div>
+                                  </td>
+                                )}
+                                <td style={{ textAlign: 'center', fontSize: '10.5px' }}>
+                                  <strong>P{sess.patrolNumber}</strong> ({sess.startTime})
+                                </td>
+                                <td style={{ fontSize: '10px', textAlign: 'center', color: sess.isRun ? '#0f172a' : '#94a3b8' }}>
+                                  {sess.actualTimeRange}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span className={`${styles.badgeRate} ${sess.complianceRate === 100 ? styles.rate100 : (sess.complianceRate > 0 ? styles.ratePartial : styles.rateZero)}`}>
+                                    {sess.complianceRate > 0 ? `${sess.complianceRate}%` : '0%'}
+                                  </span>
+                                </td>
+                                <td style={{ fontSize: '10.5px', fontWeight: sess.isRun ? 700 : 400, color: sess.isRun ? '#0f172a' : '#94a3b8' }}>
+                                  {sess.officer}
+                                  {sess.findingsCount > 0 && (
+                                    <span style={{ display: 'block', fontSize: '9.5px', color: '#b91c1c', fontWeight: 600 }}>
+                                      ⚠️ {sess.findingsCount} Temuan
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Keterangan & Catatan Kepatuhan */}
+                  <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '20px', padding: '10px 14px', background: '#f8fafc', borderRadius: '6px' }}>
+                    <span>🟢 <strong>100%:</strong> Ronda tuntas seluruh 133 ruangan</span>
+                    <span>🟡 <strong>80–99%:</strong> Sebagian besar selesai (ada ruangan terlewat/terkunci)</span>
+                    <span>🔴 <strong>&lt;80% / 0%:</strong> Patroli tidak tuntas / terlewat</span>
+                  </div>
+
+                  {/* Signature Section */}
+                  <div className={styles.signatureSection}>
+                    <div className={styles.signatureBox}>
+                      <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Diverifikasi oleh,</p>
+                      <div className={styles.signatureLine}>Danru / Supervisor Security</div>
+                    </div>
+                    <div className={styles.signatureBox}>
+                      <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Mengetahui,</p>
+                      <div className={styles.signatureLine}>Ka. Instalasi K3RS / Sarpras</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>Gagal memuat data formulir kepatuhan.</div>
+              )}
+            </div>
+          )}
+
+          {/* ==================================================== */}
+          {/* TAB: PERINGKAT KINERJA SECURITY                      */}
+          {/* ==================================================== */}
+          {activeTab === 'ranking' && (
+            <div>
+              {rankingLoading ? (
+                <div style={{ textAlign: 'center', padding: '3rem' }}>
+                  <div style={{ width: 32, height: 32, border: '3px solid var(--color-neutral-200)', borderTop: '3px solid var(--color-primary-500)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Memuat data peringkat & evaluasi security...</p>
+                </div>
+              ) : rankingData ? (
+                <div>
+                  {/* Top 3 Podium Cards */}
+                  <div className={styles.podiumGrid}>
+                    {rankingData.leaderboard.slice(0, 3).map((user, idx) => (
+                      <div key={user.id} className={`${styles.podiumCard} ${idx === 0 ? styles.podiumRank1 : (idx === 1 ? styles.podiumRank2 : styles.podiumRank3)}`}>
+                        <div className={styles.podiumMedal}>
+                          {idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}
+                        </div>
+                        <div className={styles.podiumName}>{user.name}</div>
+                        <div className={styles.podiumNik}>NIK: {user.employeeId || '-'}</div>
+                        <div className={styles.podiumScore}>{user.score} <span style={{ fontSize: '12px', fontWeight: 600 }}>Poin</span></div>
+                        <div className={styles.podiumSub}>
+                          {user.completedPatrols} Sesi Selesai • {user.onTimeRate}% Kepatuhan
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Ranking Table */}
+                  <div className={styles.sectionTitle} style={{ marginTop: '16px', marginBottom: '12px' }}>
+                    <span>Klasemen Kinerja Seluruh Petugas Security</span>
+                    <span className={styles.badgeTotal}>{rankingData.leaderboard.length} Petugas</span>
+                  </div>
+
+                  <table className={styles.rankingTable}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '8%', textAlign: 'center' }}>Peringkat</th>
+                        <th style={{ width: '12%' }}>NIK</th>
+                        <th style={{ width: '22%' }}>Nama Petugas</th>
+                        <th style={{ width: '14%', textAlign: 'center' }}>Sesi Selesai</th>
+                        <th style={{ width: '14%', textAlign: 'center' }}>Kepatuhan Waktu</th>
+                        <th style={{ width: '14%', textAlign: 'center' }}>Temuan Kerusakan</th>
+                        <th style={{ width: '16%', textAlign: 'right' }}>Total Skor Disiplin</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rankingData.leaderboard.map((user, idx) => (
+                        <tr key={user.id}>
+                          <td style={{ textAlign: 'center' }}>
+                            {idx === 0 ? '🥇 1' : idx === 1 ? '🥈 2' : idx === 2 ? '🥉 3' : `#${idx + 1}`}
+                          </td>
+                          <td style={{ color: '#64748b' }}>{user.employeeId || '-'}</td>
+                          <td>
+                            <strong>{user.name}</strong>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ fontWeight: 700 }}>{user.completedPatrols}</span> Sesi
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={`${styles.badgeRate} ${user.onTimeRate >= 95 ? styles.rate100 : (user.onTimeRate >= 80 ? styles.ratePartial : styles.rateZero)}`}>
+                              {user.onTimeRate}%
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {user.findingsCount > 0 ? (
+                              <span style={{ color: '#b91c1c', fontWeight: 700 }}>⚠️ {user.findingsCount}</span>
+                            ) : (
+                              <span style={{ color: '#64748b' }}>0</span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 800, color: '#0056b3', fontSize: '13px' }}>
+                            {user.score} Pts
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Signature Section */}
+                  <div className={styles.signatureSection} style={{ marginTop: '30px' }}>
+                    <div className={styles.signatureBox}>
+                      <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Dibuat oleh,</p>
+                      <div className={styles.signatureLine}>Supervisor Security</div>
+                    </div>
+                    <div className={styles.signatureBox}>
+                      <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Mengetahui,</p>
+                      <div className={styles.signatureLine}>Kepala Bagian Umum & SDM</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>Gagal memuat data peringkat.</div>
+              )}
+            </div>
+          )}
+
+          {/* ==================================================== */}
           {/* TAB 1: LEMBAR CEKLISTAN FISIK RUANGAN                */}
           {/* ==================================================== */}
-          {activeTab === 'checklist' && (
+          {activeTab === 'checklist' && data && (
             <div>
               <div className={styles.section}>
                 <div className={styles.sectionTitle}>
@@ -433,7 +822,7 @@ export default function ExportReportPage() {
           {/* ==================================================== */}
           {/* TAB 2: MATRIKS KONTROL 8 PATROLI (SHIFT PAGI & MALAM)*/}
           {/* ==================================================== */}
-          {activeTab === 'matrix' && data.matrix && (
+          {activeTab === 'matrix' && data && data.matrix && (
             <div>
               {/* Overview 8 Patrol Cards */}
               <div className={styles.matrixOverview}>
@@ -633,7 +1022,7 @@ export default function ExportReportPage() {
           {/* ==================================================== */}
           {/* TAB 3: RINGKASAN EKSEKUTIF & TEMUAN                  */}
           {/* ==================================================== */}
-          {activeTab === 'summary' && (
+          {activeTab === 'summary' && data && (
             <div>
               {/* Summary Metrics Grid */}
               <div className={styles.summaryGrid}>

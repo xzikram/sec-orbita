@@ -46,6 +46,16 @@ export async function GET(request: NextRequest) {
       endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
       periodLabel = `Bulanan - Periode ${year}-${String(month).padStart(2, '0')}`;
       filenameSuffix = `Bulanan_${year}_${String(month).padStart(2, '0')}`;
+    } else if (type === 'compliance') {
+      startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+      endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+      periodLabel = `Form Kepatuhan Bulanan - ${year}-${String(month).padStart(2, '0')}`;
+      filenameSuffix = `Form_Kepatuhan_Bulanan_${year}_${String(month).padStart(2, '0')}`;
+    } else if (type === 'ranking') {
+      startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+      endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+      periodLabel = `Peringkat Kinerja Security - ${year}-${String(month).padStart(2, '0')}`;
+      filenameSuffix = `Peringkat_Kinerja_Security_${year}_${String(month).padStart(2, '0')}`;
     } else {
       startDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
       endDate = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
@@ -480,7 +490,288 @@ export async function GET(request: NextRequest) {
       { wch: 20 },
       { wch: 16 },
     ];
-    XLSX.utils.book_append_sheet(wb, wsMatrix, 'Matriks 8 Patroli');
+    // ----------------------------------------------------
+    // SHEET: FORM KEPATUHAN BULANAN (2 SISI SEJAJAR: TGL 1-16 & 17-31)
+    // ----------------------------------------------------
+    const targetYear = year;
+    const targetMonth = month;
+    const daysInTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
+    const monthNamesIndo = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const targetMonthName = monthNamesIndo[targetMonth - 1] || `Bulan ${targetMonth}`;
+
+    const monthStart = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0, 0));
+    const monthEnd = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
+
+    const [totalActiveRooms, dbSchedulesForCompliance, monthlySessions, securityUsersForRanking] = await Promise.all([
+      prisma.room.count({ where: { isActive: true } }),
+      prisma.patrolSchedule.findMany({ where: { isActive: true }, orderBy: { patrolNumber: 'asc' } }),
+      prisma.patrolSession.findMany({
+        where: {
+          patrolDate: { gte: monthStart, lte: monthEnd },
+        },
+        include: {
+          user: { select: { name: true, employeeId: true } },
+          schedule: { select: { name: true, startTime: true, endTime: true } },
+          sessionFloors: {
+            include: {
+              patrolChecks: {
+                select: { id: true, condition: true, checkedAt: true },
+              },
+            },
+          },
+        },
+        orderBy: [{ patrolDate: 'asc' }, { patrolNumber: 'asc' }],
+      }),
+      prisma.user.findMany({
+        where: { role: 'security' },
+        select: {
+          id: true,
+          name: true,
+          employeeId: true,
+          patrolSessions: {
+            where: { patrolDate: { gte: monthStart, lte: monthEnd } },
+            select: { id: true, status: true },
+          },
+          findings: {
+            where: {
+              createdAt: {
+                gte: new Date(monthStart.getTime() - 8 * 3600 * 1000),
+                lte: new Date(monthEnd.getTime() - 8 * 3600 * 1000 + 86400000),
+              },
+            },
+            select: { id: true },
+          },
+          achievements: { select: { badge: true } },
+        },
+      }),
+    ]);
+
+    const complianceMap: Record<string, typeof monthlySessions[0]> = {};
+    monthlySessions.forEach(s => {
+      const dStr = s.patrolDate.toISOString().split('T')[0];
+      complianceMap[`${dStr}_${s.patrolNumber}`] = s;
+    });
+
+    const complianceRows: any[][] = [
+      ['RS MATA JEC ORBITA @ MAKASSAR', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [`FORM KEPATUHAN PATROLI KEAMANAN BULAN ${targetMonthName.toUpperCase()} ${targetYear}`, '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [`Periode: 01 s/d ${daysInTargetMonth} ${targetMonthName} ${targetYear} • Total Titik Ruangan: ${totalActiveRooms}`, '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      [],
+      [
+        'Tanggal', 'Jam Terjadwal', 'Jam Realisasi', '% Kepatuhan', 'Ruangan Cek', 'Paraf (Petugas)', 'Keterangan',
+        '',
+        'Tanggal', 'Jam Terjadwal', 'Jam Realisasi', '% Kepatuhan', 'Ruangan Cek', 'Paraf (Petugas)', 'Keterangan',
+      ],
+    ];
+
+    // Build 128 rows (16 days * 8 slots)
+    for (let r = 0; r < 128; r++) {
+      const leftDay = Math.floor(r / 8) + 1; // 1..16
+      const leftSlot = r % 8; // 0..7
+      const schLeft = dbSchedulesForCompliance[leftSlot];
+
+      const rightDay = Math.floor(r / 8) + 17; // 17..32
+      const rightSlot = r % 8;
+      const schRight = dbSchedulesForCompliance[rightSlot];
+
+      const rowData: any[] = [];
+
+      // Left Column Block (Day 1-16)
+      if (leftDay <= 16 && schLeft) {
+        const leftDateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(leftDay).padStart(2, '0')}`;
+        const sessLeft = complianceMap[`${leftDateStr}_${schLeft.patrolNumber}`];
+        const dayLabel = leftSlot === 0 ? String(leftDay) : '';
+        const schedRange = `${schLeft.startTime} - ${schLeft.endTime}`;
+
+        if (sessLeft) {
+          const checks = sessLeft.sessionFloors.flatMap(sf => sf.patrolChecks);
+          const checkedCount = checks.length;
+          const rate = totalActiveRooms > 0 ? Math.min(100, Math.round((checkedCount / totalActiveRooms) * 100)) : 100;
+          const findings = checks.filter(c => c.condition === 'finding').length;
+
+          let timeStr = '—';
+          if (sessLeft.startedAt && sessLeft.completedAt) {
+            const startWita = new Date(sessLeft.startedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
+            const endWita = new Date(sessLeft.completedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
+            const dur = Math.round((sessLeft.completedAt.getTime() - sessLeft.startedAt.getTime()) / (1000 * 60));
+            timeStr = `${startWita} - ${endWita} (${dur}m)`;
+          }
+
+          rowData.push(
+            dayLabel,
+            schedRange,
+            timeStr,
+            `${rate}%`,
+            `${checkedCount}/${totalActiveRooms}`,
+            sessLeft.user?.name || 'Petugas',
+            findings > 0 ? `${findings} Temuan` : (sessLeft.notes || 'Aman'),
+          );
+        } else {
+          rowData.push(
+            dayLabel,
+            schedRange,
+            '—',
+            '0%',
+            `0/${totalActiveRooms}`,
+            '—',
+            'Belum Berjalan',
+          );
+        }
+      } else {
+        rowData.push('', '', '', '', '', '', '');
+      }
+
+      // Separator column
+      rowData.push('');
+
+      // Right Column Block (Day 17-31)
+      if (rightDay <= daysInTargetMonth && schRight) {
+        const rightDateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(rightDay).padStart(2, '0')}`;
+        const sessRight = complianceMap[`${rightDateStr}_${schRight.patrolNumber}`];
+        const dayLabel = rightSlot === 0 ? String(rightDay) : '';
+        const schedRange = `${schRight.startTime} - ${schRight.endTime}`;
+
+        if (sessRight) {
+          const checks = sessRight.sessionFloors.flatMap(sf => sf.patrolChecks);
+          const checkedCount = checks.length;
+          const rate = totalActiveRooms > 0 ? Math.min(100, Math.round((checkedCount / totalActiveRooms) * 100)) : 100;
+          const findings = checks.filter(c => c.condition === 'finding').length;
+
+          let timeStr = '—';
+          if (sessRight.startedAt && sessRight.completedAt) {
+            const startWita = new Date(sessRight.startedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
+            const endWita = new Date(sessRight.completedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
+            const dur = Math.round((sessRight.completedAt.getTime() - sessRight.startedAt.getTime()) / (1000 * 60));
+            timeStr = `${startWita} - ${endWita} (${dur}m)`;
+          }
+
+          rowData.push(
+            dayLabel,
+            schedRange,
+            timeStr,
+            `${rate}%`,
+            `${checkedCount}/${totalActiveRooms}`,
+            sessRight.user?.name || 'Petugas',
+            findings > 0 ? `${findings} Temuan` : (sessRight.notes || 'Aman'),
+          );
+        } else {
+          rowData.push(
+            dayLabel,
+            schedRange,
+            '—',
+            '0%',
+            `0/${totalActiveRooms}`,
+            '—',
+            'Belum Berjalan',
+          );
+        }
+      } else {
+        rowData.push('', '', '', '', '', '', '');
+      }
+
+      complianceRows.push(rowData);
+    }
+
+    const wsCompliance = XLSX.utils.aoa_to_sheet(complianceRows);
+    wsCompliance['!cols'] = [
+      { wch: 8 },  // A: Tanggal
+      { wch: 15 }, // B: Jam Terjadwal
+      { wch: 20 }, // C: Jam Realisasi
+      { wch: 14 }, // D: % Kepatuhan
+      { wch: 14 }, // E: Ruangan Cek
+      { wch: 20 }, // F: Paraf
+      { wch: 22 }, // G: Keterangan
+      { wch: 4 },  // H: Separator
+      { wch: 8 },  // I: Tanggal
+      { wch: 15 }, // J: Jam Terjadwal
+      { wch: 20 }, // K: Jam Realisasi
+      { wch: 14 }, // L: % Kepatuhan
+      { wch: 14 }, // M: Ruangan Cek
+      { wch: 20 }, // N: Paraf
+      { wch: 22 }, // O: Keterangan
+    ];
+
+    // ----------------------------------------------------
+    // SHEET: PERINGKAT KINERJA SECURITY (RANKING)
+    // ----------------------------------------------------
+    const userLeaderboard = securityUsersForRanking.map(u => {
+      const completed = u.patrolSessions.filter(s => s.status === 'completed').length;
+      const total = u.patrolSessions.length;
+      const onTimeRate = total > 0 ? Math.round((completed / total) * 100) : (completed > 0 ? 100 : 0);
+      const findingsCount = u.findings.length;
+      const missed = u.patrolSessions.filter(s => s.status !== 'completed').length;
+      const score = Math.max(0, (completed * 10) + Math.round(onTimeRate * 0.5) + (findingsCount * 15) - (missed * 20));
+      return {
+        ...u,
+        completed,
+        total,
+        onTimeRate,
+        findingsCount,
+        missed,
+        score,
+        badges: u.achievements.map(a => a.badge).join(', ') || '-',
+      };
+    }).sort((a, b) => b.score - a.score || b.completed - a.completed);
+
+    const rankingRows: any[][] = [
+      ['RS MATA JEC ORBITA @ MAKASSAR'],
+      [`LAPORAN PERINGKAT & EVALUASI KINERJA SECURITY BULAN ${targetMonthName.toUpperCase()} ${targetYear}`],
+      [`Periode: ${targetMonthName} ${targetYear} • Tanggal Unduh: ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Makassar' })} WITA`],
+      [],
+      ['Peringkat', 'NIK', 'Nama Petugas Security', 'Total Sesi Patroli', 'Tingkat Kepatuhan (%)', 'Temuan Kerusakan Dilaporkan', 'Skor Disiplin', 'Piala / Badges'],
+    ];
+
+    userLeaderboard.forEach((u, idx) => {
+      const medal = idx === 0 ? 'Juara 1 🥇' : idx === 1 ? 'Juara 2 🥈' : idx === 2 ? 'Juara 3 🥉' : `Peringkat #${idx + 1}`;
+      rankingRows.push([
+        medal,
+        u.employeeId || '-',
+        u.name,
+        `${u.completed} Sesi`,
+        `${u.onTimeRate}%`,
+        `${u.findingsCount} Laporan`,
+        u.score,
+        u.badges,
+      ]);
+    });
+
+    const wsRanking = XLSX.utils.aoa_to_sheet(rankingRows);
+    wsRanking['!cols'] = [
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 25 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 26 },
+      { wch: 16 },
+      { wch: 30 },
+    ];
+
+    // ----------------------------------------------------
+    // APPEND SHEETS BASED ON EXPORT TYPE
+    // ----------------------------------------------------
+    if (type === 'compliance') {
+      XLSX.utils.book_append_sheet(wb, wsCompliance, 'Form Kepatuhan Bulanan');
+      XLSX.utils.book_append_sheet(wb, wsRanking, 'Peringkat Kinerja Security');
+    } else if (type === 'ranking') {
+      XLSX.utils.book_append_sheet(wb, wsRanking, 'Peringkat Kinerja Security');
+      XLSX.utils.book_append_sheet(wb, wsCompliance, 'Form Kepatuhan Bulanan');
+    } else if (type === 'monthly') {
+      XLSX.utils.book_append_sheet(wb, wsCompliance, 'Form Kepatuhan Bulanan');
+      XLSX.utils.book_append_sheet(wb, wsRanking, 'Peringkat Kinerja Security');
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Laporan');
+      XLSX.utils.book_append_sheet(wb, wsChecklist, 'Ceklist Ruangan');
+      XLSX.utils.book_append_sheet(wb, wsFindings, 'Temuan Kendala');
+      XLSX.utils.book_append_sheet(wb, wsMatrix, 'Matriks 8 Patroli');
+    } else {
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Laporan');
+      XLSX.utils.book_append_sheet(wb, wsChecklist, 'Ceklist Ruangan');
+      XLSX.utils.book_append_sheet(wb, wsFindings, 'Temuan Kendala');
+      XLSX.utils.book_append_sheet(wb, wsMatrix, 'Matriks 8 Patroli');
+    }
 
     // Write to buffer
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });

@@ -9,6 +9,29 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const now = new Date();
+    const makassarStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' }); // YYYY-MM-DD
+    const defaultMonthStr = makassarStr.slice(0, 7); // YYYY-MM
+
+    const monthParam = searchParams.get('month') || defaultMonthStr;
+    const [year, month] = monthParam.split('-').map(Number);
+
+    if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+      return NextResponse.json({ error: 'Format bulan tidak valid (gunakan YYYY-MM)' }, { status: 400 });
+    }
+
+    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    const makassarStart = new Date(startDate.getTime() - 8 * 3600 * 1000);
+    const makassarEnd = new Date(endDate.getTime() - 8 * 3600 * 1000 + 86400000);
+
+    const monthNamesIndo = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    const monthName = monthNamesIndo[month - 1];
+
     const securityUsers = await prisma.user.findMany({
       where: { role: 'security' },
       select: {
@@ -16,27 +39,39 @@ export async function GET(request: NextRequest) {
         name: true,
         employeeId: true,
         patrolSessions: {
+          where: {
+            patrolDate: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
           select: {
             id: true,
             status: true,
             patrolNumber: true,
             startedAt: true,
             completedAt: true,
-            patrolDate: true
-          }
+            patrolDate: true,
+          },
         },
         findings: {
+          where: {
+            createdAt: {
+              gte: makassarStart,
+              lte: makassarEnd,
+            },
+          },
           select: {
-            id: true
-          }
+            id: true,
+          },
         },
         achievements: {
           select: {
             badge: true,
-            earnedAt: true
-          }
-        }
-      }
+            earnedAt: true,
+          },
+        },
+      },
     });
 
     const leaderboard = await Promise.all(securityUsers.map(async (user) => {
@@ -46,15 +81,15 @@ export async function GET(request: NextRequest) {
       
       const onTimeRate = totalSessions > 0 
         ? Math.round((completedPatrols / totalSessions) * 100) 
-        : 100;
+        : (completedPatrols > 0 ? 100 : 0);
 
-      const missedPatrols = user.patrolSessions.filter(s => s.status === 'incomplete').length;
+      const missedPatrols = user.patrolSessions.filter(s => s.status !== 'completed').length;
 
-      // Score = (completedPatrols * 10) + (onTimeRate * 5) + (findingsCount * 15) - (missedPatrols * 20)
+      // Score = (completedPatrols * 10) + (onTimeRate * 0.5) + (findingsCount * 15) - (missedPatrols * 20)
       const calculatedScore = (completedPatrols * 10) + Math.round(onTimeRate * 0.5) + (findingsCount * 15) - (missedPatrols * 20);
       const score = Math.max(0, calculatedScore);
 
-      // Calculate streak (consecutive days with completed patrols)
+      // Calculate streak in current month
       const dates = user.patrolSessions
         .filter(s => s.status === 'completed')
         .map(s => s.patrolDate.toISOString().split('T')[0]);
@@ -79,7 +114,6 @@ export async function GET(request: NextRequest) {
       // Check achievements dynamically and award badges
       const completedNightPatrols = user.patrolSessions.filter(s => s.status === 'completed' && s.patrolNumber >= 5).length;
       
-      // Speed Runner check: completed a session in < 10 mins
       const hasFastSession = user.patrolSessions.some(s => {
         if (s.status === 'completed' && s.startedAt && s.completedAt) {
           const durationMins = (s.completedAt.getTime() - s.startedAt.getTime()) / (1000 * 60);
@@ -113,7 +147,6 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Fetch updated achievements
       const allAchievements = [
         ...user.achievements,
         ...newBadges.map(b => ({ badge: b, earnedAt: new Date() }))
@@ -139,6 +172,13 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
+      period: {
+        monthParam,
+        year,
+        month,
+        monthName,
+        label: `Bulan ${monthName} ${year}`,
+      },
       leaderboard: sortedLeaderboard,
       myRank: sortedLeaderboard.findIndex(u => u.id === auth.id) + 1
     });

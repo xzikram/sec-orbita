@@ -29,6 +29,7 @@ export default function LeaderboardPage() {
   const [data, setData] = useState<LeaderboardUser[]>([]);
   const [myRank, setMyRank] = useState<number>(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [periodLabel, setPeriodLabel] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,6 +49,9 @@ export default function LeaderboardPage() {
           const lbJson = await lbRes.json();
           setData(lbJson.leaderboard || []);
           setMyRank(lbJson.myRank || 0);
+          if (lbJson.period?.label) {
+            setPeriodLabel(lbJson.period.label);
+          }
         }
       } catch (err) {
         console.error('Error fetching leaderboard:', err);
@@ -81,11 +85,14 @@ export default function LeaderboardPage() {
             ← Kembali
           </Link>
           <span className="badge badge-info" style={{ fontSize: '11px' }}>
-            🏆 Musim Patroli Aktif
+            🏆 {periodLabel || 'Musim Aktif'}
           </span>
         </div>
         <h1 className={styles.title}>Papan Peringkat Security</h1>
-        <p className={styles.subtitle}>Penghargaan Kinerja & Disiplin Jaga JEC ORBITA</p>
+        <p className={styles.subtitle}>Klasemen & Poin Disiplin {periodLabel ? `(${periodLabel})` : 'Bulan Berjalan'}</p>
+        <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', padding: '4px 10px', borderRadius: '8px' }}>
+          <span>🔄 Peringkat direset setiap awal bulan • Semua petugas mulai dari 0</span>
+        </div>
       </div>
 
       {/* My Rank Highlight Card */}
