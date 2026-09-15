@@ -92,10 +92,22 @@ export default function RootLayout({
               });
 
               if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+                var isRefreshing = false;
+                navigator.serviceWorker.addEventListener('controllerchange', function() {
+                  if (!isRefreshing) {
+                    isRefreshing = true;
+                    window.location.reload();
+                  }
+                });
+
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js')
                     .then(function(reg) {
                       console.log('PWA Service Worker registered:', reg.scope);
+                      reg.update();
+                      setInterval(function() {
+                        reg.update();
+                      }, 60000);
                     })
                     .catch(function(err) {
                       console.warn('PWA Service Worker registration error:', err);
