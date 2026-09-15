@@ -229,27 +229,33 @@ export default function SecurityLayout({
       {/* Header */}
       <header className="app-header">
         <div className={styles.headerTop}>
-          <div className={styles.headerLogo}>
-            <img 
-              src="/logo-jec.png" 
-              alt="Logo JEC ORBITA" 
-              style={{ height: '22px', width: 'auto', objectFit: 'contain' }}
-              onError={(e) => {
-                // Graceful fallback if image fails offline
-                e.currentTarget.style.display = 'none';
-                const parent = e.currentTarget.parentElement;
-                if (parent && !parent.querySelector('.logo-text-fallback')) {
-                  const span = document.createElement('span');
-                  span.className = 'logo-text-fallback';
-                  span.textContent = 'JEC ORBITA';
-                  span.style.fontWeight = '800';
-                  span.style.fontSize = '13px';
-                  span.style.color = '#38bdf8';
-                  span.style.letterSpacing = '0.5px';
-                  parent.appendChild(span);
-                }
-              }}
-            />
+          <div className={styles.headerBrand}>
+            <div className={styles.headerLogo}>
+              <img 
+                src="/logo-jec.png" 
+                alt="Logo JEC ORBITA" 
+                style={{ height: '24px', width: 'auto', objectFit: 'contain' }}
+                onError={(e) => {
+                  // Graceful fallback if image fails offline
+                  e.currentTarget.style.display = 'none';
+                  const parent = e.currentTarget.parentElement;
+                  if (parent && !parent.querySelector('.logo-text-fallback')) {
+                    const span = document.createElement('span');
+                    span.className = 'logo-text-fallback';
+                    span.textContent = 'JEC ORBITA';
+                    span.style.fontWeight = '800';
+                    span.style.fontSize = '12px';
+                    span.style.color = '#38bdf8';
+                    span.style.letterSpacing = '0.5px';
+                    parent.appendChild(span);
+                  }
+                }}
+              />
+            </div>
+            <div className={styles.headerOfficerBadge} title={user?.name || ''}>
+              <span className={styles.headerOfficerIcon}>👤</span>
+              <span className={styles.headerOfficerName}>{user?.name || 'Security'}</span>
+            </div>
           </div>
           <div className={styles.headerRight}>
             <ConnectionStatus />
@@ -262,18 +268,10 @@ export default function SecurityLayout({
             </button>
           </div>
         </div>
-        <div className={styles.headerSub}>
-          <div className={styles.headerSubUser}>
-            <span>👤</span> {user?.name || 'Loading...'}
-          </div>
-          <div className={styles.headerSubShift}>
-            <span>⏱️</span> {liveShift ? `${liveShift.name} • ${liveShift.startTime}-${liveShift.endTime}` : ''}
-          </div>
-        </div>
       </header>
 
       {/* Page Content */}
-      <div className="page-container" style={{ paddingTop: '0px', paddingBottom: '62px' }}>
+      <div className="page-container" style={{ paddingTop: '0px', paddingBottom: '0px' }}>
         <SyncStatus />
         {children}
       </div>

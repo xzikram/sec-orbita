@@ -182,8 +182,8 @@
   --z-bottom-nav: 250;
 
   /* Mobile Layout */
-  --header-height: 72px;
-  --bottom-nav-height: 72px;
+  --header-height: 48px;
+  --bottom-nav-height: 56px;
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 }
 

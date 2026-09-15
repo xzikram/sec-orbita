@@ -509,8 +509,9 @@ export default function SecurityDashboard() {
   };
 
   return (
-    <div className="page-content" style={{ padding: '8px 12px 14px' }}>
-      {/* Refresh Bar */}
+    <div className={`${styles.dashboardContainer} ${showHandoverForm ? styles.dashboardScrollable : ''}`}>
+      <div className={styles.topSection}>
+        {/* Refresh Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
           {lastRefreshTime ? `Update: ${lastRefreshTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' })} WITA` : ''}
@@ -877,16 +878,17 @@ export default function SecurityDashboard() {
           )}
         </div>
       </div>
+      </div>
 
       {/* Start Patrol CTA */}
-      <div className={`${styles.ctaSection} animate-slide-up`} style={{ marginTop: '8px' }}>
+      <div className={`${styles.bottomSection} animate-slide-up`}>
         {data?.session && data.session.status === 'in_progress' ? (
           <button
             type="button"
             onClick={handleNavigateToPatrolWithPreDownload}
             disabled={isPreparingOffline}
             className="btn btn-primary"
-            style={{ width: '100%', padding: '10px 16px', fontSize: '13.5px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 3px 10px rgba(37, 99, 235, 0.25)' }}
+            style={{ width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 3px 12px rgba(37, 99, 235, 0.25)' }}
             id="btn-start-patrol"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -900,7 +902,7 @@ export default function SecurityDashboard() {
             onClick={handleNavigateToPatrolWithPreDownload}
             disabled={isPreparingOffline}
             className="btn btn-primary"
-            style={{ width: '100%', padding: '10px 16px', fontSize: '13.5px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 3px 10px rgba(37, 99, 235, 0.25)' }}
+            style={{ width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 3px 12px rgba(37, 99, 235, 0.25)' }}
             id="btn-start-patrol"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -2,20 +2,23 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 44px;
-  padding: 0 var(--space-4);
+  height: 48px;
+  padding: 0 12px;
   width: 100%;
+  gap: 8px;
 }
 
-.headerRight {
+.headerBrand {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
 }
 
 .headerLogo {
   background: #ffffff;
-  padding: 4px 8px;
+  padding: 3px 6px;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -23,34 +26,39 @@
   flex-shrink: 0;
 }
 
-.headerSub {
+.headerOfficerBadge {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 28px;
-  padding: 0 var(--space-4);
-  background: rgba(0, 0, 0, 0.18);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  font-size: 10.5px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
-  width: 100%;
+  gap: 5px;
+  min-width: 0;
+  max-width: calc(100% - 8px);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 3px 8px;
+  border-radius: 8px;
 }
 
-.headerSubUser {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  text-overflow: ellipsis;
-  overflow: hidden;
+.headerOfficerIcon {
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.headerOfficerName {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffffff;
   white-space: nowrap;
-  max-width: 48%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.1px;
 }
 
-.headerSubShift {
+.headerRight {
   display: flex;
   align-items: center;
-  gap: 4px;
-  color: rgba(255, 255, 255, 0.65);
+  gap: 8px;
+  flex-shrink: 0;
 }
+
 

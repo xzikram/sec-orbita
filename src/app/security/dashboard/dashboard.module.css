@@ -1,3 +1,33 @@
+.dashboardContainer {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: calc(100dvh - var(--header-height) - var(--bottom-nav-height) - var(--safe-area-bottom));
+  max-height: calc(100dvh - var(--header-height) - var(--bottom-nav-height) - var(--safe-area-bottom));
+  padding: 8px 12px 10px;
+  box-sizing: border-box;
+  overflow: hidden;
+  overscroll-behavior-y: none;
+}
+
+.dashboardScrollable {
+  overflow-y: auto !important;
+  max-height: none !important;
+  height: auto !important;
+}
+
+.topSection {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.bottomSection {
+  margin-top: auto;
+  padding-top: 6px;
+  padding-bottom: 2px;
+}
+
 .dateText {
   opacity: 0;
   animation: fadeIn 300ms ease 100ms forwards;
@@ -97,7 +127,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .statCard {
@@ -208,7 +238,7 @@
 
 /* Handover Card */
 .handoverCard {
-  margin-top: 8px;
+  margin-top: 0;
   border-radius: 14px;
   border: 1px solid var(--border-light);
   background: var(--bg-card, #ffffff);
@@ -340,6 +370,6 @@
 
 /* CTA */
 .ctaSection {
-  margin-top: var(--space-6);
-  margin-bottom: var(--space-4);
+  margin-top: 0;
+  margin-bottom: 0;
 }
