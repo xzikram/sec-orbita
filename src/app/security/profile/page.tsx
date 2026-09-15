@@ -615,55 +615,82 @@ export default function ProfilePage() {
       </div>
 
       {/* Reset Cache & Pembaruan Aplikasi */}
-      <div className="card animate-slide-up stagger-3" style={{ border: '1.5px solid #cbd5e1', background: '#f8fafc', marginBottom: '1rem', borderRadius: '14px' }}>
-        <div className="card-body" style={{ padding: '1.15rem' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-            <span style={{ fontSize: '24px', lineHeight: 1 }}>🔄</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
-                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <div 
+        className="card animate-slide-up stagger-3" 
+        style={{ 
+          border: '1px solid #bfdbfe', 
+          background: 'linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%)', 
+          marginBottom: '1rem', 
+          borderRadius: '16px',
+          boxShadow: '0 2px 8px rgba(37, 99, 235, 0.05)',
+          overflow: 'hidden'
+        }}
+      >
+        <div className="card-body" style={{ padding: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%)',
+              border: '1px solid #bfdbfe',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '20px',
+              flexShrink: 0,
+              boxShadow: '0 2px 4px rgba(37, 99, 235, 0.1)'
+            }}>
+              🔄
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                <h3 style={{ margin: 0, fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>
                   Pembaruan & Reset Cache HP
                 </h3>
-                <span style={{ fontSize: '11px', background: '#e2e8f0', color: '#334155', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                  Build v1.7.0
+                <span style={{ fontSize: '10.5px', background: '#dbeafe', color: '#1d4ed8', padding: '2px 7px', borderRadius: '6px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  v1.7.0
                 </span>
               </div>
-              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>
-                Gunakan tombol ini jika tampilan di HP belum berubah setelah pembaruan sistem atau jika ada data lokal yang macet.
+              <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#64748b', lineHeight: 1.35 }}>
+                Segarkan tampilan & bersihkan data cache jika aplikasi belum terupdate.
               </p>
             </div>
           </div>
 
-          <div style={{ marginTop: '12px' }}>
-            <button
-              type="button"
-              className="btn btn-outline btn-md"
-              onClick={handleResetCache}
-              disabled={isClearingCache}
-              style={{
-                width: '100%',
-                background: '#ffffff',
-                borderColor: '#94a3b8',
-                color: '#0f172a',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '11px 16px',
-                borderRadius: '10px'
-              }}
-            >
-              {isClearingCache ? (
-                <span>⏳ Membersihkan cache & memuat ulang...</span>
-              ) : (
-                <>
-                  <span>🧹</span>
-                  <span>Bersihkan Cache & Muat Ulang Versi Terbaru</span>
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={handleResetCache}
+            disabled={isClearingCache}
+            style={{
+              width: '100%',
+              background: '#ffffff',
+              borderColor: '#3b82f6',
+              color: '#1d4ed8',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              fontSize: '12.5px',
+              whiteSpace: 'normal',
+              textAlign: 'center',
+              lineHeight: 1.3,
+              boxShadow: '0 1px 3px rgba(37, 99, 235, 0.08)'
+            }}
+          >
+            {isClearingCache ? (
+              <span>⏳ Membersihkan cache & memuat ulang...</span>
+            ) : (
+              <>
+                <span style={{ fontSize: '15px' }}>🧹</span>
+                <span>Bersihkan Cache & Perbarui Versi</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
