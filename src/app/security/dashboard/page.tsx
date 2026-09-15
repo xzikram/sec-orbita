@@ -509,9 +509,9 @@ export default function SecurityDashboard() {
   };
 
   return (
-    <div className="page-content">
+    <div className="page-content" style={{ padding: '8px 12px 14px' }}>
       {/* Refresh Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
           {lastRefreshTime ? `Update: ${lastRefreshTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' })} WITA` : ''}
         </span>
@@ -600,20 +600,20 @@ export default function SecurityDashboard() {
         <div
           className="card animate-slide-up"
           style={{
-            marginBottom: '14px',
+            marginBottom: '8px',
             background: 'var(--color-primary-50, #eff6ff)',
             borderLeft: '4px solid var(--color-primary-500)',
-            padding: '12px 16px',
-            borderRadius: '12px',
+            padding: '8px 12px',
+            borderRadius: '10px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '20px' }}>🛡️</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '16px' }}>🛡️</span>
             <div>
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--color-primary-900)' }}>
+              <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, color: 'var(--color-primary-900)' }}>
                 {otherOfficers.length} Rekan Security Sedang Berpatroli
               </p>
-              <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--color-primary-700)' }}>
+              <p style={{ margin: '1px 0 0', fontSize: '10.5px', color: 'var(--color-primary-700)' }}>
                 {otherOfficers.map(o => `${o.user?.name || 'Petugas'} (Ronda #${o.patrolNumber})`).join(', ')}
               </p>
             </div>
@@ -622,23 +622,25 @@ export default function SecurityDashboard() {
       )}
 
       {/* Date */}
-      <p className={`text-sm text-secondary mb-3 ${styles.dateText}`}>
-        {currentTime ? formatDate(currentTime) : ''}
-      </p>
+      {currentTime && (
+        <p className={`text-sm text-secondary ${styles.dateText}`} style={{ margin: '0 0 6px', fontSize: '11px' }}>
+          {formatDate(currentTime)}
+        </p>
+      )}
 
       {/* Motivating Leaderboard Widget */}
-      <Link href="/security/leaderboard" style={{ textDecoration: 'none', display: 'block', marginBottom: '14px' }} id="widget-leaderboard">
-        <div className="card animate-slide-up" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)', color: '#fff', padding: '12px 16px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 12px rgba(30, 58, 138, 0.25)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '24px' }}>🏆</span>
+      <Link href="/security/leaderboard" style={{ textDecoration: 'none', display: 'block', marginBottom: '8px' }} id="widget-leaderboard">
+        <div className="card animate-slide-up" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)', color: '#fff', padding: '8px 12px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 8px rgba(30, 58, 138, 0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '18px' }}>🏆</span>
             <div>
-              <p style={{ margin: 0, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.85, fontWeight: 700 }}>Papan Peringkat Security</p>
-              <p style={{ margin: '2px 0 0', fontSize: '13px', fontWeight: 600 }}>
+              <p style={{ margin: 0, fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '0.04em', opacity: 0.85, fontWeight: 700 }}>Papan Peringkat Security</p>
+              <p style={{ margin: '1px 0 0', fontSize: '12px', fontWeight: 600 }}>
                 {leaderboardInfo ? `Peringkat #${leaderboardInfo.myRank} • ${leaderboardInfo.score} Poin Disiplin` : 'Cek Klasemen Tim & Peringkat Anda →'}
               </p>
             </div>
           </div>
-          <span style={{ fontSize: '11px', background: 'rgba(255,255,255,0.2)', padding: '5px 10px', borderRadius: '20px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '14px', fontWeight: 700, whiteSpace: 'nowrap' }}>
             Lihat Ranking →
           </span>
         </div>
@@ -877,16 +879,17 @@ export default function SecurityDashboard() {
       </div>
 
       {/* Start Patrol CTA */}
-      <div className={`${styles.ctaSection} animate-slide-up`} style={{ marginTop: '16px' }}>
+      <div className={`${styles.ctaSection} animate-slide-up`} style={{ marginTop: '8px' }}>
         {data?.session && data.session.status === 'in_progress' ? (
           <button
             type="button"
             onClick={handleNavigateToPatrolWithPreDownload}
             disabled={isPreparingOffline}
-            className="btn btn-primary btn-xl"
+            className="btn btn-primary"
+            style={{ width: '100%', padding: '10px 16px', fontSize: '13.5px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 3px 10px rgba(37, 99, 235, 0.25)' }}
             id="btn-start-patrol"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             Lanjutkan Patroli (Ronda #{data.session.patrolNumber})
@@ -896,10 +899,11 @@ export default function SecurityDashboard() {
             type="button"
             onClick={handleNavigateToPatrolWithPreDownload}
             disabled={isPreparingOffline}
-            className="btn btn-primary btn-xl"
+            className="btn btn-primary"
+            style={{ width: '100%', padding: '10px 16px', fontSize: '13.5px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 3px 10px rgba(37, 99, 235, 0.25)' }}
             id="btn-start-patrol"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             Mulai Patroli Baru

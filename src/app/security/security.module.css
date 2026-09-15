@@ -10,7 +10,7 @@
 .headerRight {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .headerLogo {
@@ -54,10 +54,3 @@
   color: rgba(255, 255, 255, 0.65);
 }
 
-.headerTime {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-primary-300);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-}

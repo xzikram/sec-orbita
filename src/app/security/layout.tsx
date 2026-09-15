@@ -19,22 +19,6 @@ interface LayoutUser {
   activeShift?: ShiftInfo | null;
 }
 
-function LiveClock() {
-  const [time, setTime] = useState('');
-
-  useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setTime(now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Makassar' }));
-    };
-    update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return <span className={styles.headerTime}>{time}</span>;
-}
-
 const navItems = [
   {
     path: '/security/dashboard',
@@ -268,7 +252,6 @@ export default function SecurityLayout({
             />
           </div>
           <div className={styles.headerRight}>
-            <LiveClock />
             <ConnectionStatus />
             <button
               onClick={toggleDarkMode}
@@ -290,7 +273,7 @@ export default function SecurityLayout({
       </header>
 
       {/* Page Content */}
-      <div className="page-container" style={{ paddingTop: '0px', paddingBottom: '76px' }}>
+      <div className="page-container" style={{ paddingTop: '0px', paddingBottom: '62px' }}>
         <SyncStatus />
         {children}
       </div>

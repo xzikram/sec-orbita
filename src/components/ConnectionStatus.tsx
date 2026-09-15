@@ -42,74 +42,36 @@ export default function ConnectionStatus() {
     };
   }, []);
 
-  if (serverReachable) {
-    if (offlineCount > 0) {
-      return (
-        <div 
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: 'rgba(245, 158, 11, 0.15)',
-            border: '1px solid rgba(245, 158, 11, 0.35)',
-            borderRadius: '12px',
-            padding: '4px 8px',
-            fontSize: '11px',
-            color: '#b45309',
-            fontWeight: '600'
-          }}
-          title={`${offlineCount} data tersimpan di HP siap disinkronkan ke server`}
-        >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', display: 'inline-block', boxShadow: '0 0 6px #f59e0b' }} />
-          <span>{offlineCount} Tersimpan di HP</span>
-        </div>
-      );
-    }
-    return (
-      <div 
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-          background: 'rgba(16, 185, 129, 0.15)',
-          border: '1px solid rgba(16, 185, 129, 0.35)',
-          borderRadius: '12px',
-          padding: '4px 8px',
-          fontSize: '11px',
-          color: '#065f46',
-          fontWeight: '600'
-        }}
-        title="Terhubung ke Server RS Mata JEC ORBITA"
-      >
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }} />
-        <span>Terhubung</span>
-      </div>
-    );
-  }
+  const isOnline = serverReachable;
 
-  // Server unreachable or dead zone
   return (
     <div 
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: '6px',
-        background: 'rgba(245, 158, 11, 0.15)',
-        border: '1px solid rgba(245, 158, 11, 0.35)',
-        borderRadius: '12px',
-        padding: '4px 8px',
-        fontSize: '11px',
-        color: '#b45309',
-        fontWeight: '600'
+        justifyContent: 'center',
+        padding: '6px',
+        lineHeight: 1,
       }}
-      title="Mode Patroli Offline — Data aman tersimpan di HP Anda"
+      title={isOnline ? (offlineCount > 0 ? `Terhubung (${offlineCount} data di HP)` : 'Terhubung ke Server') : `Terputus (Mode Offline${offlineCount > 0 ? ` - ${offlineCount} data di HP` : ''})`}
+      aria-label={isOnline ? 'Online' : 'Offline'}
     >
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', display: 'inline-block', animation: 'pulse 1.8s infinite' }} />
-      <span>Mode Offline {offlineCount > 0 ? `(${offlineCount} data di HP)` : ''}</span>
-      <style jsx global>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
+      <span 
+        style={{
+          width: '9px',
+          height: '9px',
+          borderRadius: '50%',
+          backgroundColor: isOnline ? '#10b981' : '#ef4444',
+          display: 'inline-block',
+          boxShadow: isOnline ? '0 0 8px rgba(16, 185, 129, 0.7)' : '0 0 8px rgba(239, 68, 68, 0.7)',
+          animation: !isOnline ? 'pulseOffline 1.5s infinite' : 'none',
+          transition: 'all 0.2s ease',
+        }} 
+      />
+      <style jsx>{`
+        @keyframes pulseOffline {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.4; transform: scale(0.85); }
         }
       `}</style>
     </div>
