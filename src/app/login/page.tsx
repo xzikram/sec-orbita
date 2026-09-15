@@ -43,7 +43,7 @@ export default function LoginPage() {
             supervisor: '/supervisor/reports',
             admin: '/admin/dashboard',
           };
-          router.replace(redirectMap[role] || '/security/dashboard');
+          window.location.replace(redirectMap[role] || '/security/dashboard');
         } else {
           setCheckingAuth(false);
         }
@@ -98,7 +98,11 @@ export default function LoginPage() {
         localStorage.setItem('saved-remember-me', 'false');
       }
 
-      router.push(data.redirect);
+      if (data.redirect) {
+        window.location.href = data.redirect;
+      } else {
+        window.location.href = '/security/dashboard';
+      }
     } catch {
       setError('Tidak dapat terhubung ke server');
       setLoading(false);

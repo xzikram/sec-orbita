@@ -92,9 +92,10 @@ export default function RootLayout({
               });
 
               if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+                var hadController = !!navigator.serviceWorker.controller;
                 var isRefreshing = false;
                 navigator.serviceWorker.addEventListener('controllerchange', function() {
-                  if (!isRefreshing) {
+                  if (hadController && !isRefreshing && window.location.pathname !== '/login') {
                     isRefreshing = true;
                     window.location.reload();
                   }

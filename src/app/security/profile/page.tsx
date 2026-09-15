@@ -625,7 +625,7 @@ export default function ProfilePage() {
                   Pembaruan & Reset Cache HP
                 </h3>
                 <span style={{ fontSize: '11px', background: '#e2e8f0', color: '#334155', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                  Build v1.6.0
+                  Build v1.7.0
                 </span>
               </div>
               <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>
@@ -684,7 +684,7 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      <p className={styles.version}>Security Patrol v1.6.0 — JEC ORBITA</p>
+      <p className={styles.version}>Security Patrol v1.7.0 — JEC ORBITA</p>
     </div>
   );
 }

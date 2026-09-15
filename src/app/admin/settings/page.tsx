@@ -279,7 +279,7 @@ export default function SettingsPage() {
             <div className={styles.settingRow}>
               <div className={styles.settingInfo}>
                 <span className={styles.settingLabel}>Versi Sistem Saat Ini</span>
-                <span className={styles.settingDesc}>v1.6.0 (Service Worker: sec-patrol-v16)</span>
+                <span className={styles.settingDesc}>v1.7.0 (Service Worker: sec-patrol-v17)</span>
               </div>
               <span className="badge badge-success">Aktif & Fresh</span>
             </div>

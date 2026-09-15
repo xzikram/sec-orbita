@@ -1,37 +1,7 @@
-const CACHE_NAME = 'sec-patrol-v16';
+const CACHE_NAME = 'sec-patrol-v17';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
-  '/login',
-  '/security/dashboard',
-  '/security/profile',
-  '/security/patrol',
-  '/security/patrol/summary',
-  '/security/patrol/floor/floor-sb',
-  '/security/patrol/floor/floor-1',
-  '/security/patrol/floor/floor-2',
-  '/security/patrol/floor/floor-3',
-  '/security/patrol/floor/floor-4',
-  '/security/patrol/floor/floor-5',
-  '/security/patrol/floor/floor-6',
-  '/security/patrol/floor/floor-7',
-  '/security/patrol/floor/floor-8',
-  '/security/patrol/floor/floor-9',
-  '/security/patrol/floor/floor-10',
-  '/security/patrol/floor/floor-11',
-  '/security/patrol/floor/floor-sb/qr-scan',
-  '/security/patrol/floor/floor-1/qr-scan',
-  '/security/patrol/floor/floor-2/qr-scan',
-  '/security/patrol/floor/floor-3/qr-scan',
-  '/security/patrol/floor/floor-4/qr-scan',
-  '/security/patrol/floor/floor-5/qr-scan',
-  '/security/patrol/floor/floor-6/qr-scan',
-  '/security/patrol/floor/floor-7/qr-scan',
-  '/security/patrol/floor/floor-8/qr-scan',
-  '/security/patrol/floor/floor-9/qr-scan',
-  '/security/patrol/floor/floor-10/qr-scan',
-  '/security/patrol/floor/floor-11/qr-scan',
-  '/security/patrol/room/room-l1-01',
   '/logo-jec.png',
   '/Logo RS JEC ORBITA.png',
   '/Logo%20RS%20JEC%20ORBITA.png',
@@ -44,7 +14,7 @@ self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      // 1. Cache static document shells
+      // Pre-cache only pure static assets (logos, manifest, icons, offline shell)
       await Promise.allSettled(
         STATIC_ASSETS.map(async (asset) => {
           try {
@@ -55,28 +25,6 @@ self.addEventListener('install', (e) => {
           } catch (err) {
             console.warn('Pre-cache asset warning:', asset, err);
           }
-        })
-      );
-
-      // 2. Pre-cache RSC flight streams for instant offline transitions
-      const rscRoutes = [
-        '/security/patrol',
-        '/security/patrol/floor/floor-1',
-        '/security/patrol/floor/floor-1/qr-scan',
-        '/security/patrol/room/room-l1-01',
-        '/security/patrol/summary',
-      ];
-      await Promise.allSettled(
-        rscRoutes.map(async (route) => {
-          try {
-            const rscReq = new Request(`${route}?_rsc=1`, {
-              headers: { 'RSC': '1', 'accept': 'text/x-component' }
-            });
-            const res = await fetch(rscReq);
-            if (res && res.status === 200) {
-              await cache.put(rscReq, res);
-            }
-          } catch {}
         })
       );
     })
@@ -334,7 +282,8 @@ self.addEventListener('fetch', (e) => {
             clearTimeout(timeoutId);
             if (!isResolved) {
               isResolved = true;
-              if (response.status === 200) {
+              // Never cache redirected responses or login pages to avoid session redirect poison loops
+              if (response.status === 200 && !response.redirected && !response.url.includes('/login') && url.pathname !== '/login') {
                 const clone = response.clone();
                 caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
               }
