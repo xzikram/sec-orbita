@@ -417,7 +417,18 @@ export default function SecurityDashboard() {
       })
       .catch(() => {});
 
-    return () => clearInterval(interval);
+    // Listen to bottom navigation tab clicks to auto-refresh
+    const handleNavRefresh = (e: any) => {
+      if (!e.detail?.path || e.detail.path === '/security/dashboard') {
+        handleRefresh();
+      }
+    };
+    window.addEventListener('sec-nav-refresh', handleNavRefresh);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('sec-nav-refresh', handleNavRefresh);
+    };
   }, []);
 
   const overallProgress = data && data.totalRooms > 0
@@ -453,11 +464,14 @@ export default function SecurityDashboard() {
     setIsRefreshing(true);
     try {
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
-      const [meRes, sessionsRes, findingsRes, floorsRes] = await Promise.all([
+      const [meRes, sessionsRes, findingsRes, floorsRes, staffRes, shiftsRes, lbRes] = await Promise.all([
         fetch('/api/auth/me').catch(() => null),
         fetch(`/api/patrol/sessions?date=${today}`).catch(() => null),
         fetch('/api/findings?status=new&limit=100').catch(() => null),
         fetch('/api/floors').catch(() => null),
+        fetch('/api/users?role=security').catch(() => null),
+        fetch('/api/shifts').catch(() => null),
+        fetch('/api/leaderboard').catch(() => null),
       ]);
 
       let loggedInUser = currentUser;
@@ -465,6 +479,25 @@ export default function SecurityDashboard() {
         const meData = await meRes.json();
         loggedInUser = meData.user || loggedInUser;
         setCurrentUser(loggedInUser);
+      }
+
+      if (staffRes && staffRes.ok) {
+        const staff = await staffRes.json();
+        setSecurityStaff(Array.isArray(staff) ? staff : []);
+      }
+
+      if (shiftsRes && shiftsRes.ok) {
+        const shifts = await shiftsRes.json();
+        const activeShifts = Array.isArray(shifts) ? shifts : [];
+        setShiftsList(activeShifts);
+      }
+
+      if (lbRes && lbRes.ok) {
+        const lb = await lbRes.json();
+        if (lb && lb.myRank) {
+          const myUser = lb.leaderboard?.[lb.myRank - 1];
+          setLeaderboardInfo({ myRank: lb.myRank, score: myUser?.score || 0 });
+        }
       }
 
       const sessions = sessionsRes && sessionsRes.ok ? await sessionsRes.json() : [];
@@ -693,7 +726,7 @@ export default function SecurityDashboard() {
         <div className={`card animate-slide-up ${styles.emptyPatrolCard}`}>
           <div className={`card-body ${styles.emptyPatrolBody}`}>
             <div className={styles.emptyPatrolIconCircle}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
@@ -706,9 +739,9 @@ export default function SecurityDashboard() {
       {/* Quick Stats */}
       <div className={`${styles.statsGrid} animate-slide-up stagger-1`}>
         <div className={`card ${styles.statCard}`}>
-          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 6px' }}>
+          <div className="card-body">
             <div className={`${styles.statIcon} ${styles.statIconSuccess}`}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
@@ -717,9 +750,9 @@ export default function SecurityDashboard() {
           </div>
         </div>
         <div className={`card ${styles.statCard}`}>
-          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 6px' }}>
+          <div className="card-body">
             <div className={`${styles.statIcon} ${styles.statIconDanger}`}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" />
                 <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -730,9 +763,9 @@ export default function SecurityDashboard() {
           </div>
         </div>
         <div className={`card ${styles.statCard}`}>
-          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '12px 6px' }}>
+          <div className="card-body">
             <div className={`${styles.statIcon} ${styles.statIconPrimary}`}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <rect x="3" y="3" width="7" height="7" />
                 <rect x="14" y="3" width="7" height="7" />
                 <rect x="14" y="14" width="7" height="7" />

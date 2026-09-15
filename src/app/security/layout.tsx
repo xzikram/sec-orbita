@@ -284,6 +284,11 @@ export default function SecurityLayout({
             href={item.path}
             className={`bottom-nav-item ${isNavActive(item.path) ? 'active' : ''}`}
             id={`nav-${item.label.toLowerCase()}`}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('sec-nav-refresh', { detail: { path: item.path } }));
+              }
+            }}
           >
             <span className="bottom-nav-icon">{item.icon}</span>
             <span>{item.label}</span>
