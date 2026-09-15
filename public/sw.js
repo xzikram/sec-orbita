@@ -1,8 +1,10 @@
-const CACHE_NAME = 'sec-patrol-v15';
+const CACHE_NAME = 'sec-patrol-v16';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
+  '/login',
   '/security/dashboard',
+  '/security/profile',
   '/security/patrol',
   '/security/patrol/summary',
   '/security/patrol/floor/floor-sb',
@@ -94,6 +96,23 @@ self.addEventListener('activate', (e) => {
       );
     })
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    event.waitUntil(
+      caches.keys().then((keys) => {
+        return Promise.all(keys.map((k) => caches.delete(k)));
+      }).then(() => {
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage({ success: true });
+        }
+      })
+    );
+  }
 });
 
 self.addEventListener('fetch', (e) => {
@@ -281,6 +300,20 @@ self.addEventListener('fetch', (e) => {
               }
             }
 
+            // Fallback for dashboard, login, and profile
+            if (url.pathname.startsWith('/security/dashboard')) {
+              const dashShell = await cache.match('/security/dashboard');
+              if (dashShell) return resolve(dashShell);
+            }
+            if (url.pathname === '/login' || url.pathname.startsWith('/login')) {
+              const loginShell = await cache.match('/login');
+              if (loginShell) return resolve(loginShell);
+            }
+            if (url.pathname.startsWith('/security/profile')) {
+              const profileShell = await cache.match('/security/profile');
+              if (profileShell) return resolve(profileShell);
+            }
+
             // C. Fallback to offline notice page for other routes
             const offlinePage = await cache.match('/offline.html');
             if (offlinePage) return resolve(offlinePage);
@@ -294,7 +327,7 @@ self.addEventListener('fetch', (e) => {
           ));
         };
 
-        const timeoutId = setTimeout(handleOfflineOrTimeout, 1000);
+        const timeoutId = setTimeout(handleOfflineOrTimeout, 6000);
 
         fetch(e.request)
           .then((response) => {

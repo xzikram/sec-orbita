@@ -17,7 +17,7 @@ export interface PreDownloadResult {
   error?: string;
 }
 
-export const CATALOG_CACHE_VERSION = 'sec-patrol-v15-20260915';
+export const CATALOG_CACHE_VERSION = 'sec-patrol-v16-20260915';
 
 /**
  * Downloads and caches all active floors, 133 rooms, and official QR tokens to IndexedDB.
@@ -84,7 +84,7 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
     // 4. Pre-cache all patrol pages and QR scan routes into browser CacheStorage
     if (typeof window !== 'undefined' && 'caches' in window) {
       try {
-        const cache = await window.caches.open('sec-patrol-v15');
+        const cache = await window.caches.open('sec-patrol-v16');
         const routesToPrecache = [
           '/security/dashboard',
           '/security/patrol',
@@ -218,4 +218,52 @@ export async function getResilientRoomById(roomId: string): Promise<any | null> 
   } catch {}
 
   return getFallbackRoomById(roomId);
+}
+
+/**
+ * Hard-clears all client caches (CacheStorage, ServiceWorker caches, localStorage catalog keys)
+ * and forces a clean reload from the server.
+ */
+export async function clearApplicationCacheAndReload(redirectUrl: string = '/security/dashboard'): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  try {
+    // 1. Delete all browser CacheStorage
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+    }
+
+    // 2. Notify Service Worker controller to clear caches & skip waiting
+    if (navigator.serviceWorker?.controller) {
+      try {
+        navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHE' });
+        navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+      } catch {}
+    }
+
+    // 3. Clear localStorage catalog & cached state keys (preserve user login if valid)
+    try {
+      localStorage.removeItem('patrol-catalog-version');
+      localStorage.removeItem('lastPatrolState');
+      localStorage.removeItem('cached-active-session');
+      localStorage.removeItem('pwa_prompt_dismissed_at');
+    } catch {}
+
+    // 4. Update Service Worker registrations
+    if ('serviceWorker' in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.update().catch(() => {});
+        }
+      } catch {}
+    }
+  } catch (err) {
+    console.error('Error in clearApplicationCacheAndReload:', err);
+  } finally {
+    // 5. Hard reload to target URL with cache busting timestamp
+    const separator = redirectUrl.includes('?') ? '&' : '?';
+    window.location.href = `${redirectUrl}${separator}refresh=${Date.now()}`;
+  }
 }

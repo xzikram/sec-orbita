@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { clearApplicationCacheAndReload } from '@/lib/offline-cache';
 import styles from './profile.module.css';
 
 interface ProfileUser {
@@ -19,6 +20,7 @@ export default function ProfilePage() {
   const [currentUser, setCurrentUser] = useState<ProfileUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [isClearingCache, setIsClearingCache] = useState(false);
 
   // States for change password
   const [currentPassword, setCurrentPassword] = useState('');
@@ -122,6 +124,22 @@ export default function ProfilePage() {
       localStorage.removeItem('lastPatrolState');
     } catch {}
     router.push('/login');
+  };
+
+  const handleResetCache = async () => {
+    const ok = window.confirm(
+      'Perbarui aplikasi dan bersihkan cache lokal di HP ini?\\n\\n' +
+      'Tindakan ini akan mengunduh versi terbaru dan menyegarkan tampilan tanpa menghapus data patroli di server.'
+    );
+    if (!ok) return;
+
+    setIsClearingCache(true);
+    try {
+      await clearApplicationCacheAndReload('/security/dashboard');
+    } catch (err) {
+      console.error('Reset cache error:', err);
+      window.location.reload();
+    }
   };
 
 
@@ -596,6 +614,59 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Reset Cache & Pembaruan Aplikasi */}
+      <div className="card animate-slide-up stagger-3" style={{ border: '1.5px solid #cbd5e1', background: '#f8fafc', marginBottom: '1rem', borderRadius: '14px' }}>
+        <div className="card-body" style={{ padding: '1.15rem' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <span style={{ fontSize: '24px', lineHeight: 1 }}>🔄</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Pembaruan & Reset Cache HP
+                </h3>
+                <span style={{ fontSize: '11px', background: '#e2e8f0', color: '#334155', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                  Build v1.6.0
+                </span>
+              </div>
+              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b', lineHeight: '1.4' }}>
+                Gunakan tombol ini jika tampilan di HP belum berubah setelah pembaruan sistem atau jika ada data lokal yang macet.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '12px' }}>
+            <button
+              type="button"
+              className="btn btn-outline btn-md"
+              onClick={handleResetCache}
+              disabled={isClearingCache}
+              style={{
+                width: '100%',
+                background: '#ffffff',
+                borderColor: '#94a3b8',
+                color: '#0f172a',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '11px 16px',
+                borderRadius: '10px'
+              }}
+            >
+              {isClearingCache ? (
+                <span>⏳ Membersihkan cache & memuat ulang...</span>
+              ) : (
+                <>
+                  <span>🧹</span>
+                  <span>Bersihkan Cache & Muat Ulang Versi Terbaru</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Logout */}
       <div className={`${styles.logoutSection} animate-slide-up stagger-3`}>
 
@@ -613,7 +684,7 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      <p className={styles.version}>Security Patrol v1.0 — JEC ORBITA</p>
+      <p className={styles.version}>Security Patrol v1.6.0 — JEC ORBITA</p>
     </div>
   );
 }

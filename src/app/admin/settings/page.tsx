@@ -271,6 +271,44 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* PWA & Cache Management */}
+        <div className={`card ${styles.settingCard}`}>
+          <h3 className={styles.settingTitle}>🔄 Cache & Pembaruan Aplikasi PWA</h3>
+          <div className={styles.settingGroup}>
+            <div className={styles.settingRow}>
+              <div className={styles.settingInfo}>
+                <span className={styles.settingLabel}>Versi Sistem Saat Ini</span>
+                <span className={styles.settingDesc}>v1.6.0 (Service Worker: sec-patrol-v16)</span>
+              </div>
+              <span className="badge badge-success">Aktif & Fresh</span>
+            </div>
+            <div className={styles.settingRow}>
+              <div className={styles.settingInfo}>
+                <span className={styles.settingLabel}>Pembersihan Cache Mandiri</span>
+                <span className={styles.settingDesc}>
+                  Security dapat me-refresh cache kapan saja melalui menu <strong>Profil Security &gt; Reset Cache HP</strong>.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={async () => {
+                  if (confirm('Bersihkan cache browser ini dan reload?')) {
+                    if ('caches' in window) {
+                      const keys = await caches.keys();
+                      await Promise.all(keys.map(k => caches.delete(k)));
+                    }
+                    window.location.reload();
+                  }
+                }}
+                style={{ flexShrink: 0, fontWeight: 700 }}
+              >
+                🧹 Reset Cache Browser Ini
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className={styles.saveBar}>
