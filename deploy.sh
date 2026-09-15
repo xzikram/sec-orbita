@@ -21,6 +21,10 @@ npx prisma generate
 echo "🗄️ Sinkronisasi skema database..."
 npx prisma db push
 
+# 4b. Sinkronisasi token QR code resmi fisik 12 lantai
+echo "🔒 Mengunci barcode QR resmi fisik rumah sakit ke database..."
+npx tsx scripts/lock-official-qrs.ts
+
 # 5. Database seeding HANYA dijalankan jika diberikan flag --seed (untuk mencegah data patroli/temuan terhapus)
 if [ "$1" == "--seed" ]; then
     echo "🌱 Menjalankan database seeding (--seed aktif)..."

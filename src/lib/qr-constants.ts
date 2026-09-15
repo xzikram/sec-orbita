@@ -83,8 +83,13 @@ export const OFFICIAL_FLOOR_QRS: OfficialFloorQR[] = [
   {
     floorCode: 'L11',
     floorName: 'Lantai 11',
-    token: 'JEC-ORB-L11-1785290309575-50K0',
-    alternativeTokens: ['JEC-ORB-L11-1785290309575-5OK0'],
+    token: 'JEC-ORB-L11-1785290309575-5OKO',
+    alternativeTokens: [
+      'JEC-ORB-L11-1785290309575-50K0',
+      'JEC-ORB-L11-1785290309575-5OK0',
+      'JEC-ORB-L11-1785290309575-50KO',
+      'JEC-ORB-L11-1785290309575-5OKO',
+    ],
     level: 11,
   },
 ];
@@ -149,6 +154,14 @@ export function getFloorByQrToken(scannedToken: string): OfficialFloorQR | undef
   );
   if (exact) return exact;
 
+  // 1b. Fuzzy check: match interchangeable '0' (zero) and 'O' (letter O)
+  const normZero = cleanScanned.replace(/O/g, '0');
+  const fuzzy = OFFICIAL_FLOOR_QRS.find(
+    (q) => q.token.toUpperCase().replace(/O/g, '0') === normZero ||
+           q.alternativeTokens?.some(alt => alt.toUpperCase().replace(/O/g, '0') === normZero)
+  );
+  if (fuzzy) return fuzzy;
+
   // 2. Check if scanned text contains the canonical floor code
   const norm = cleanFloorCode(cleanScanned);
   return OFFICIAL_FLOOR_QRS.find((q) => q.floorCode === norm);
@@ -156,7 +169,7 @@ export function getFloorByQrToken(scannedToken: string): OfficialFloorQR | undef
 
 /**
  * Validasi apakah suatu token QR cocok dengan lantai tertentu.
- * Mendukung pencocokan token utama, alternatif, serta normalisasi prefix (floor-, sf-, dll).
+ * Mendukung pencocokan token utama, alternatif, serta toleransi huruf 'O' dan angka '0'.
  */
 export function isOfficialQrValidForFloor(floorCodeOrId: string, scannedToken: string): boolean {
   if (!scannedToken) return false;
@@ -171,6 +184,12 @@ export function isOfficialQrValidForFloor(floorCodeOrId: string, scannedToken: s
   if (config) {
     if (config.token.toUpperCase() === cleanScanned) return true;
     if (config.alternativeTokens && config.alternativeTokens.some((alt) => alt.toUpperCase() === cleanScanned)) {
+      return true;
+    }
+    // Fuzzy match for interchangeable '0' and 'O'
+    const normScanned = cleanScanned.replace(/O/g, '0');
+    if (config.token.toUpperCase().replace(/O/g, '0') === normScanned) return true;
+    if (config.alternativeTokens && config.alternativeTokens.some((alt) => alt.toUpperCase().replace(/O/g, '0') === normScanned)) {
       return true;
     }
     // Support matching by clean floor code (e.g. guard scanned test barcode or typed "L1", "LANTAI 1", "SB")

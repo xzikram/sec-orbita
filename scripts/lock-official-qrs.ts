@@ -13,7 +13,7 @@ export const OFFICIAL_FLOOR_QRS = [
   { floorCode: 'L8', name: 'Lantai 8', token: 'JEC-ORB-L8-1785290309565-QK16' },
   { floorCode: 'L9', name: 'Lantai 9', token: 'JEC-ORB-L9-1785290309568-XUYC' },
   { floorCode: 'L10', name: 'Lantai 10', token: 'JEC-ORB-L10-1785290309572-9J8U' },
-  { floorCode: 'L11', name: 'Lantai 11', token: 'JEC-ORB-L11-1785290309575-50K0' },
+  { floorCode: 'L11', name: 'Lantai 11', token: 'JEC-ORB-L11-1785290309575-5OKO' },
 ];
 
 async function main() {

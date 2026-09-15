@@ -107,7 +107,7 @@ export const adminFloors: AdminFloor[] = [
   { id: 'floor-8', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 8', code: 'L8', level: 8, totalRooms: 8, qrCode: 'JEC-ORB-L8-1785290309565-QK16', isActive: true },
   { id: 'floor-9', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 9', code: 'L9', level: 9, totalRooms: 6, qrCode: 'JEC-ORB-L9-1785290309568-XUYC', isActive: true },
   { id: 'floor-10', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 10', code: 'L10', level: 10, totalRooms: 5, qrCode: 'JEC-ORB-L10-1785290309572-9J8U', isActive: true },
-  { id: 'floor-11', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 11', code: 'L11', level: 11, totalRooms: 4, qrCode: 'JEC-ORB-L11-1785290309575-50K0', isActive: true },
+  { id: 'floor-11', buildingId: 'b1', buildingName: 'RS Mata JEC ORBITA', name: 'Lantai 11', code: 'L11', level: 11, totalRooms: 4, qrCode: 'JEC-ORB-L11-1785290309575-5OKO', isActive: true },
 ];
 
 // Rooms (subset)
@@ -154,5 +154,5 @@ export const qrConfigs: QRConfig[] = [
   { id: 'qr-l8', floorId: 'floor-8', floorName: 'Lantai 8', floorCode: 'L8', qrValue: 'JEC-ORB-L8-1785290309565-QK16', generatedAt: '2026-07-29T01:58:29.565Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
   { id: 'qr-l9', floorId: 'floor-9', floorName: 'Lantai 9', floorCode: 'L9', qrValue: 'JEC-ORB-L9-1785290309568-XUYC', generatedAt: '2026-07-29T01:58:29.568Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
   { id: 'qr-l10', floorId: 'floor-10', floorName: 'Lantai 10', floorCode: 'L10', qrValue: 'JEC-ORB-L10-1785290309572-9J8U', generatedAt: '2026-07-29T01:58:29.572Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
-  { id: 'qr-l11', floorId: 'floor-11', floorName: 'Lantai 11', floorCode: 'L11', qrValue: 'JEC-ORB-L11-1785290309575-50K0', generatedAt: '2026-07-29T01:58:29.575Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
+  { id: 'qr-l11', floorId: 'floor-11', floorName: 'Lantai 11', floorCode: 'L11', qrValue: 'JEC-ORB-L11-1785290309575-5OKO', generatedAt: '2026-07-29T01:58:29.575Z', lastPrinted: '2026-07-29T02:00:00.000Z' },
 ];

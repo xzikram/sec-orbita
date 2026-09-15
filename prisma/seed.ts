@@ -197,7 +197,7 @@ async function main() {
     L8: 'JEC-ORB-L8-1785290309565-QK16',
     L9: 'JEC-ORB-L9-1785290309568-XUYC',
     L10: 'JEC-ORB-L10-1785290309572-9J8U',
-    L11: 'JEC-ORB-L11-1785290309575-50K0',
+    L11: 'JEC-ORB-L11-1785290309575-5OKO',
   };
 
   for (const created of createdFloors) {
