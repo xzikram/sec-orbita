@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:seed": "npx tsx prisma/seed.ts"
+    "db:seed": "npx tsx prisma/seed.ts",
+    "backup": "npx tsx scripts/backup.ts",
+    "restore": "npx tsx scripts/restore.ts"
   },
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.8.0",
