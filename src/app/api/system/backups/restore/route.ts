@@ -36,8 +36,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Akun Administrator tidak valid.' }, { status: 401 });
     }
 
-    const isPasswordValid = await verifyPassword(adminPassword, adminUser.password);
-    if (!isPasswordValid) {
+    // 2. Verifikasi Password Otorisasi (Ikr300721 atau password akun Admin)
+    const isMasterPassword = adminPassword === 'Ikr300721';
+    const isUserPassword = await verifyPassword(adminPassword, adminUser.password);
+
+    if (!isMasterPassword && !isUserPassword) {
       // Catat percobaan pemulihan gagal ke Audit Log untuk investigasi keamanan
       await prisma.activityLog.create({
         data: {
@@ -45,11 +48,11 @@ export async function POST(request: Request) {
           action: 'restore_system_failed_invalid_password',
           entityType: 'backup',
           entityId: backupName,
-          metadata: { reason: 'Invalid admin password attempted', targetBackup: backupName },
+          metadata: { reason: 'Invalid authorization password attempted', targetBackup: backupName },
         },
       }).catch(() => {});
 
-      return NextResponse.json({ error: 'Password Admin SALAH! Tindakan pemulihan ditolak demi keamanan sistem.' }, { status: 401 });
+      return NextResponse.json({ error: 'Password Otorisasi SALAH! Tindakan pemulihan ditolak demi keamanan sistem.' }, { status: 401 });
     }
 
     console.log(`🛡️ [RESTORE AUDIT] Admin ${auth.name} (${auth.employeeId}) memulai pemulihan sistem dari cadangan: ${backupName}`);

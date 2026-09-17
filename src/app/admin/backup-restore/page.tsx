@@ -19,13 +19,24 @@ export default function AdminBackupRestorePage() {
   const [loading, setLoading] = useState(true);
   const [backupInProgress, setBackupInProgress] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Backup Modal State
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [backupPassword, setBackupPassword] = useState('');
+  const [backupModalError, setBackupModalError] = useState('');
 
   // Restore Modal State
   const [selectedBackup, setSelectedBackup] = useState<BackupItem | null>(null);
   const [adminPassword, setAdminPassword] = useState('');
   const [confirmKeyword, setConfirmKeyword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [modalError, setModalError] = useState('');
+  const [restoreModalError, setRestoreModalError] = useState('');
+
+  // Delete Modal State
+  const [itemToDelete, setItemToDelete] = useState<BackupItem | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteModalError, setDeleteModalError] = useState('');
 
   // Toast Notification
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -51,75 +62,98 @@ export default function AdminBackupRestorePage() {
     }
   }
 
-  async function handleCreateBackup() {
+  // 1. BACKUP HANDLER
+  function handleOpenBackupModal() {
+    setBackupPassword('');
+    setBackupModalError('');
+    setShowBackupModal(true);
+  }
+
+  function handleCloseBackupModal() {
+    if (backupInProgress) return;
+    setShowBackupModal(false);
+    setBackupPassword('');
+    setBackupModalError('');
+  }
+
+  async function handleExecuteBackup() {
+    if (!backupPassword) {
+      setBackupModalError('Masukkan password otorisasi backup.');
+      return;
+    }
+
     setBackupInProgress(true);
+    setBackupModalError('');
     setToast(null);
+
     try {
       const res = await fetch('/api/system/backups', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ securityPassword: backupPassword }),
       });
 
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
         const text = await res.text();
         if (res.status === 504 || text.includes('504') || text.includes('Time-out')) {
+          handleCloseBackupModal();
           setToast({
             type: 'success',
-            message: '⏳ Proses backup sedang berjalan di latar belakang server (karena ukuran foto besar). Silakan tunggu 30 detik lalu klik tombol refresh (🔄).',
+            message: '⏳ Proses backup sedang berjalan di latar belakang server (karena ukuran foto besar). Silakan tunggu sebentar lalu klik tombol refresh (🔄).',
           });
           setTimeout(fetchBackups, 3000);
           return;
         }
-        setToast({
-          type: 'error',
-          message: 'Server mengembalikan respon: ' + (res.status === 404 ? 'Route API belum di-build (jalankan npm run build)' : text.slice(0, 100)),
-        });
+        setBackupModalError('Respon server: ' + text.slice(0, 100));
         return;
       }
 
       const data = await res.json();
       if (res.ok && data.success) {
+        handleCloseBackupModal();
         setToast({ type: 'success', message: `✅ ${data.message} (${data.backup?.sizeFormatted})` });
         fetchBackups();
       } else {
-        setToast({ type: 'error', message: data.error || 'Gagal membuat cadangan sistem' });
+        setBackupModalError(data.error || 'Gagal membuat cadangan sistem');
       }
     } catch (err: any) {
-      setToast({ type: 'error', message: 'Gagal membuat backup: ' + err.message });
+      setBackupModalError('Gagal membuat backup: ' + err.message);
     } finally {
       setBackupInProgress(false);
     }
   }
 
+  // 2. RESTORE HANDLER
   function handleOpenRestoreModal(item: BackupItem) {
     setSelectedBackup(item);
     setAdminPassword('');
     setConfirmKeyword('');
-    setModalError('');
+    setRestoreModalError('');
   }
 
   function handleCloseRestoreModal() {
-    if (restoring) return; // Jangan tutup jika sedang proses restore
+    if (restoring) return;
     setSelectedBackup(null);
     setAdminPassword('');
     setConfirmKeyword('');
-    setModalError('');
+    setRestoreModalError('');
   }
 
   async function handleExecuteRestore() {
     if (!selectedBackup) return;
 
     if (confirmKeyword !== 'RESTORE') {
-      setModalError('Kata kunci salah! Anda harus mengetik kata "RESTORE" dengan huruf besar.');
+      setRestoreModalError('Kata kunci salah! Anda harus mengetik kata "RESTORE" dengan huruf besar.');
       return;
     }
 
     if (!adminPassword) {
-      setModalError('Masukkan kata sandi akun Admin Anda untuk otorisasi keamanan.');
+      setRestoreModalError('Masukkan kata sandi otorisasi untuk pemulihan.');
       return;
     }
 
-    setModalError('');
+    setRestoreModalError('');
     setRestoring(true);
 
     try {
@@ -143,12 +177,63 @@ export default function AdminBackupRestorePage() {
         });
         fetchBackups();
       } else {
-        setModalError(data.error || 'Gagal memulihkan sistem');
+        setRestoreModalError(data.error || 'Gagal memulihkan sistem');
       }
     } catch (err: any) {
-      setModalError('Terjadi kesalahan saat memulihkan sistem: ' + err.message);
+      setRestoreModalError('Terjadi kesalahan saat memulihkan sistem: ' + err.message);
     } finally {
       setRestoring(false);
+    }
+  }
+
+  // 3. DELETE HANDLER
+  function handleOpenDeleteModal(item: BackupItem) {
+    setItemToDelete(item);
+    setDeletePassword('');
+    setDeleteModalError('');
+  }
+
+  function handleCloseDeleteModal() {
+    if (deleting) return;
+    setItemToDelete(null);
+    setDeletePassword('');
+    setDeleteModalError('');
+  }
+
+  async function handleExecuteDelete() {
+    if (!itemToDelete) return;
+
+    if (!deletePassword) {
+      setDeleteModalError('Masukkan password otorisasi untuk menghapus backup.');
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteModalError('');
+
+    try {
+      const res = await fetch('/api/system/backups', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          backupName: itemToDelete.name,
+          securityPassword: deletePassword,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        handleCloseDeleteModal();
+        setToast({ type: 'success', message: `🗑️ ${data.message}` });
+        fetchBackups();
+      } else {
+        setDeleteModalError(data.error || 'Gagal menghapus berkas cadangan');
+      }
+    } catch (err: any) {
+      setDeleteModalError('Gagal menghapus: ' + err.message);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -208,8 +293,8 @@ export default function AdminBackupRestorePage() {
         <div className={styles.statCard}>
           <div className={`${styles.statIcon} ${styles.iconPurple}`}>🛡️</div>
           <div>
-            <h4 className={styles.statValue}>Double Safety</h4>
-            <p className={styles.statLabel}>Password Re-check & Auto Snapshot</p>
+            <h4 className={styles.statValue}>Password Protected</h4>
+            <p className={styles.statLabel}>Backup, Restore & Hapus Dilindungi Sandi</p>
           </div>
         </div>
       </div>
@@ -224,10 +309,10 @@ export default function AdminBackupRestorePage() {
         </div>
         <button
           className={styles.btnBackup}
-          onClick={handleCreateBackup}
-          disabled={backupInProgress || restoring}
+          onClick={handleOpenBackupModal}
+          disabled={backupInProgress || restoring || deleting}
         >
-          {backupInProgress ? '⏳ Sedang Mencadangkan...' : '📦 Buat Cadangan Sekarang'}
+          📦 Buat Cadangan Sekarang
         </button>
       </div>
 
@@ -297,14 +382,24 @@ export default function AdminBackupRestorePage() {
                     )}
                   </td>
                   <td className={crudStyles.td} style={{ textAlign: 'right' }}>
-                    <button
-                      className={styles.btnRestore}
-                      onClick={() => handleOpenRestoreModal(item)}
-                      disabled={backupInProgress || restoring}
-                      title="Pulihkan seluruh sistem ke kondisi cadangan ini"
-                    >
-                      🔄 Pulihkan (Restore)
-                    </button>
+                    <div className={styles.actionGroup}>
+                      <button
+                        className={styles.btnRestore}
+                        onClick={() => handleOpenRestoreModal(item)}
+                        disabled={backupInProgress || restoring || deleting}
+                        title="Pulihkan seluruh sistem ke kondisi cadangan ini"
+                      >
+                        🔄 Pulihkan
+                      </button>
+                      <button
+                        className={styles.btnDelete}
+                        onClick={() => handleOpenDeleteModal(item)}
+                        disabled={backupInProgress || restoring || deleting}
+                        title="Hapus berkas cadangan ini"
+                      >
+                        🗑️ Hapus
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -313,7 +408,73 @@ export default function AdminBackupRestorePage() {
         </table>
       </div>
 
-      {/* RESTORE SECURITY MODAL */}
+      {/* MODAL 1: BACKUP AUTHORIZATION MODAL */}
+      {showBackupModal && (
+        <div className={crudStyles.modalOverlay}>
+          <div className={crudStyles.modal} style={{ maxWidth: '480px' }}>
+            <div className={crudStyles.modalHeader}>
+              <h2 className={crudStyles.modalTitle} style={{ color: '#0284c7' }}>
+                🔒 Otorisasi Pembuatan Cadangan
+              </h2>
+              <button
+                className={crudStyles.modalClose}
+                onClick={handleCloseBackupModal}
+                disabled={backupInProgress}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className={crudStyles.modalBody}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 16px 0' }}>
+                Untuk memastikan keamanan data rumah sakit, pembuatan cadangan membutuhkan password otorisasi khusus.
+              </p>
+
+              {backupModalError && (
+                <div className={styles.toastError} style={{ marginBottom: '16px' }}>
+                  <span>{backupModalError}</span>
+                </div>
+              )}
+
+              <div className={crudStyles.formGroup}>
+                <label className={crudStyles.formLabel}>
+                  Masukkan Password Otorisasi (Ikr300721):
+                </label>
+                <input
+                  type="password"
+                  className={crudStyles.formInput}
+                  placeholder="Ketik password otorisasi..."
+                  value={backupPassword}
+                  onChange={(e) => setBackupPassword(e.target.value)}
+                  disabled={backupInProgress}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className={crudStyles.modalFooter}>
+              <button
+                type="button"
+                className={styles.btnCancel}
+                onClick={handleCloseBackupModal}
+                disabled={backupInProgress}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className={styles.btnBackup}
+                onClick={handleExecuteBackup}
+                disabled={!backupPassword || backupInProgress}
+              >
+                {backupInProgress ? '⏳ Sedang Mencadangkan...' : '📦 Mulai Backup Sekarang'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: RESTORE SECURITY MODAL */}
       {selectedBackup && (
         <div className={crudStyles.modalOverlay}>
           <div className={crudStyles.modal} style={{ maxWidth: '560px' }}>
@@ -331,7 +492,6 @@ export default function AdminBackupRestorePage() {
             </div>
 
             <div className={crudStyles.modalBody}>
-              {/* WARNING BOX */}
               <div className={styles.alertSecurityBox}>
                 <div className={styles.alertSecurityTitle}>
                   🚨 PERINGATAN KERAS KEAMANAN DATA
@@ -343,7 +503,6 @@ export default function AdminBackupRestorePage() {
                 </p>
               </div>
 
-              {/* BACKUP DETAILS */}
               <div className={styles.selectedBackupBox}>
                 <table>
                   <tbody>
@@ -364,28 +523,27 @@ export default function AdminBackupRestorePage() {
                     </tr>
                     <tr>
                       <td>Ukuran & Isi</td>
-                      <td>{selectedBackup.sizeFormatted} ({selectedBackup.photosCount} foto patroli)</td>
+                      <td>{selectedBackup.sizeFormatted}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
-              {modalError && (
+              {restoreModalError && (
                 <div className={styles.toastError} style={{ marginBottom: '16px' }}>
-                  <span>{modalError}</span>
+                  <span>{restoreModalError}</span>
                 </div>
               )}
 
-              {/* SECURITY VERIFICATION 1: ADMIN PASSWORD */}
               <div className={crudStyles.formGroup}>
                 <label className={crudStyles.formLabel}>
-                  1. Masukkan Password Akun Admin Anda (Otorisasi Keamanan):
+                  1. Masukkan Password Otorisasi (Ikr300721):
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     className={crudStyles.formInput}
-                    placeholder="Ketik password admin Anda di sini..."
+                    placeholder="Ketik password otorisasi..."
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     disabled={restoring}
@@ -409,7 +567,6 @@ export default function AdminBackupRestorePage() {
                 </div>
               </div>
 
-              {/* SECURITY VERIFICATION 2: KEYWORD */}
               <div className={crudStyles.formGroup}>
                 <label className={crudStyles.formLabel}>
                   2. Ketik kata <strong>RESTORE</strong> di bawah ini untuk konfirmasi:
@@ -446,6 +603,76 @@ export default function AdminBackupRestorePage() {
                 disabled={confirmKeyword !== 'RESTORE' || !adminPassword || restoring}
               >
                 {restoring ? '⏳ Sedang Memulihkan...' : '🔥 Konfirmasi & Pulihkan Sistem'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: DELETE CONFIRMATION MODAL */}
+      {itemToDelete && (
+        <div className={crudStyles.modalOverlay}>
+          <div className={crudStyles.modal} style={{ maxWidth: '480px' }}>
+            <div className={crudStyles.modalHeader}>
+              <h2 className={crudStyles.modalTitle} style={{ color: '#b91c1c' }}>
+                🗑️ Konfirmasi Hapus Cadangan
+              </h2>
+              <button
+                className={crudStyles.modalClose}
+                onClick={handleCloseDeleteModal}
+                disabled={deleting}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className={crudStyles.modalBody}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 12px 0' }}>
+                Apakah Anda yakin ingin menghapus berkas cadangan berikut secara permanen dari server?
+              </p>
+
+              <div className={styles.selectedBackupBox} style={{ borderLeft: '4px solid #ef4444' }}>
+                <code>{itemToDelete.name}</code> ({itemToDelete.sizeFormatted})
+              </div>
+
+              {deleteModalError && (
+                <div className={styles.toastError} style={{ marginBottom: '16px' }}>
+                  <span>{deleteModalError}</span>
+                </div>
+              )}
+
+              <div className={crudStyles.formGroup}>
+                <label className={crudStyles.formLabel}>
+                  Masukkan Password Otorisasi (Ikr300721):
+                </label>
+                <input
+                  type="password"
+                  className={crudStyles.formInput}
+                  placeholder="Ketik password untuk konfirmasi hapus..."
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  disabled={deleting}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className={crudStyles.modalFooter}>
+              <button
+                type="button"
+                className={styles.btnCancel}
+                onClick={handleCloseDeleteModal}
+                disabled={deleting}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className={styles.btnConfirmRestore}
+                onClick={handleExecuteDelete}
+                disabled={!deletePassword || deleting}
+              >
+                {deleting ? '⏳ Sedang Menghapus...' : '🗑️ Hapus Permanen'}
               </button>
             </div>
           </div>

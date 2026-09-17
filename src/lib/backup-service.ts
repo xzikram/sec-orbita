@@ -296,3 +296,44 @@ export async function restoreFullBackup(backupName: string): Promise<{ success: 
     }
   }
 }
+
+export const BACKUP_MASTER_PASSWORD = process.env.BACKUP_MASTER_KEY || 'Ikr300721';
+
+export async function deleteBackup(backupName: string): Promise<{ success: boolean; message: string }> {
+  const rootDir = process.cwd();
+  const backupRootDir = path.join(rootDir, 'backups');
+  const targetPath = path.join(backupRootDir, backupName);
+  const sidecarPath = `${targetPath}.json`;
+
+  if (!fs.existsSync(targetPath)) {
+    throw new Error(`Berkas cadangan ${backupName} tidak ditemukan di server.`);
+  }
+
+  // 1. Hapus berkas utama / folder
+  if (fs.statSync(targetPath).isDirectory()) {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  } else {
+    fs.unlinkSync(targetPath);
+  }
+
+  // 2. Hapus sidecar jika ada
+  if (fs.existsSync(sidecarPath)) {
+    try {
+      fs.unlinkSync(sidecarPath);
+    } catch {}
+  }
+
+  // 3. Jika ada folder uncompressed dengan nama yang sama, bersihkan juga
+  const uncompressedFolder = path.join(backupRootDir, backupName.replace('.tar.gz', ''));
+  if (fs.existsSync(uncompressedFolder) && fs.statSync(uncompressedFolder).isDirectory()) {
+    try {
+      fs.rmSync(uncompressedFolder, { recursive: true, force: true });
+    } catch {}
+  }
+
+  return {
+    success: true,
+    message: `Cadangan ${backupName} berhasil dihapus permanen dari server.`,
+  };
+}
+

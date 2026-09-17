@@ -113,6 +113,13 @@
 .badgeManual { background: #f0fdf4; color: #15803d; }
 .badgeSafety { background: #fef3c7; color: #b45309; }
 
+.actionGroup {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .btnRestore {
   background: #fee2e2;
   color: #b91c1c;
@@ -133,6 +140,27 @@
   color: white;
   border-color: #ef4444;
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+}
+
+.btnDelete {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 150ms ease;
+}
+
+.btnDelete:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
 }
 
 /* Security Modal Alert */
