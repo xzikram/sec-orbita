@@ -1,0 +1,285 @@
+.container {
+  padding: var(--space-4);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.statCard {
+  background: var(--bg-card);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.statIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.iconBlue { background: #e0f2fe; color: #0284c7; }
+.iconGreen { background: #f0fdf4; color: #166534; }
+.iconPurple { background: #f5f3ff; color: #7c3aed; }
+
+.statValue {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-extrabold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.statLabel {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin: 2px 0 0 0;
+}
+
+.actionBar {
+  background: var(--bg-card);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border-light);
+  margin-bottom: var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.actionInfo h3 {
+  margin: 0 0 4px 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.actionInfo p {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.btnBackup {
+  background: #0284c7;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 150ms ease;
+}
+
+.btnBackup:hover:not(:disabled) {
+  background: #0369a1;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+
+.btnBackup:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.badgeAuto { background: #e0f2fe; color: #0369a1; }
+.badgeManual { background: #f0fdf4; color: #15803d; }
+.badgeSafety { background: #fef3c7; color: #b45309; }
+
+.btnRestore {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 150ms ease;
+}
+
+.btnRestore:hover {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
+}
+
+/* Security Modal Alert */
+.alertSecurityBox {
+  background: #fef2f2;
+  border-left: 4px solid #ef4444;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  margin-bottom: var(--space-4);
+}
+
+.alertSecurityTitle {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  color: #991b1b;
+  margin: 0 0 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.alertSecurityText {
+  font-size: var(--font-size-xs);
+  color: #7f1d1d;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.selectedBackupBox {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-size-xs);
+}
+
+.selectedBackupBox table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.selectedBackupBox td {
+  padding: 3px 0;
+}
+
+.selectedBackupBox td:first-child {
+  color: var(--text-muted);
+  width: 120px;
+}
+
+.selectedBackupBox td:last-child {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.btnConfirmRestore {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.btnConfirmRestore:hover:not(:disabled) {
+  background: #b91c1c;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.btnConfirmRestore:disabled {
+  background: #fca5a5;
+  cursor: not-allowed;
+}
+
+.btnCancel {
+  background: var(--color-neutral-100);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.btnCancel:hover {
+  background: var(--color-neutral-200);
+}
+
+/* Toast banners */
+.toastSuccess {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #15803d;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toastError {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Blocking restore overlay */
+.restoringOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.spinner {
+  width: 54px;
+  height: 54px;
+  border: 5px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--space-4);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
