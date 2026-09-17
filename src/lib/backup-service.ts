@@ -171,6 +171,11 @@ export async function createFullBackup(reason: string = 'manual'): Promise<Backu
   try {
     const tarFile = path.join(backupRootDir, `${folderName}.tar.gz`);
     execSync(`tar -czf "${tarFile}" -C "${backupRootDir}" "${folderName}"`, { stdio: 'ignore' });
+
+    // Sinkronisasi otomatis ke Google Drive via rclone jika terkonfigurasi
+    try {
+      execSync(`rclone copy "${tarFile}" gdrive:Backup_Patroli_JEC/`, { stdio: 'ignore' });
+    } catch {}
   } catch {}
 
   const sizeBytes = getFolderSize(targetFolder);

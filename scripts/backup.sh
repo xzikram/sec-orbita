@@ -155,7 +155,28 @@ fi
 
 echo "   ✓ Rotasi selesai ($DELETED_COUNT backup lama dihapus)."
 
+# 7. Sinkronisasi Otomatis ke Google Drive via Rclone (Jika Terkonfigurasi)
+RCLONE_REMOTE="${RCLONE_REMOTE:-gdrive}"
+RCLONE_FOLDER="${RCLONE_FOLDER:-Backup_Patroli_JEC}"
+
+if command -v rclone >/dev/null 2>&1; then
+    if rclone listremotes | grep -q "^${RCLONE_REMOTE}:"; then
+        echo "☁️  6. Mengunggah salinan cadangan ke Google Drive [${RCLONE_REMOTE}:${RCLONE_FOLDER}]..."
+        rclone copy "$BACKUP_ARCHIVE" "${RCLONE_REMOTE}:${RCLONE_FOLDER}/"
+        echo "   ✓ Berkas berhasil disinkronkan ke Google Drive!"
+        
+        # Bersihkan backup di Google Drive yang lebih lama dari 30 hari
+        rclone delete --min-age 30d "${RCLONE_REMOTE}:${RCLONE_FOLDER}/" 2>/dev/null || true
+        echo "   ✓ Rotasi Google Drive selesai."
+    else
+        echo "   ℹ️  Remote rclone '${RCLONE_REMOTE}' belum dikonfigurasi. Melewati upload Google Drive."
+    fi
+else
+    echo "   ℹ️  Utilitas 'rclone' belum terpasang di server. Melewati upload Google Drive."
+fi
+
 echo "========================================================================"
 echo "✅ [$(date '+%Y-%m-%d %H:%M:%S')] Backup Harian Selesai dengan Sukses!"
-echo "📦 Berkas: $BACKUP_ARCHIVE"
+echo "📦 Berkas Lokal : $BACKUP_ARCHIVE"
 echo "========================================================================"
+
