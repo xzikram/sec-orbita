@@ -1,0 +1,148 @@
+================================================================================
+          PANDUAN DARURAT PEMULIHAN BENCANA & SERANGAN RANSOMWARE
+              SISTEM PATROLI KEAMANAN RS MATA JEC ORBITA MAKASSAR
+================================================================================
+Dokumen ini adalah SOP Darurat IT jika server fisik/cloud utama mengalami:
+1. Terkunci/Terenkripsi oleh Virus Ransomware.
+2. Kerusakan fatal pada hard disk / SSD server.
+3. Server terformat atau data terhapus secara tidak sengaja.
+================================================================================
+
+PRINSIP UTAMA:
+JANGAN PANIK! Seluruh data sistem (Database, 100% Berkas Foto Patroli, serta
+Pengaturan Aplikasi) tersimpan aman di luar server pada GOOGLE DRIVE resmi RS.
+Arsip di Google Drive kebal dan tidak terpengaruh oleh virus di server lokal.
+
+Lokasi Cloud Backup : Google Drive -> Folder "Backup_Patroli_JEC"
+Format Berkas Cadangan: backup_YYYY-MM-DD_HHMMSS.tar.gz
+Repositori Source Code : https://github.com/xzikram/sec-orbita.git
+Domain Produksi Resmi  : https://security-orbita.jec.co.id
+
+================================================================================
+LANGKAH 1: ISOLASI SERVER LAMA YANG TERINFEKSI (TINDAKAN PERTAMA)
+================================================================================
+1. Segera cabut kabel LAN / putuskan koneksi internet pada server yang terkena
+   ransomware agar virus tidak merambat ke komputer lain di jaringan RS.
+2. Jangan membayar tebusan kepada hacker.
+3. Matikan mesin server lama.
+
+================================================================================
+LANGKAH 2: SIAPKAN SERVER BARU / INSTALL ULANG OS BERSIH
+================================================================================
+Siapkan server baru (atau format total server lama dengan instalasi OS bersih):
+- OS Rekomendasi: Ubuntu Server 22.04 LTS atau 24.04 LTS.
+
+Jalankan perintah instalasi paket pendukung di server baru:
+  sudo apt update && sudo apt upgrade -y
+  sudo apt install -y git curl wget rclone mariadb-server nginx
+
+Pasang Node.js v20:
+  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  sudo apt install -y nodejs
+  sudo npm install -g pm2
+
+================================================================================
+LANGKAH 3: SETUP DATABASE MYSQL / MARIADB BARU
+================================================================================
+1. Masuk ke MySQL console:
+     sudo mysql
+2. Buat database dan user baru (sesuaikan dengan .env):
+     CREATE DATABASE security_patrol CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+     CREATE USER 'root'@'localhost' IDENTIFIED BY '';
+     GRANT ALL PRIVILEGES ON security_patrol.* TO 'root'@'localhost' WITH GRANT OPTION;
+     FLUSH PRIVILEGES;
+     EXIT;
+
+================================================================================
+LANGKAH 4: CLONE PROJECT KODE DARI GITHUB
+================================================================================
+1. Unduh kode sumber terbaru dari repositori resmi:
+     git clone https://github.com/xzikram/sec-orbita.git /var/www/sec-orbita
+     cd /var/www/sec-orbita
+
+2. Pasang dependensi aplikasi:
+     npm install
+
+3. Berikan izin eksekusi pada script sistem:
+     chmod +x scripts/*.sh
+
+================================================================================
+LANGKAH 5: AMBIL FILE CADANGAN DARI GOOGLE DRIVE
+================================================================================
+Terdapat 2 cara untuk mengambil file backup terakhir:
+
+CARA A (Unduh Manual via Browser):
+1. Buka Google Drive RS Mata JEC ORBITA di browser laptop Anda.
+2. Masuk ke folder: "Backup_Patroli_JEC".
+3. Unduh file backup terbaru (misal: backup_2026-09-17_033638.tar.gz).
+4. Pindahkan/upload file tersebut ke server baru di direktori:
+   /var/www/sec-orbita/backups/
+
+CARA B (Unduh Otomatis via Rclone di Server):
+1. Hubungkan rclone ke Google Drive seperti biasa:
+     rclone config
+2. Salin file backup terbaru langsung ke server:
+     mkdir -p /var/www/sec-orbita/backups
+     rclone copy gdrive:Backup_Patroli_JEC/ /var/www/sec-orbita/backups/
+
+================================================================================
+LANGKAH 6: EKSEKUSI PEMULIHAN TOTAL (DATABASE + SELURUH FOTO)
+================================================================================
+Jalankan script restore otomatis:
+  cd /var/www/sec-orbita
+  bash scripts/restore.sh
+
+Script akan bekerja secara otomatis:
+1. Menampilkan daftar backup yang ada di folder backups/.
+2. Pilih nomor berkas backup yang baru diunduh dari Google Drive.
+3. Ketik 'YA' saat muncul konfirmasi keamanan.
+4. Script akan otomatis:
+   - Mengembalikan seluruh tabel database MySQL.
+   - Mengembalikan 100% foto-foto patroli ke folder public/uploads/ dan uploads/.
+   - Mengembalikan file .env.
+   - Mengenerasi Prisma Client database.
+
+Waktu proses restore: Hanya 1 - 3 Menit!
+
+================================================================================
+LANGKAH 7: BUILD ULANG APLIKASI & JALANKAN SERVICE (PM2)
+================================================================================
+1. Kompilasi aplikasi Next.js untuk mode produksi:
+     npm run build
+
+2. Jalankan aplikasi menggunakan PM2:
+     pm2 start npm --name "sec-orbita" -- run start
+     pm2 save
+     pm2 startup
+
+3. Konfigurasikan Nginx Reverse Proxy ke port 3000 dan aktifkan SSL domain
+   security-orbita.jec.co.id.
+
+================================================================================
+LANGKAH 8: VERIFIKASI AKHIR
+================================================================================
+1. Buka browser: https://security-orbita.jec.co.id
+2. Login sebagai Admin (ADM-001) atau Supervisor (SPV-001).
+3. Periksa menu:
+   - Laporan Patroli: Pastikan data riwayat ronda lengkap.
+   - Galeri Temuan: Pastikan SELURUH FOTO PATROLI BERHASIL MUNCUL NORMAL.
+   - Master Data: Pastikan 12 lantai dan 133 ruangan utuh.
+
+================================================================================
+LANGKAH 9: AKTIFKAN KEMBALI JADWAL BACKUP OTOMATIS JAM 00:00 (CRON)
+================================================================================
+Buka crontab server:
+  crontab -e
+
+Tambahkan baris berikut di paling bawah:
+  0 0 * * * cd /var/www/sec-orbita && bash scripts/backup.sh >> /var/www/sec-orbita/backups/backup.log 2>&1
+
+Simpan dan keluar (Ctrl+O, Enter, Ctrl+X).
+
+================================================================================
+RINGKASAN TARGET PEMULIHAN (DISASTER RECOVERY TARGET):
+- Data Loss (RPO) : Maksimal 24 Jam (Cadangan jam 00:00 hari sebelumnya).
+- Downtime (RTO)  : Kurang dari 30 Menit untuk server kembali hidup dan normal.
+- Integritas Foto : 100% Terselamatkan di Google Drive.
+================================================================================
+Makassar, Tahun 2026 - Departemen TI & SIMRS RS Mata JEC ORBITA Makassar
