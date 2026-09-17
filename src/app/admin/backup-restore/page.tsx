@@ -58,6 +58,25 @@ export default function AdminBackupRestorePage() {
       const res = await fetch('/api/system/backups', {
         method: 'POST',
       });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await res.text();
+        if (res.status === 504 || text.includes('504') || text.includes('Time-out')) {
+          setToast({
+            type: 'success',
+            message: '⏳ Proses backup sedang berjalan di latar belakang server (karena ukuran foto besar). Silakan tunggu 30 detik lalu klik tombol refresh (🔄).',
+          });
+          setTimeout(fetchBackups, 3000);
+          return;
+        }
+        setToast({
+          type: 'error',
+          message: 'Server mengembalikan respon: ' + (res.status === 404 ? 'Route API belum di-build (jalankan npm run build)' : text.slice(0, 100)),
+        });
+        return;
+      }
+
       const data = await res.json();
       if (res.ok && data.success) {
         setToast({ type: 'success', message: `✅ ${data.message} (${data.backup?.sizeFormatted})` });
@@ -269,7 +288,13 @@ export default function AdminBackupRestorePage() {
                     <span className={crudStyles.tdCode}>{item.sizeFormatted}</span>
                   </td>
                   <td className={crudStyles.td}>
-                    {item.photosCount > 0 ? `📸 ${item.photosCount} Foto` : '📁 0 Foto'}
+                    {item.photosCount > 0 ? (
+                      `📸 ${item.photosCount} Foto`
+                    ) : item.sizeBytes > 5 * 1024 * 1024 ? (
+                      `📸 Arsip Foto Lengkap (${item.sizeFormatted})`
+                    ) : (
+                      '📁 0 Foto'
+                    )}
                   </td>
                   <td className={crudStyles.td} style={{ textAlign: 'right' }}>
                     <button

@@ -132,14 +132,26 @@ EOF
 echo "   ✓ Metadata backup tersimpan."
 
 # 5. Kompresi Seluruh Isi Backup Menjadi Satu File Tar.gz
-echo "🗜️  4. Mengompresi seluruh isi backup ke format .tar.gz..."
+PHOTO_COUNT=$(find "$TEMP_DIR/$BACKUP_NAME/uploads" -type f 2>/dev/null | wc -l || echo "0")
+echo "🗜️  4. Mengompresi seluruh isi backup ke format .tar.gz (memuat $PHOTO_COUNT foto)..."
 tar -czf "$BACKUP_ARCHIVE" -C "$TEMP_DIR" "$BACKUP_NAME"
+
+# Simpan sidecar metadata agar pembacaan di web admin instan & akurat
+cat <<EOF > "$BACKUP_ARCHIVE.json"
+{
+  "system": "RS Mata JEC ORBITA Security Patrol",
+  "timestamp": "$TIMESTAMP",
+  "createdAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "uploadedPhotosCount": $PHOTO_COUNT,
+  "databaseName": "$DB_NAME"
+}
+EOF
 
 # Bersihkan direktori sementara
 rm -rf "$TEMP_DIR"
 
 ARCHIVE_SIZE=$(du -h "$BACKUP_ARCHIVE" | cut -f1)
-echo "   ✓ Arsip backup selesai dibuat: $BACKUP_ARCHIVE ($ARCHIVE_SIZE)"
+echo "   ✓ Arsip backup selesai dibuat: $BACKUP_ARCHIVE ($ARCHIVE_SIZE, $PHOTO_COUNT foto)"
 
 # 6. Rotasi Backup: Hapus backup yang lebih lama dari 30 hari (hemat disk)
 echo "🧹 5. Membersihkan backup lama (> 30 hari)..."

@@ -64,7 +64,7 @@ export function listBackups(): BackupItem[] {
   const entries = fs.readdirSync(backupRootDir);
 
   for (const entry of entries) {
-    if (!entry.startsWith('backup_')) continue;
+    if (!entry.startsWith('backup_') || entry.endsWith('.json')) continue;
     const fullPath = path.join(backupRootDir, entry);
     try {
       const stats = fs.statSync(fullPath);
@@ -72,19 +72,48 @@ export function listBackups(): BackupItem[] {
       let databaseName = 'security_patrol';
       let timestamp = entry.replace('backup_', '').replace('.tar.gz', '');
 
+      // 1. Cek jika ada file metadata.json di dalam folder
       const metaPath = path.join(fullPath, 'metadata.json');
-      if (fs.existsSync(metaPath)) {
+      // 2. Cek jika ada file sidecar json (misal: backup_xxx.tar.gz.json)
+      const sidecarPath = `${fullPath}.json`;
+
+      if (fs.existsSync(sidecarPath)) {
+        try {
+          const sidecar = JSON.parse(fs.readFileSync(sidecarPath, 'utf-8'));
+          photosCount = sidecar.uploadedPhotosCount || 0;
+          databaseName = sidecar.databaseName || databaseName;
+          timestamp = sidecar.timestamp || timestamp;
+        } catch {}
+      } else if (fs.existsSync(metaPath)) {
         try {
           const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
           photosCount = meta.uploadedPhotosCount || 0;
           databaseName = meta.databaseName || databaseName;
           timestamp = meta.timestamp || timestamp;
         } catch {}
+      } else if (entry.endsWith('.tar.gz')) {
+        // Coba hitung foto dari arsip tar jika memungkinkan secara cepat
+        try {
+          const tarCheck = execSync(`tar -ztf "${fullPath}" 2>/dev/null | grep -E -c "\\.(jpg|jpeg|png|webp)"`, {
+            stdio: ['pipe', 'pipe', 'ignore'],
+            timeout: 3000,
+          });
+          const parsed = parseInt(tarCheck.toString().trim(), 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            photosCount = parsed;
+          }
+        } catch {}
       }
 
       let sizeBytes = stats.size;
       if (stats.isDirectory()) {
         sizeBytes = getFolderSize(fullPath);
+        if (photosCount === 0) {
+          const upDir = path.join(fullPath, 'uploads');
+          const pubUpDir = path.join(fullPath, 'public_uploads');
+          if (fs.existsSync(upDir)) photosCount = fs.readdirSync(upDir).length;
+          else if (fs.existsSync(pubUpDir)) photosCount = fs.readdirSync(pubUpDir).length;
+        }
       }
 
       items.push({
