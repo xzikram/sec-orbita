@@ -438,7 +438,7 @@ export default function AdminBackupRestorePage() {
 
               <div className={crudStyles.formGroup}>
                 <label className={crudStyles.formLabel}>
-                  Masukkan Password Otorisasi (Ikr300721):
+                  Masukkan Password Otorisasi Keamanan:
                 </label>
                 <input
                   type="password"
@@ -537,7 +537,7 @@ export default function AdminBackupRestorePage() {
 
               <div className={crudStyles.formGroup}>
                 <label className={crudStyles.formLabel}>
-                  1. Masukkan Password Otorisasi (Ikr300721):
+                  1. Masukkan Password Otorisasi Keamanan:
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
@@ -643,7 +643,7 @@ export default function AdminBackupRestorePage() {
 
               <div className={crudStyles.formGroup}>
                 <label className={crudStyles.formLabel}>
-                  Masukkan Password Otorisasi (Ikr300721):
+                  Masukkan Password Otorisasi Keamanan:
                 </label>
                 <input
                   type="password"
