@@ -82,6 +82,7 @@ fi
 # Eksekusi mysqldump
 if command -v mysqldump >/dev/null 2>&1; then
     mysqldump -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" $PASS_PARAM \
+        --no-tablespaces \
         --single-transaction \
         --quick \
         --routines \
@@ -93,19 +94,19 @@ else
     touch "$TEMP_DIR/$BACKUP_NAME/database.sql"
 fi
 
-# 3. Mencadangkan Seluruh Foto & Gambar Uploads
+# 3. Mencadangkan Seluruh Foto & Gambar Uploads (Deduplikasi)
 echo "📸 2. Mencadangkan Berkas Foto & Gambar Patroli..."
-mkdir -p "$TEMP_DIR/$BACKUP_NAME/public_uploads"
-mkdir -p "$TEMP_DIR/$BACKUP_NAME/root_uploads"
+mkdir -p "$TEMP_DIR/$BACKUP_NAME/uploads"
 
+# Cukup ambil dari public/uploads (tanpa menduplikasi dengan root uploads agar ukuran hemat 50%)
 if [ -d "$PROJECT_ROOT/public/uploads" ]; then
-    cp -r "$PROJECT_ROOT/public/uploads"/* "$TEMP_DIR/$BACKUP_NAME/public_uploads/" 2>/dev/null || true
-    echo "   ✓ Berkas public/uploads berhasil disalin."
-fi
-
-if [ -d "$PROJECT_ROOT/uploads" ]; then
-    cp -r "$PROJECT_ROOT/uploads"/* "$TEMP_DIR/$BACKUP_NAME/root_uploads/" 2>/dev/null || true
-    echo "   ✓ Berkas uploads (root) berhasil disalin."
+    cp -r "$PROJECT_ROOT/public/uploads"/* "$TEMP_DIR/$BACKUP_NAME/uploads/" 2>/dev/null || true
+    PHOTO_SIZE=$(du -sh "$TEMP_DIR/$BACKUP_NAME/uploads" 2>/dev/null | cut -f1 || echo "0")
+    echo "   ✓ Foto patroli berhasil disalin ($PHOTO_SIZE)."
+elif [ -d "$PROJECT_ROOT/uploads" ]; then
+    cp -r "$PROJECT_ROOT/uploads"/* "$TEMP_DIR/$BACKUP_NAME/uploads/" 2>/dev/null || true
+    PHOTO_SIZE=$(du -sh "$TEMP_DIR/$BACKUP_NAME/uploads" 2>/dev/null | cut -f1 || echo "0")
+    echo "   ✓ Foto patroli berhasil disalin ($PHOTO_SIZE)."
 fi
 
 # 4. Mencadangkan Pengaturan & Konfigurasi Sistem
@@ -159,10 +160,16 @@ echo "   ✓ Rotasi selesai ($DELETED_COUNT backup lama dihapus)."
 RCLONE_REMOTE="${RCLONE_REMOTE:-gdrive}"
 RCLONE_FOLDER="${RCLONE_FOLDER:-Backup_Patroli_JEC}"
 
+# Tampilkan progress bar interaktif jika dijalankan manual di terminal
+RCLONE_OPT=""
+if [ -t 1 ]; then
+    RCLONE_OPT="--progress"
+fi
+
 if command -v rclone >/dev/null 2>&1; then
     if rclone listremotes | grep -q "^${RCLONE_REMOTE}:"; then
         echo "☁️  6. Mengunggah salinan cadangan ke Google Drive [${RCLONE_REMOTE}:${RCLONE_FOLDER}]..."
-        rclone copy "$BACKUP_ARCHIVE" "${RCLONE_REMOTE}:${RCLONE_FOLDER}/"
+        rclone copy "$BACKUP_ARCHIVE" "${RCLONE_REMOTE}:${RCLONE_FOLDER}/" $RCLONE_OPT
         echo "   ✓ Berkas berhasil disinkronkan ke Google Drive!"
         
         # Bersihkan backup di Google Drive yang lebih lama dari 30 hari

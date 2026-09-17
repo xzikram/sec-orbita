@@ -160,7 +160,11 @@ echo "📸 3. Mengembalikan berkas foto & gambar patroli..."
 mkdir -p "$PROJECT_ROOT/public/uploads"
 mkdir -p "$PROJECT_ROOT/uploads"
 
-if [ -d "$EXTRACTED_DIR/public_uploads" ]; then
+if [ -d "$EXTRACTED_DIR/uploads" ]; then
+    cp -r "$EXTRACTED_DIR/uploads"/* "$PROJECT_ROOT/public/uploads/" 2>/dev/null || true
+    cp -r "$EXTRACTED_DIR/uploads"/* "$PROJECT_ROOT/uploads/" 2>/dev/null || true
+    echo "   ✓ Foto patroli berhasil dipulihkan."
+elif [ -d "$EXTRACTED_DIR/public_uploads" ]; then
     cp -r "$EXTRACTED_DIR/public_uploads"/* "$PROJECT_ROOT/public/uploads/" 2>/dev/null || true
     echo "   ✓ Foto ke public/uploads berhasil dikembalikan."
 fi
