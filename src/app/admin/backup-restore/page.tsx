@@ -285,8 +285,8 @@ export default function AdminBackupRestorePage() {
         <div className={styles.statCard}>
           <div className={`${styles.statIcon} ${styles.iconGreen}`}>🧹</div>
           <div>
-            <h4 className={styles.statValue}>30 Hari Retensi</h4>
-            <p className={styles.statLabel}>Rotasi Otomatis (Hemat Kapasitas Disk)</p>
+            <h4 className={styles.statValue}>Maksimal 7 Cadangan</h4>
+            <p className={styles.statLabel}>Auto-Rotasi 7 Cadangan (Hemat Disk)</p>
           </div>
         </div>
 

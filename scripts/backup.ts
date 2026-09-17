@@ -156,24 +156,31 @@ async function runBackup() {
   fs.writeFileSync(path.join(backupFolder, 'metadata.json'), JSON.stringify(metadata, null, 2), 'utf-8');
   console.log('   ✓ Metadata backup tersimpan.');
 
-  // 5. ROTASI BACKUP: Hapus folder/arsip backup yang lebih lama dari 30 hari
-  console.log('🧹 4. Rotasi Backup (> 30 Hari)...');
+  // 5. ROTASI BACKUP: Hanya simpan 7 cadangan terbaru (maksimal 7 backup)
+  console.log('🧹 4. Rotasi Backup (Maksimal 7 Cadangan)...');
   try {
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
     const items = fs.readdirSync(backupRootDir);
+    const backupList = items
+      .filter((item) => item.startsWith('backup_') && !item.endsWith('.json'))
+      .map((item) => {
+        const p = path.join(backupRootDir, item);
+        return { name: item, path: p, mtime: fs.statSync(p).mtimeMs };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+
     let deleted = 0;
-    for (const item of items) {
-      if (item.startsWith('backup_')) {
-        const itemPath = path.join(backupRootDir, item);
-        const stats = fs.statSync(itemPath);
-        if (stats.mtimeMs < thirtyDaysAgo) {
-          fs.rmSync(itemPath, { recursive: true, force: true });
-          deleted++;
-          console.log(`   - Menghapus backup lama: ${item}`);
+    if (backupList.length > 7) {
+      const toDelete = backupList.slice(7);
+      for (const b of toDelete) {
+        fs.rmSync(b.path, { recursive: true, force: true });
+        if (fs.existsSync(`${b.path}.json`)) {
+          try { fs.unlinkSync(`${b.path}.json`); } catch {}
         }
+        deleted++;
+        console.log(`   - Menghapus cadangan lama (> 7 item): ${b.name}`);
       }
     }
-    console.log(`   ✓ Rotasi selesai (${deleted} backup lama dibersihkan).`);
+    console.log(`   ✓ Rotasi selesai (${deleted} cadangan lama dibersihkan, tersisa ${Math.min(backupList.length, 7)}).`);
   } catch (rotErr) {
     console.warn('   ⚠️  Gagal membersihkan rotasi:', rotErr);
   }

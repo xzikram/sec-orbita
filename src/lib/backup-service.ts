@@ -63,9 +63,25 @@ export function listBackups(): BackupItem[] {
   const items: BackupItem[] = [];
   const entries = fs.readdirSync(backupRootDir);
 
+  const tarArchives = new Set(
+    entries.filter((e) => e.endsWith('.tar.gz')).map((e) => e.replace('.tar.gz', ''))
+  );
+
   for (const entry of entries) {
     if (!entry.startsWith('backup_') || entry.endsWith('.json')) continue;
     const fullPath = path.join(backupRootDir, entry);
+
+    // Jika ini adalah folder uncompressed padahal sudah ada berkas .tar.gz yang setara,
+    // bersihkan foldernya dari disk untuk menghemat ratusan MB dan jangan tampilkan dobel di tabel!
+    if (!entry.endsWith('.tar.gz') && tarArchives.has(entry)) {
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory()) {
+        try {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+        } catch {}
+      }
+      continue;
+    }
+
     try {
       const stats = fs.statSync(fullPath);
       let photosCount = 0;
@@ -132,6 +148,51 @@ export function listBackups(): BackupItem[] {
   return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+export function rotateBackups(maxKeep: number = 7): number {
+  const backupRootDir = path.join(process.cwd(), 'backups');
+  if (!fs.existsSync(backupRootDir)) return 0;
+
+  // 1. Bersihkan semua folder uncompressed yang berkas .tar.gz-nya sudah ada
+  try {
+    const entries = fs.readdirSync(backupRootDir);
+    const tarArchives = new Set(
+      entries.filter((e) => e.endsWith('.tar.gz')).map((e) => e.replace('.tar.gz', ''))
+    );
+    for (const entry of entries) {
+      if (entry.startsWith('backup_') && !entry.endsWith('.tar.gz') && !entry.endsWith('.json')) {
+        if (tarArchives.has(entry)) {
+          const dirToClean = path.join(backupRootDir, entry);
+          if (fs.existsSync(dirToClean) && fs.statSync(dirToClean).isDirectory()) {
+            try {
+              fs.rmSync(dirToClean, { recursive: true, force: true });
+            } catch {}
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Ambil semua item backup (sudah terurut dari yang terbaru)
+  const items = listBackups();
+  if (items.length <= maxKeep) return 0;
+
+  let deletedCount = 0;
+  const toDelete = items.slice(maxKeep);
+  for (const item of toDelete) {
+    try {
+      deleteBackup(item.name);
+      deletedCount++;
+    } catch {}
+  }
+
+  // 3. Rotasi di Google Drive jika rclone terkonfigurasi (retensi 7 hari)
+  try {
+    execSync('rclone delete --min-age 7d gdrive:Backup_Patroli_JEC/ 2>/dev/null || true', { stdio: 'ignore' });
+  } catch {}
+
+  return deletedCount;
+}
+
 export async function createFullBackup(reason: string = 'manual'): Promise<BackupItem> {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -196,24 +257,53 @@ export async function createFullBackup(reason: string = 'manual'): Promise<Backu
   };
   fs.writeFileSync(path.join(targetFolder, 'metadata.json'), JSON.stringify(metadata, null, 2), 'utf-8');
 
+  let finalName = folderName;
+  let finalSizeBytes = getFolderSize(targetFolder);
+
   // Also compress to tar.gz if tar is available on the system
   try {
     const tarFile = path.join(backupRootDir, `${folderName}.tar.gz`);
     execSync(`tar -czf "${tarFile}" -C "${backupRootDir}" "${folderName}"`, { stdio: 'ignore' });
 
-    // Sinkronisasi otomatis ke Google Drive via rclone jika terkonfigurasi
-    try {
-      execSync(`rclone copy "${tarFile}" gdrive:Backup_Patroli_JEC/`, { stdio: 'ignore' });
-    } catch {}
+    if (fs.existsSync(tarFile)) {
+      finalName = `${folderName}.tar.gz`;
+      finalSizeBytes = fs.statSync(tarFile).size;
+
+      // Simpan sidecar metadata JSON untuk pembacaan instan di tabel
+      const sidecarData = {
+        system: 'RS Mata JEC ORBITA Makassar - Security Patrol Monitoring System',
+        domain: 'https://security-orbita.jec.co.id',
+        timestamp,
+        reason,
+        createdAt: now.toISOString(),
+        databaseName: 'security_patrol',
+        uploadedPhotosCount: pubCount + rootCount,
+        totalRecords,
+      };
+      fs.writeFileSync(`${tarFile}.json`, JSON.stringify(sidecarData, null, 2), 'utf-8');
+
+      // Hapus folder uncompressed agar kapasitas disk hemat dan tidak muncul ganda
+      try {
+        fs.rmSync(targetFolder, { recursive: true, force: true });
+      } catch {}
+
+      // Sinkronisasi otomatis ke Google Drive via rclone jika terkonfigurasi
+      try {
+        execSync(`rclone copy "${tarFile}" gdrive:Backup_Patroli_JEC/`, { stdio: 'ignore' });
+      } catch {}
+    }
   } catch {}
 
-  const sizeBytes = getFolderSize(targetFolder);
+  // Lakukan rotasi otomatis: pertahankan maksimal 7 cadangan terbaru
+  try {
+    rotateBackups(7);
+  } catch {}
 
   return {
-    name: folderName,
+    name: finalName,
     createdAt: now.toISOString(),
-    sizeBytes,
-    sizeFormatted: formatBytes(sizeBytes),
+    sizeBytes: finalSizeBytes,
+    sizeFormatted: formatBytes(finalSizeBytes),
     photosCount: pubCount + rootCount,
     databaseName: 'security_patrol',
     timestamp,
