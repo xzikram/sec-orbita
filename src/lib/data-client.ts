@@ -10,6 +10,7 @@ export interface RoomCheckPayload {
   floorCode?: string;
   acStatus: 'on' | 'off' | 'not_available';
   lightStatus: 'on' | 'off';
+  checklistValues?: Record<string, string>;
   condition: 'normal' | 'finding';
   remarks?: string;
   photoBase64: string;

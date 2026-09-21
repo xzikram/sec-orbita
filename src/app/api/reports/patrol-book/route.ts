@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
               acStatus: check.acStatus, // 'on' | 'off' | 'not_available'
               lightStatus: check.lightStatus, // 'on' | 'off'
               condition: check.condition, // 'normal' | 'finding'
+              checklistValues: check.checklistValues || null,
               remarks: check.remarks,
               checkedAt: check.checkedAt,
               photos: (check.photos || []).map((p: any) => ({

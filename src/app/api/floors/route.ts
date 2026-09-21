@@ -13,7 +13,15 @@ export async function GET() {
       where: { isActive: true },
       include: {
         building: { select: { id: true, name: true, code: true } },
-        rooms: { where: { isActive: true }, orderBy: { patrolOrder: 'asc' } },
+        rooms: {
+          where: { isActive: true },
+          orderBy: { patrolOrder: 'asc' },
+          include: {
+            checklistTemplate: {
+              select: { id: true, name: true, items: true, isDefault: true, isActive: true },
+            },
+          },
+        },
         qrCode: { select: { token: true, generatedAt: true } },
       },
       orderBy: { sortOrder: 'asc' },

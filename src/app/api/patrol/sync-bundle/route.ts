@@ -164,13 +164,28 @@ export async function POST(request: NextRequest) {
 
         const checkedTimestamp = c.checkedAt ? new Date(c.checkedAt) : new Date();
 
+        let resolvedAc = c.acStatus;
+        if (!resolvedAc && c.checklistValues && typeof c.checklistValues === 'object') {
+          const v = c.checklistValues['AC'] || c.checklistValues['ac'];
+          if (v === 'on' || v === 'off' || v === 'not_available') resolvedAc = v;
+        }
+        if (!resolvedAc) resolvedAc = 'not_available';
+
+        let resolvedLight = c.lightStatus;
+        if (!resolvedLight && c.checklistValues && typeof c.checklistValues === 'object') {
+          const v = c.checklistValues['Lampu'] || c.checklistValues['lampu'];
+          if (v === 'on' || v === 'off') resolvedLight = v;
+        }
+        if (!resolvedLight) resolvedLight = 'off';
+
         if (checkRecord) {
           // Update existing
           checkRecord = await prisma.patrolCheck.update({
             where: { id: checkRecord.id },
             data: {
-              acStatus: c.acStatus || 'not_available',
-              lightStatus: c.lightStatus || 'off',
+              acStatus: resolvedAc,
+              lightStatus: resolvedLight,
+              checklistValues: c.checklistValues ? c.checklistValues : undefined,
               condition: c.condition || 'normal',
               remarks: c.remarks,
               checkedAt: checkedTimestamp,
@@ -187,8 +202,9 @@ export async function POST(request: NextRequest) {
               roomCodeSnapshot: dbRoom.code,
               floorNameSnapshot: dbRoom.floor.name,
               roomOrderSnapshot: dbRoom.patrolOrder,
-              acStatus: c.acStatus || 'not_available',
-              lightStatus: c.lightStatus || 'off',
+              acStatus: resolvedAc,
+              lightStatus: resolvedLight,
+              checklistValues: c.checklistValues ? c.checklistValues : undefined,
               condition: c.condition || 'normal',
               remarks: c.remarks,
               checkedAt: checkedTimestamp,

@@ -54,10 +54,18 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
 
     // 3. Pre-cache active patrol session & auth user for offline resilience
     try {
-      const [sessionsRes, meRes] = await Promise.all([
+      const [sessionsRes, meRes, checklistsRes] = await Promise.all([
         fetch('/api/patrol/sessions?personal=true').catch(() => null),
         fetch('/api/auth/me').catch(() => null),
+        fetch('/api/checklists').catch(() => null),
       ]);
+
+      if (checklistsRes && checklistsRes.ok) {
+        const checklistsData = await checklistsRes.json();
+        if (Array.isArray(checklistsData)) {
+          localStorage.setItem('cached-checklist-templates', JSON.stringify(checklistsData));
+        }
+      }
 
       let currentUserId: string | null = null;
       if (meRes && meRes.ok) {
@@ -267,3 +275,23 @@ export async function clearApplicationCacheAndReload(redirectUrl: string = '/sec
     window.location.href = `${redirectUrl}${separator}refresh=${Date.now()}`;
   }
 }
+
+export function getCachedChecklistTemplates(): any[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('cached-checklist-templates');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getDefaultChecklistItems(): string[] {
+  const templates = getCachedChecklistTemplates();
+  const def = templates.find((t: any) => t.isDefault && t.isActive !== false) || templates.find((t: any) => t.isActive !== false) || templates[0];
+  if (def && Array.isArray(def.items) && def.items.length > 0) {
+    return def.items;
+  }
+  return ['AC', 'Lampu', 'Music', 'Kondisi Ruangan'];
+}
+

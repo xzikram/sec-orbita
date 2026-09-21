@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { sessionFloorId, roomId, acStatus, lightStatus, condition, remarks, photoBase64 } = body;
+    const { sessionFloorId, roomId, acStatus, lightStatus, condition, remarks, photoBase64, checklistValues } = body;
 
     let realRoomId = roomId;
     const isRoomDummy = !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId) || roomId.startsWith('room-');
@@ -246,6 +246,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Resolve acStatus & lightStatus with fallback from checklistValues
+    let resolvedAcStatus = acStatus;
+    if (!resolvedAcStatus && checklistValues && typeof checklistValues === 'object') {
+      const acVal = checklistValues['AC'] || checklistValues['ac'];
+      if (acVal === 'on' || acVal === 'off' || acVal === 'not_available') {
+        resolvedAcStatus = acVal;
+      }
+    }
+    if (!resolvedAcStatus) resolvedAcStatus = 'not_available';
+
+    let resolvedLightStatus = lightStatus;
+    if (!resolvedLightStatus && checklistValues && typeof checklistValues === 'object') {
+      const lightVal = checklistValues['Lampu'] || checklistValues['lampu'];
+      if (lightVal === 'on' || lightVal === 'off') {
+        resolvedLightStatus = lightVal;
+      }
+    }
+    if (!resolvedLightStatus) resolvedLightStatus = 'off';
+
     const check = await prisma.patrolCheck.create({
       data: {
         sessionFloorId: realSessionFloorId,
@@ -255,8 +274,9 @@ export async function POST(request: NextRequest) {
         roomCodeSnapshot: room.code,
         floorNameSnapshot: room.floor.name,
         roomOrderSnapshot: room.patrolOrder,
-        acStatus: acStatus || 'not_available',
-        lightStatus: lightStatus || 'off',
+        acStatus: resolvedAcStatus,
+        lightStatus: resolvedLightStatus,
+        checklistValues: checklistValues ? checklistValues : undefined,
         condition: condition || 'normal',
         remarks,
         checkedAt: new Date(),

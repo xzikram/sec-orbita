@@ -56,6 +56,7 @@ export interface OfflineCheck {
   floorCode?: string;
   acStatus: 'on' | 'off' | 'not_available';
   lightStatus: 'on' | 'off';
+  checklistValues?: Record<string, string>;
   condition: 'normal' | 'finding';
   remarks?: string;
   photoBase64: string; // Base64 representation of photo for offline storage
@@ -92,6 +93,8 @@ export interface CachedRoom {
   hasAc: boolean;
   hasLight: boolean;
   photoGuide?: string;
+  checklistTemplateId?: string | null;
+  checklistTemplate?: { id: string; name: string; items: string[]; isDefault?: boolean } | null;
   isActive: boolean;
 }
 
@@ -143,6 +146,8 @@ export async function cacheMasterPatrolData(floorsData: any[]): Promise<{ floors
             hasAc: r.hasAc !== false,
             hasLight: r.hasLight !== false,
             photoGuide: r.photoGuide || `Periksa ruangan ${r.name}`,
+            checklistTemplateId: r.checklistTemplateId || r.checklistTemplate?.id || null,
+            checklistTemplate: r.checklistTemplate || null,
             isActive: r.isActive !== false,
           };
           roomStore.put(roomRecord);

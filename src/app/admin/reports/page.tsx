@@ -64,6 +64,7 @@ interface FloorDetail {
       id: string;
       acStatus: 'on' | 'off' | 'not_available';
       lightStatus: 'on' | 'off';
+      checklistValues?: Record<string, string> | null;
       condition: 'normal' | 'finding';
       remarks: string | null;
       checkedAt: string;
@@ -521,6 +522,36 @@ export default function AdminReportsPage() {
                                               <span style={{ fontSize: '11px', color: chk?.condition === 'finding' ? '#b91c1c' : '#64748b' }}>
                                                 {chk?.remarks || (chk?.condition === 'normal' ? 'Aman' : '—')}
                                               </span>
+                                              {chk?.checklistValues && typeof chk.checklistValues === 'object' && (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '3px' }}>
+                                                  {Object.entries(chk.checklistValues).map(([k, v]) => {
+                                                    const lk = k.toLowerCase().trim();
+                                                    if (lk === 'ac' || lk === 'lampu' || lk === 'kondisi ruangan' || lk === 'kondisi' || lk === 'condition') return null;
+                                                    const isMusic = lk.includes('music') || lk.includes('musik');
+                                                    const isPositive = v === 'on' || v === 'normal';
+                                                    return (
+                                                      <span
+                                                        key={k}
+                                                        style={{
+                                                          display: 'inline-flex',
+                                                          alignItems: 'center',
+                                                          gap: '2px',
+                                                          padding: '1px 5px',
+                                                          borderRadius: '3px',
+                                                          fontSize: '9.5px',
+                                                          fontWeight: 700,
+                                                          background: isPositive ? '#ecfdf5' : '#f8fafc',
+                                                          color: isPositive ? '#065f46' : '#475569',
+                                                          border: '1px solid',
+                                                          borderColor: isPositive ? '#a7f3d0' : '#e2e8f0',
+                                                        }}
+                                                      >
+                                                        {isMusic ? '🎵' : '📋'} {k}: {String(v).toUpperCase()}
+                                                      </span>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
                                             </td>
                                             <td style={{ textAlign: 'center' }}>
                                               {chk?.photos && chk.photos.length > 0 ? (

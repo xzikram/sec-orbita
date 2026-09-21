@@ -148,15 +148,17 @@ model Room {
   name        String
   patrolOrder Int      @default(0) @map("patrol_order")
   hasAc       Boolean  @default(true) @map("has_ac")
-  hasLight    Boolean  @default(true) @map("has_light")
-  photoGuide  String?  @map("photo_guide") @db.Text
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  hasLight            Boolean            @default(true) @map("has_light")
+  checklistTemplateId String?            @map("checklist_template_id")
+  photoGuide          String?            @map("photo_guide") @db.Text
+  isActive            Boolean            @default(true) @map("is_active")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
 
-  floor        Floor         @relation(fields: [floorId], references: [id])
-  patrolChecks PatrolCheck[]
-  findings     Finding[]
+  floor               Floor              @relation(fields: [floorId], references: [id])
+  checklistTemplate   ChecklistTemplate? @relation(fields: [checklistTemplateId], references: [id])
+  patrolChecks        PatrolCheck[]
+  findings            Finding[]
 
   @@map("rooms")
 }
@@ -280,6 +282,7 @@ model PatrolCheck {
   roomOrderSnapshot Int         @map("room_order_snapshot")
   acStatus          AcStatus    @default(not_available) @map("ac_status")
   lightStatus       LightStatus @default(off) @map("light_status")
+  checklistValues   Json?       @map("checklist_values")
   condition         Condition   @default(normal)
   remarks           String?     @db.Text
   checkedAt         DateTime    @map("checked_at")
@@ -444,6 +447,8 @@ model ChecklistTemplate {
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  rooms Room[]
 
   @@map("checklist_templates")
 }

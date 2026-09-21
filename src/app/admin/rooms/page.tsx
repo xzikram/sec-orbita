@@ -15,12 +15,15 @@ interface FloorData {
     hasAc: boolean;
     hasLight: boolean;
     photoGuide: string | null;
+    checklistTemplateId?: string | null;
+    checklistTemplate?: { id: string; name: string; items: string[]; isDefault?: boolean } | null;
     isActive: boolean;
   }[];
 }
 
 export default function RoomsPage() {
   const [floors, setFloors] = useState<FloorData[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [floorFilter, setFloorFilter] = useState('all');
@@ -36,6 +39,7 @@ export default function RoomsPage() {
     code: '',
     patrolOrder: 1,
     photoGuide: '',
+    checklistTemplateId: '',
     hasAc: true,
     hasLight: true,
     isActive: true,
@@ -43,13 +47,20 @@ export default function RoomsPage() {
 
   const fetchFloors = async () => {
     try {
-      const res = await fetch('/api/floors');
-      if (res.ok) {
-        const data = await res.json();
+      const [resFloors, resChecklists] = await Promise.all([
+        fetch('/api/floors'),
+        fetch('/api/checklists').catch(() => null),
+      ]);
+      if (resFloors.ok) {
+        const data = await resFloors.json();
         setFloors(data);
         if (data.length > 0 && !formData.floorId) {
           setFormData(prev => ({ ...prev, floorId: data[0].id }));
         }
+      }
+      if (resChecklists && resChecklists.ok) {
+        const clData = await resChecklists.json();
+        if (Array.isArray(clData)) setTemplates(clData);
       }
     } catch (err) {
       console.error('Failed to fetch floors for rooms:', err);
@@ -71,6 +82,7 @@ export default function RoomsPage() {
       code: '',
       patrolOrder: (floorsRooms.length || 0) + 1,
       photoGuide: '',
+      checklistTemplateId: '',
       hasAc: true,
       hasLight: true,
       isActive: true,
@@ -87,6 +99,7 @@ export default function RoomsPage() {
       code: r.code,
       patrolOrder: r.patrolOrder,
       photoGuide: r.photoGuide || '',
+      checklistTemplateId: r.checklistTemplateId || r.checklistTemplate?.id || '',
       hasAc: r.hasAc,
       hasLight: r.hasLight,
       isActive: r.isActive,
@@ -159,6 +172,8 @@ export default function RoomsPage() {
     hasAc: r.hasAc,
     hasLight: r.hasLight,
     photoGuide: r.photoGuide,
+    checklistTemplateId: r.checklistTemplateId,
+    checklistTemplate: r.checklistTemplate,
     isActive: r.isActive,
   })));
 
@@ -220,6 +235,7 @@ export default function RoomsPage() {
                   <th className={s.th}>Nama Ruangan</th>
                   <th className={s.th}>Lantai</th>
                   <th className={s.th}>Urutan</th>
+                  <th className={s.th}>Checklist</th>
                   <th className={s.th}>AC</th>
                   <th className={s.th}>Lampu</th>
                   <th className={s.th}>Status</th>
@@ -233,6 +249,11 @@ export default function RoomsPage() {
                     <td className={`${s.td} ${s.tdBold}`}>{r.name}</td>
                     <td className={s.td}><span className={s.tdMuted}>{r.floorName}</span></td>
                     <td className={s.td}>{r.patrolOrder}</td>
+                    <td className={s.td}>
+                      <span className="badge badge-info" style={{ fontSize: '11px' }}>
+                        {r.checklistTemplate?.name || 'Default'}
+                      </span>
+                    </td>
                     <td className={s.td}>{r.hasAc ? <span className="badge badge-success">Ya</span> : <span className="badge badge-neutral">Tidak</span>}</td>
                     <td className={s.td}>{r.hasLight ? <span className="badge badge-success">Ya</span> : <span className="badge badge-neutral">Tidak</span>}</td>
                     <td className={s.td}>
@@ -332,6 +353,25 @@ export default function RoomsPage() {
                     onChange={e => setFormData({ ...formData, code: e.target.value })}
                   />
                 </div>
+              </div>
+
+              <div className={s.formGroup}>
+                <label className={s.formLabel}>Template Checklist Pemeriksaan</label>
+                <select
+                  className={s.formSelect}
+                  value={formData.checklistTemplateId}
+                  onChange={e => setFormData({ ...formData, checklistTemplateId: e.target.value })}
+                >
+                  <option value="">Checklist Default (Mengikuti Master Default)</option>
+                  {templates.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.isDefault ? '(Default)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
+                  Petugas security akan memeriksa item sesuai template yang dipilih (misal: AC, Lampu, Music, dll).
+                </span>
               </div>
 
               <div className={s.formRow}>

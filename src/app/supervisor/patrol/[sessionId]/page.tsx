@@ -9,6 +9,7 @@ interface RoomCheck {
   id: string;
   acStatus: 'on' | 'off' | 'not_available';
   lightStatus: 'on' | 'off';
+  checklistValues?: Record<string, string> | null;
   condition: 'normal' | 'finding';
   remarks: string | null;
   checkedAt: string;
@@ -327,18 +328,50 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
                           </td>
                           <td style={{ padding: '8px 10px' }}>
                             {chk ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ color: chk.condition === 'finding' ? 'var(--color-danger-700)' : 'var(--text-secondary)' }}>
-                                  {chk.remarks || (chk.condition === 'normal' ? 'Aman / Nihil' : '-')}
-                                </span>
-                                {chk.photos && chk.photos.length > 0 && (
-                                  <button
-                                    onClick={() => setSelectedPhoto(chk.photos![0].filePath)}
-                                    style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
-                                    title="Lihat Foto Bukti"
-                                  >
-                                    <span style={{ fontSize: '14px' }}>📷</span>
-                                  </button>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: chk.checklistValues ? '4px' : '0' }}>
+                                  <span style={{ color: chk.condition === 'finding' ? 'var(--color-danger-700)' : 'var(--text-secondary)' }}>
+                                    {chk.remarks || (chk.condition === 'normal' ? 'Aman / Nihil' : '-')}
+                                  </span>
+                                  {chk.photos && chk.photos.length > 0 && (
+                                    <button
+                                      onClick={() => setSelectedPhoto(chk.photos![0].filePath)}
+                                      style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
+                                      title="Lihat Foto Bukti"
+                                    >
+                                      <span style={{ fontSize: '14px' }}>📷</span>
+                                    </button>
+                                  )}
+                                </div>
+                                {chk.checklistValues && typeof chk.checklistValues === 'object' && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
+                                    {Object.entries(chk.checklistValues).map(([k, v]) => {
+                                      const lk = k.toLowerCase().trim();
+                                      if (lk === 'ac' || lk === 'lampu' || lk === 'kondisi ruangan' || lk === 'kondisi' || lk === 'condition') return null;
+                                      const isMusic = lk.includes('music') || lk.includes('musik');
+                                      const isPositive = v === 'on' || v === 'normal';
+                                      return (
+                                        <span
+                                          key={k}
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '3px',
+                                            padding: '1px 6px',
+                                            borderRadius: '4px',
+                                            fontSize: '10.5px',
+                                            fontWeight: 700,
+                                            background: isPositive ? '#ecfdf5' : '#f8fafc',
+                                            color: isPositive ? '#065f46' : '#475569',
+                                            border: '1px solid',
+                                            borderColor: isPositive ? '#a7f3d0' : '#e2e8f0',
+                                          }}
+                                        >
+                                          {isMusic ? '🎵' : '📋'} {k}: {String(v).toUpperCase()}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
                                 )}
                               </div>
                             ) : '—'}

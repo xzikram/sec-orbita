@@ -160,6 +160,7 @@ export async function syncOfflineData(onProgress?: SyncProgressCallback): Promis
               roomId: check.roomId,
               acStatus: check.acStatus,
               lightStatus: check.lightStatus,
+              checklistValues: check.checklistValues,
               condition: check.condition,
               remarks: check.remarks,
               photoBase64: check.photoBase64,

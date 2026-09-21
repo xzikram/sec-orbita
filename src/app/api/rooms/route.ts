@@ -34,6 +34,9 @@ export async function GET(request: NextRequest) {
             building: { select: { id: true, name: true, code: true } },
           },
         },
+        checklistTemplate: {
+          select: { id: true, name: true, items: true, isDefault: true, isActive: true },
+        },
       },
       orderBy: [{ floor: { sortOrder: 'asc' } }, { patrolOrder: 'asc' }],
     });
@@ -54,7 +57,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { floorId, code, name, patrolOrder, hasAc, hasLight, photoGuide } = body;
+    const { floorId, code, name, patrolOrder, hasAc, hasLight, photoGuide, checklistTemplateId } = body;
 
     if (!floorId || !code || !name) {
       return NextResponse.json(
@@ -84,11 +87,15 @@ export async function POST(request: NextRequest) {
         hasAc: hasAc !== undefined ? Boolean(hasAc) : true,
         hasLight: hasLight !== undefined ? Boolean(hasLight) : true,
         photoGuide: photoGuide?.trim() || null,
+        checklistTemplateId: checklistTemplateId || null,
         isActive: true,
       },
       include: {
         floor: {
           select: { id: true, code: true, name: true },
+        },
+        checklistTemplate: {
+          select: { id: true, name: true, items: true, isDefault: true },
         },
       },
     });
@@ -119,7 +126,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, floorId, code, name, patrolOrder, hasAc, hasLight, photoGuide, isActive } = body;
+    const { id, floorId, code, name, patrolOrder, hasAc, hasLight, photoGuide, isActive, checklistTemplateId } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID ruangan wajib disertakan' }, { status: 400 });
@@ -157,11 +164,15 @@ export async function PUT(request: NextRequest) {
         hasAc: hasAc !== undefined ? Boolean(hasAc) : true,
         hasLight: hasLight !== undefined ? Boolean(hasLight) : true,
         photoGuide: photoGuide ? photoGuide.trim() : null,
+        checklistTemplateId: checklistTemplateId !== undefined ? (checklistTemplateId || null) : undefined,
         isActive: isActive !== undefined ? Boolean(isActive) : true,
       },
       include: {
         floor: {
           select: { id: true, code: true, name: true },
+        },
+        checklistTemplate: {
+          select: { id: true, name: true, items: true, isDefault: true },
         },
       },
     });

@@ -1,11 +1,12 @@
 'use client';
 
-import { use, useState, useEffect, useRef } from 'react';
+import { use, useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import CameraCapture from '@/components/CameraCapture';
 import { submitRoomCheck, submitFinding } from '@/lib/data-client';
 import { getCachedSettings } from '@/lib/settings-client';
 import { reportClientError } from '@/lib/error-reporter';
+import { getDefaultChecklistItems } from '@/lib/offline-cache';
 import {
   getRoomById,
   getFloorById,
@@ -17,6 +18,24 @@ import {
   type LightStatus,
 } from '@/lib/dummy-data';
 import styles from './room.module.css';
+
+function getItemIcon(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('ac')) return '❄️';
+  if (n.includes('lampu') || n.includes('light')) return '💡';
+  if (n.includes('music') || n.includes('musik') || n.includes('audio') || n.includes('sound')) return '🎵';
+  if (n.includes('suhu') || n.includes('temp')) return '🌡️';
+  if (n.includes('ups') || n.includes('baterai') || n.includes('battery')) return '🔋';
+  if (n.includes('kabel') || n.includes('cable')) return '🔌';
+  if (n.includes('pintu') || n.includes('door') || n.includes('jendela') || n.includes('window')) return '🚪';
+  if (n.includes('kebersihan') || n.includes('clean')) return '🧹';
+  return '📋';
+}
+
+function isConditionItem(name: string): boolean {
+  const n = name.toLowerCase();
+  return n.includes('kondisi') || n.includes('kabel') || n.includes('kebersihan') || n.includes('keamanan') || n.includes('suhu');
+}
 
 export default function RoomCheckPage({
   params,
@@ -55,6 +74,7 @@ export default function RoomCheckPage({
     return initialRoom && !initialRoom.hasAc ? 'not_available' : null;
   });
   const [lightStatus, setLightStatus] = useState<LightStatus | null>(null);
+  const [checklistValues, setChecklistValues] = useState<Record<string, string>>({});
   const [condition, setCondition] = useState<'normal' | 'finding' | null>(null);
   const [remarks, setRemarks] = useState('');
   const [findingCategory, setFindingCategory] = useState<FindingCategory | null>(null);
@@ -88,6 +108,7 @@ export default function RoomCheckPage({
     setRemarks('');
     setFindingCategory(null);
     setFindingDescription('');
+    setChecklistValues({});
 
     // Read pre-selected condition if passed via query param (e.g. ?condition=finding)
     if (typeof window !== 'undefined') {
@@ -179,8 +200,12 @@ export default function RoomCheckPage({
           Promise.all([
             fetch('/api/auth/me', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
             fetch('/api/patrol/sessions?personal=true', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
-          ]).then(([meData, sessions]) => {
+            fetch('/api/checklists', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
+          ]).then(([meData, sessions, clData]) => {
             clearTimeout(timer);
+            if (Array.isArray(clData)) {
+              try { localStorage.setItem('cached-checklist-templates', JSON.stringify(clData)); } catch {}
+            }
             if (meData?.user) {
               setCurrentUser(meData.user);
               try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
@@ -240,6 +265,38 @@ export default function RoomCheckPage({
     );
   });
   
+  // Checklist items resolution
+  const checklistItems = useMemo<string[]>(() => {
+    if (room?.checklistTemplate?.items && Array.isArray(room.checklistTemplate.items) && room.checklistTemplate.items.length > 0) {
+      return room.checklistTemplate.items;
+    }
+    return getDefaultChecklistItems();
+  }, [room]);
+
+  const gridItems = useMemo<string[]>(() => {
+    const items = checklistItems.filter(item => {
+      const n = item.toLowerCase().trim();
+      return n !== 'kondisi ruangan' && n !== 'status ruangan' && n !== 'kondisi';
+    });
+    if (items.length === 0) {
+      const fallback = ['Lampu'];
+      if (room?.hasAc !== false) fallback.unshift('AC');
+      return fallback;
+    }
+    return items;
+  }, [checklistItems, room]);
+
+  const missingItem = gridItems.find(item => {
+    const lower = item.toLowerCase();
+    if (lower.includes('ac')) {
+      return room?.hasAc && !acStatus;
+    }
+    if (lower.includes('lampu') || lower.includes('light')) {
+      return room?.hasLight && !lightStatus;
+    }
+    return !checklistValues[item];
+  });
+
   // Combine online (DB) checks and offline checks for this floor (by code snapshot)
   const combinedCheckedSet = new Set<string>();
   activeFloorRooms.forEach((r: any) => {
@@ -361,6 +418,7 @@ export default function RoomCheckPage({
     if (photoRequired && !photo) return false;
     if (room.hasAc && !acStatus) return false;
     if (room.hasLight && !lightStatus) return false;
+    if (missingItem) return false;
     if (!condition) return false;
     if (condition === 'finding' && (!findingCategory || !findingDescription.trim())) return false;
     return true;
@@ -374,6 +432,13 @@ export default function RoomCheckPage({
       const sessionFloorId = sessionFloor?.id || `sf-${(floor?.code || 'l1').toLowerCase()}`;
 
       // Call submitRoomCheck helper with rich metadata
+      const finalChecklistValues: Record<string, string> = {
+        ...checklistValues,
+      };
+      if (acStatus) finalChecklistValues['AC'] = acStatus;
+      if (lightStatus) finalChecklistValues['Lampu'] = lightStatus;
+      if (condition) finalChecklistValues['Kondisi Ruangan'] = condition;
+
       const result = await submitRoomCheck({
         sessionFloorId,
         roomId: room.id,
@@ -382,6 +447,7 @@ export default function RoomCheckPage({
         floorCode: floor?.code || '',
         acStatus: acStatus || 'not_available',
         lightStatus: lightStatus === 'not_available' ? 'off' : (lightStatus || 'off'),
+        checklistValues: finalChecklistValues,
         condition: condition || 'normal',
         remarks: remarks || undefined,
         photoBase64: photo || '',
@@ -460,6 +526,7 @@ export default function RoomCheckPage({
             setCondition(null);
             setAcStatus(nextRoom.hasAc ? null : 'not_available');
             setLightStatus(null);
+            setChecklistValues({});
             setCurrentRoomId(nextRoom.id);
             if (typeof window !== 'undefined') {
               window.history.replaceState(null, '', `/security/patrol/room/${nextRoom.id}`);
@@ -837,59 +904,127 @@ export default function RoomCheckPage({
           />
         )}
 
-        {/* 2-Column Utilities Grid (AC & Lampu side-by-side) */}
+        {/* Dynamic Utilities Grid (AC, Lampu, Music, & other checklist items) */}
         <div className={styles.utilitiesGrid}>
-          <div className={styles.utilityCard}>
-            <div className={styles.utilityLabel}>
-              <span>❄️ AC</span>
-              {!room.hasAc && <span className={styles.noAcBadge}>TIDAK ADA</span>}
-            </div>
-            {!room.hasAc ? (
-              <div className={styles.noAcNotice}>
-                <span>Area ini tanpa AC</span>
-              </div>
-            ) : (
-              <div className={styles.btnGroupCompact}>
-                <button
-                  type="button"
-                  className={`${styles.btnCompact} ${acStatus === 'on' ? styles.activeOn : ''}`}
-                  onClick={() => setAcStatus('on')}
-                >
-                  ON
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.btnCompact} ${acStatus === 'off' ? styles.activeOff : ''}`}
-                  onClick={() => setAcStatus('off')}
-                >
-                  OFF
-                </button>
-              </div>
-            )}
-          </div>
+          {gridItems.map(item => {
+            const lower = item.toLowerCase();
+            if (lower.includes('ac')) {
+              return (
+                <div key={item} className={styles.utilityCard}>
+                  <div className={styles.utilityLabel}>
+                    <span>❄️ {item}</span>
+                    {!room.hasAc && <span className={styles.noAcBadge}>TIDAK ADA</span>}
+                  </div>
+                  {!room.hasAc ? (
+                    <div className={styles.noAcNotice}>
+                      <span>Area ini tanpa AC</span>
+                    </div>
+                  ) : (
+                    <div className={styles.btnGroupCompact}>
+                      <button
+                        type="button"
+                        className={`${styles.btnCompact} ${acStatus === 'on' ? styles.activeOn : ''}`}
+                        onClick={() => {
+                          setAcStatus('on');
+                          setChecklistValues(prev => ({ ...prev, [item]: 'on', AC: 'on' }));
+                        }}
+                      >
+                        ON
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.btnCompact} ${acStatus === 'off' ? styles.activeOff : ''}`}
+                        onClick={() => {
+                          setAcStatus('off');
+                          setChecklistValues(prev => ({ ...prev, [item]: 'off', AC: 'off' }));
+                        }}
+                      >
+                        OFF
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            }
 
-          <div className={styles.utilityCard}>
-            <div className={styles.utilityLabel}>
-              <span>💡 Lampu</span>
-              {!room.hasLight && <span className={styles.noAcBadge}>TIDAK ADA</span>}
-            </div>
-            <div className={styles.btnGroupCompact}>
-              <button
-                type="button"
-                className={`${styles.btnCompact} ${lightStatus === 'on' ? styles.activeOn : ''}`}
-                onClick={() => setLightStatus('on')}
-              >
-                ON
-              </button>
-              <button
-                type="button"
-                className={`${styles.btnCompact} ${lightStatus === 'off' ? styles.activeOff : ''}`}
-                onClick={() => setLightStatus('off')}
-              >
-                OFF
-              </button>
-            </div>
-          </div>
+            if (lower.includes('lampu') || lower.includes('light')) {
+              return (
+                <div key={item} className={styles.utilityCard}>
+                  <div className={styles.utilityLabel}>
+                    <span>💡 {item}</span>
+                    {!room.hasLight && <span className={styles.noAcBadge}>TIDAK ADA</span>}
+                  </div>
+                  <div className={styles.btnGroupCompact}>
+                    <button
+                      type="button"
+                      className={`${styles.btnCompact} ${lightStatus === 'on' ? styles.activeOn : ''}`}
+                      onClick={() => {
+                        setLightStatus('on');
+                        setChecklistValues(prev => ({ ...prev, [item]: 'on', Lampu: 'on' }));
+                      }}
+                    >
+                      ON
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.btnCompact} ${lightStatus === 'off' ? styles.activeOff : ''}`}
+                      onClick={() => {
+                        setLightStatus('off');
+                        setChecklistValues(prev => ({ ...prev, [item]: 'off', Lampu: 'off' }));
+                      }}
+                    >
+                      OFF
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            const isCond = isConditionItem(item);
+            const val = checklistValues[item];
+            return (
+              <div key={item} className={styles.utilityCard}>
+                <div className={styles.utilityLabel}>
+                  <span>{getItemIcon(item)} {item}</span>
+                </div>
+                {isCond ? (
+                  <div className={styles.btnGroupCompact}>
+                    <button
+                      type="button"
+                      className={`${styles.btnCompact} ${val === 'normal' ? styles.activeOn : ''}`}
+                      onClick={() => setChecklistValues(prev => ({ ...prev, [item]: 'normal' }))}
+                    >
+                      NORMAL
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.btnCompact} ${val === 'kendala' ? styles.activeOff : ''}`}
+                      onClick={() => setChecklistValues(prev => ({ ...prev, [item]: 'kendala' }))}
+                    >
+                      KENDALA
+                    </button>
+                  </div>
+                ) : (
+                  <div className={styles.btnGroupCompact}>
+                    <button
+                      type="button"
+                      className={`${styles.btnCompact} ${val === 'on' ? styles.activeOn : ''}`}
+                      onClick={() => setChecklistValues(prev => ({ ...prev, [item]: 'on' }))}
+                    >
+                      ON
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.btnCompact} ${val === 'off' ? styles.activeOff : ''}`}
+                      onClick={() => setChecklistValues(prev => ({ ...prev, [item]: 'off' }))}
+                    >
+                      OFF
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Condition Card */}
@@ -1012,6 +1147,7 @@ export default function RoomCheckPage({
                 {!photo ? '⚠️ Ambil foto bukti terlebih dahulu' :
                  (room.hasAc && !acStatus) ? '⚠️ Pilih status AC (ON / OFF)' :
                  (room.hasLight && !lightStatus) ? '⚠️ Pilih status lampu (ON / OFF)' :
+                 missingItem ? `⚠️ Pilih status ${missingItem} (${isConditionItem(missingItem) ? 'NORMAL / KENDALA' : 'ON / OFF'})` :
                  !condition ? '⚠️ Pilih status (Aman / Ada Temuan)' :
                  (condition === 'finding' && !findingCategory) ? '⚠️ Pilih kategori temuan' :
                  (condition === 'finding' && !findingDescription.trim()) ? '⚠️ Tulis deskripsi temuan' :
