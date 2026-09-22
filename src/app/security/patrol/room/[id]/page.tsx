@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect, useRef, useMemo } from 'react';
+import { use, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import CameraCapture from '@/components/CameraCapture';
 import { submitRoomCheck, submitFinding } from '@/lib/data-client';
@@ -274,15 +274,12 @@ export default function RoomCheckPage({
     );
   });
   
-  // Checklist items resolution
-  const checklistItems = useMemo<string[]>(() => {
-    if (room?.checklistTemplate?.items && Array.isArray(room.checklistTemplate.items) && room.checklistTemplate.items.length > 0) {
-      return room.checklistTemplate.items;
-    }
-    return getDefaultChecklistItems();
-  }, [room]);
+  // Checklist items resolution (standard computation, no hooks after conditional returns)
+  const checklistItems: string[] = (room?.checklistTemplate?.items && Array.isArray(room.checklistTemplate.items) && room.checklistTemplate.items.length > 0)
+    ? room.checklistTemplate.items
+    : getDefaultChecklistItems();
 
-  const gridItems = useMemo<string[]>(() => {
+  const gridItems: string[] = (() => {
     const items = checklistItems.filter(item => {
       const n = item.toLowerCase().trim();
       return n !== 'kondisi ruangan' && n !== 'status ruangan' && n !== 'kondisi';
@@ -298,7 +295,7 @@ export default function RoomCheckPage({
       return fallback;
     }
     return items;
-  }, [checklistItems, room]);
+  })();
 
   const missingItem = gridItems.find(item => {
     const lower = item.toLowerCase();
