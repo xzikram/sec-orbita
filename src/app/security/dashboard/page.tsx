@@ -31,6 +31,7 @@ interface PatrolSession {
 
 interface DashboardData {
   session: PatrolSession | null;
+  incompleteSession?: PatrolSession | null;
   totalRooms: number;
   checkedRooms: number;
   findingsCount: number;
@@ -117,7 +118,11 @@ export default function SecurityDashboard() {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          if (isSessionStaleOrPastDay(parsed) || (currentUser?.id && parsed.userId && parsed.userId !== currentUser.id)) {
+          if (
+            isSessionStaleOrPastDay(parsed) || 
+            (currentUser?.id && parsed.userId && parsed.userId !== currentUser.id) ||
+            parsed.status !== 'in_progress'
+          ) {
             localStorage.removeItem('cached-active-session');
             localStorage.removeItem('lastPatrolState');
             cached = null;
@@ -383,8 +388,13 @@ export default function SecurityDashboard() {
           ? findingsData.total
           : Array.isArray(findingsData) ? findingsData.length : 0;
 
+        const myIncompleteSession = !activeSession
+          ? (sessions.find(s => s.status === 'incomplete' && (s.userId === currentUid || !s.userId)) || null)
+          : null;
+
         setData({
           session: activeSession,
+          incompleteSession: myIncompleteSession,
           totalRooms,
           checkedRooms,
           findingsCount,
@@ -722,6 +732,21 @@ export default function SecurityDashboard() {
             </div>
           </div>
         </div>
+      ) : data?.incompleteSession ? (
+        <div className={`card animate-slide-up ${styles.emptyPatrolCard}`} style={{ borderLeft: '4px solid var(--color-warning-500, #f59e0b)' }}>
+          <div className={`card-body ${styles.emptyPatrolBody}`}>
+            <div className={styles.emptyPatrolIconCircle} style={{ background: '#fffbeb', color: '#d97706' }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <h3 className={styles.emptyPatrolTitle}>Patroli Selesai Sebagian (Ronda #{data.incompleteSession.patrolNumber})</h3>
+            <p className={styles.emptyPatrolDesc}>
+              Sesi patroli sebelumnya diakhiri lebih awal. Tekan tombol di bawah untuk melanjutkan sisa rute tanpa kehilangan data.
+            </p>
+          </div>
+        </div>
       ) : (
         <div className={`card animate-slide-up ${styles.emptyPatrolCard}`}>
           <div className={`card-body ${styles.emptyPatrolBody}`}>
@@ -928,6 +953,20 @@ export default function SecurityDashboard() {
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             Lanjutkan Patroli (Ronda #{data.session.patrolNumber})
+          </button>
+        ) : data?.incompleteSession ? (
+          <button
+            type="button"
+            onClick={handleNavigateToPatrolWithPreDownload}
+            disabled={isPreparingOffline}
+            className="btn btn-warning"
+            style={{ width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: '#d97706', borderColor: '#d97706', color: '#ffffff', boxShadow: '0 3px 12px rgba(217, 119, 6, 0.3)' }}
+            id="btn-start-patrol"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            Lanjutkan Patroli Sebagian (Ronda #{data.incompleteSession.patrolNumber})
           </button>
         ) : (
           <button

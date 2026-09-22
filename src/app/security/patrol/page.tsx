@@ -62,6 +62,7 @@ export default function PatrolPage() {
   const [earlyReason, setEarlyReason] = useState('Panggilan Darurat / Insiden IGD');
   const [earlyNotes, setEarlyNotes] = useState('');
   const [submittingEarly, setSubmittingEarly] = useState(false);
+  const [isStartingDirectly, setIsStartingDirectly] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -98,8 +99,8 @@ export default function PatrolPage() {
             const startedTime = parsed.startedAt ? new Date(parsed.startedAt).getTime() : 0;
             const isStale = (sessDate && sessDate < todayMakassar && Date.now() - startedTime > 4 * 60 * 60 * 1000) || (startedTime > 0 && Date.now() - startedTime > 4 * 60 * 60 * 1000);
 
-            if (isStale || (currentUserId && parsed.userId && parsed.userId !== currentUserId)) {
-              if (isStale) {
+            if (isStale || (currentUserId && parsed.userId && parsed.userId !== currentUserId) || parsed.status !== 'in_progress') {
+              if (isStale || parsed.status !== 'in_progress') {
                 localStorage.removeItem('cached-active-session');
                 localStorage.removeItem('lastPatrolState');
               }
@@ -196,6 +197,10 @@ export default function PatrolPage() {
         }),
       });
       if (res.ok) {
+        try {
+          localStorage.removeItem('cached-active-session');
+          localStorage.removeItem('lastPatrolState');
+        } catch {}
         window.location.href = '/security/patrol/summary';
       } else {
         const err = await res.json().catch(() => ({}));
@@ -205,6 +210,31 @@ export default function PatrolPage() {
       alert('Terjadi kesalahan jaringan saat mengakhiri patroli.');
     } finally {
       setSubmittingEarly(false);
+    }
+  };
+
+  const handleStartOrResumeDirectly = async () => {
+    setIsStartingDirectly(true);
+    try {
+      const res = await fetch('/api/patrol/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const newSess = await res.json();
+        setSession(newSess);
+        try {
+          localStorage.setItem('cached-active-session', JSON.stringify(newSess));
+        } catch {}
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Gagal memulai atau melanjutkan sesi patroli.');
+      }
+    } catch {
+      alert('Gagal menghubungi server untuk memulai sesi patroli.');
+    } finally {
+      setIsStartingDirectly(false);
     }
   };
 
@@ -223,12 +253,22 @@ export default function PatrolPage() {
         <h2 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 'var(--font-weight-bold)', marginBottom: 8 }}>
           Tidak Ada Sesi Patroli Aktif
         </h2>
-        <p className="text-muted" style={{ maxWidth: 400, margin: '0 auto 24px', fontSize: 'var(--font-size-sm)' }}>
-          Anda belum memulai sesi patroli atau sesi sebelumnya telah selesai/ditutup. Silakan mulai patroli baru dari menu Beranda.
+        <p className="text-muted" style={{ maxWidth: 420, margin: '0 auto 24px', fontSize: 'var(--font-size-sm)' }}>
+          Anda belum memulai sesi patroli atau sesi sebelumnya telah diselesaikan sebagian/ditutup. Anda dapat melanjutkan atau memulai patroli baru sekarang.
         </p>
-        <Link href="/security/dashboard" className="btn btn-primary btn-lg">
-          Kembali ke Beranda
-        </Link>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '320px', margin: '0 auto' }}>
+          <button
+            onClick={handleStartOrResumeDirectly}
+            disabled={isStartingDirectly}
+            className="btn btn-primary btn-lg"
+            style={{ fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+          >
+            {isStartingDirectly ? 'Menyiapkan Sesi...' : '🛡️ Mulai / Lanjutkan Patroli'}
+          </button>
+          <Link href="/security/dashboard" className="btn btn-outline">
+            Kembali ke Beranda
+          </Link>
+        </div>
       </div>
     );
   }

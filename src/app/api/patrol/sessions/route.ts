@@ -182,6 +182,87 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(myActiveSession, { status: 200 });
     }
 
+    // 2b. Check if user already has a session record for THIS schedule today (prevent unique constraint collision)
+    const existingScheduleSession = await prisma.patrolSession.findUnique({
+      where: {
+        userId_scheduleId_patrolDate: {
+          userId: auth.id,
+          scheduleId: schedule.id,
+          patrolDate,
+        },
+      },
+      include: {
+        user: { select: { id: true, name: true, employeeId: true } },
+        schedule: true,
+        sessionFloors: {
+          include: {
+            floor: true,
+            patrolChecks: {
+              include: { findings: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (existingScheduleSession) {
+      if (existingScheduleSession.status === 'in_progress') {
+        return NextResponse.json(existingScheduleSession, { status: 200 });
+      }
+
+      if (existingScheduleSession.status === 'incomplete') {
+        // Patrol was previously ended early (e.g. Selesaikan Sebagian), but user wants to resume/continue it!
+        const timeMakassar = new Date().toLocaleTimeString('id-ID', {
+          timeZone: 'Asia/Makassar',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const resumeNote = `[DILANJUTKAN KEMBALI: ${timeMakassar} WITA]`;
+        const updatedNotes = [existingScheduleSession.notes, resumeNote].filter(Boolean).join('\n');
+
+        const resumedSession = await prisma.patrolSession.update({
+          where: { id: existingScheduleSession.id },
+          data: {
+            status: 'in_progress',
+            completedAt: null,
+            notes: updatedNotes,
+          },
+          include: {
+            user: { select: { id: true, name: true, employeeId: true } },
+            schedule: true,
+            sessionFloors: {
+              include: {
+                floor: true,
+                patrolChecks: {
+                  include: { findings: true },
+                },
+              },
+            },
+          },
+        });
+
+        await prisma.activityLog.create({
+          data: {
+            userId: auth.id,
+            action: 'resume_patrol',
+            entityType: 'patrol_session',
+            entityId: resumedSession.id,
+            metadata: {
+              reason: 'Melanjutkan sesi patroli yang sebelumnya diselesaikan sebagian (incomplete)',
+              patrolNumber: schedule.patrolNumber,
+            },
+          },
+        });
+
+        return NextResponse.json(resumedSession, { status: 200 });
+      }
+
+      if (existingScheduleSession.status === 'completed') {
+        // If already completed for this schedule, return it gracefully
+        return NextResponse.json(existingScheduleSession, { status: 200 });
+      }
+    }
+
     // Resolve shift dynamically based on schedule and real-time clock
     let sessionShiftId = auth.shiftId || '';
     try {
