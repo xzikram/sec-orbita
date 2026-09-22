@@ -92,6 +92,7 @@ export async function GET(request: NextRequest) {
             name: room.name,
             hasAc: room.hasAc,
             hasLight: room.hasLight,
+            hasMusic: room.hasMusic,
             check: check ? {
               id: check.id,
               acStatus: check.acStatus, // 'on' | 'off' | 'not_available'

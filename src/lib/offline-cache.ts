@@ -17,7 +17,7 @@ export interface PreDownloadResult {
   error?: string;
 }
 
-export const CATALOG_CACHE_VERSION = 'sec-patrol-v17-20260915';
+export const CATALOG_CACHE_VERSION = 'sec-patrol-v18-20260922';
 
 /**
  * Downloads and caches all active floors, 133 rooms, and official QR tokens to IndexedDB.
@@ -92,7 +92,7 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
     // 4. Pre-cache all patrol pages and QR scan routes into browser CacheStorage
     if (typeof window !== 'undefined' && 'caches' in window) {
       try {
-        const cache = await window.caches.open('sec-patrol-v17');
+        const cache = await window.caches.open('sec-patrol-v18');
         const routesToPrecache = [
           '/security/dashboard',
           '/security/patrol',

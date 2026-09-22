@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { floorId, code, name, patrolOrder, hasAc, hasLight, photoGuide, checklistTemplateId } = body;
+    const { floorId, code, name, patrolOrder, hasAc, hasLight, hasMusic, photoGuide, checklistTemplateId } = body;
 
     if (!floorId || !code || !name) {
       return NextResponse.json(
@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
         patrolOrder: Number(patrolOrder) || 0,
         hasAc: hasAc !== undefined ? Boolean(hasAc) : true,
         hasLight: hasLight !== undefined ? Boolean(hasLight) : true,
+        hasMusic: hasMusic !== undefined ? Boolean(hasMusic) : false,
         photoGuide: photoGuide?.trim() || null,
         checklistTemplateId: checklistTemplateId || null,
         isActive: true,
@@ -126,7 +127,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, floorId, code, name, patrolOrder, hasAc, hasLight, photoGuide, isActive, checklistTemplateId } = body;
+    const { id, floorId, code, name, patrolOrder, hasAc, hasLight, hasMusic, photoGuide, isActive, checklistTemplateId } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID ruangan wajib disertakan' }, { status: 400 });
@@ -163,6 +164,7 @@ export async function PUT(request: NextRequest) {
         patrolOrder: Number(patrolOrder) || 0,
         hasAc: hasAc !== undefined ? Boolean(hasAc) : true,
         hasLight: hasLight !== undefined ? Boolean(hasLight) : true,
+        hasMusic: hasMusic !== undefined ? Boolean(hasMusic) : false,
         photoGuide: photoGuide ? photoGuide.trim() : null,
         checklistTemplateId: checklistTemplateId !== undefined ? (checklistTemplateId || null) : undefined,
         isActive: isActive !== undefined ? Boolean(isActive) : true,

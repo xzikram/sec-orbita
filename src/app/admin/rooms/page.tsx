@@ -14,6 +14,7 @@ interface FloorData {
     patrolOrder: number;
     hasAc: boolean;
     hasLight: boolean;
+    hasMusic?: boolean;
     photoGuide: string | null;
     checklistTemplateId?: string | null;
     checklistTemplate?: { id: string; name: string; items: string[]; isDefault?: boolean } | null;
@@ -42,6 +43,7 @@ export default function RoomsPage() {
     checklistTemplateId: '',
     hasAc: true,
     hasLight: true,
+    hasMusic: false,
     isActive: true,
   });
 
@@ -85,6 +87,7 @@ export default function RoomsPage() {
       checklistTemplateId: '',
       hasAc: true,
       hasLight: true,
+      hasMusic: false,
       isActive: true,
     });
     setShowModal(true);
@@ -102,6 +105,7 @@ export default function RoomsPage() {
       checklistTemplateId: r.checklistTemplateId || r.checklistTemplate?.id || '',
       hasAc: r.hasAc,
       hasLight: r.hasLight,
+      hasMusic: Boolean(r.hasMusic),
       isActive: r.isActive,
     });
     setShowModal(true);
@@ -171,6 +175,7 @@ export default function RoomsPage() {
     patrolOrder: r.patrolOrder,
     hasAc: r.hasAc,
     hasLight: r.hasLight,
+    hasMusic: r.hasMusic,
     photoGuide: r.photoGuide,
     checklistTemplateId: r.checklistTemplateId,
     checklistTemplate: r.checklistTemplate,
@@ -238,6 +243,7 @@ export default function RoomsPage() {
                   <th className={s.th}>Checklist</th>
                   <th className={s.th}>AC</th>
                   <th className={s.th}>Lampu</th>
+                  <th className={s.th}>Music</th>
                   <th className={s.th}>Status</th>
                   <th className={s.th}>Aksi</th>
                 </tr>
@@ -256,6 +262,7 @@ export default function RoomsPage() {
                     </td>
                     <td className={s.td}>{r.hasAc ? <span className="badge badge-success">Ya</span> : <span className="badge badge-neutral">Tidak</span>}</td>
                     <td className={s.td}>{r.hasLight ? <span className="badge badge-success">Ya</span> : <span className="badge badge-neutral">Tidak</span>}</td>
+                    <td className={s.td}>{r.hasMusic ? <span className="badge badge-success">Ya</span> : <span className="badge badge-neutral">Tidak</span>}</td>
                     <td className={s.td}>
                       <span className={`badge ${r.isActive ? 'badge-success' : 'badge-neutral'}`}>
                         {r.isActive ? 'Aktif' : 'Nonaktif'}
@@ -396,7 +403,7 @@ export default function RoomsPage() {
                 </div>
               </div>
 
-              <div className={s.formRow}>
+              <div className={s.formRow} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                 <div className={s.formGroup}>
                   <label
                     className={s.formToggle}
@@ -415,6 +422,16 @@ export default function RoomsPage() {
                   >
                     <div className={`${s.toggleSwitch} ${formData.hasLight ? s.toggleSwitchOn : ''}`} />
                     <span className={s.formLabel} style={{ margin: 0 }}>Ada Lampu</span>
+                  </label>
+                </div>
+                <div className={s.formGroup}>
+                  <label
+                    className={s.formToggle}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setFormData({ ...formData, hasMusic: !formData.hasMusic })}
+                  >
+                    <div className={`${s.toggleSwitch} ${formData.hasMusic ? s.toggleSwitchOn : ''}`} />
+                    <span className={s.formLabel} style={{ margin: 0 }}>Ada Music</span>
                   </label>
                 </div>
               </div>

@@ -149,6 +149,7 @@ model Room {
   patrolOrder Int      @default(0) @map("patrol_order")
   hasAc       Boolean  @default(true) @map("has_ac")
   hasLight            Boolean            @default(true) @map("has_light")
+  hasMusic            Boolean            @default(false) @map("has_music")
   checklistTemplateId String?            @map("checklist_template_id")
   photoGuide          String?            @map("photo_guide") @db.Text
   isActive            Boolean            @default(true) @map("is_active")

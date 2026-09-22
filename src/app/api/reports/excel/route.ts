@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
               patrolChecks: {
                 include: {
                   user: { select: { name: true, employeeId: true } },
+                  room: { select: { name: true, code: true, hasAc: true, hasLight: true, hasMusic: true } },
                 },
                 orderBy: [
                   { floorNameSnapshot: 'asc' },
@@ -92,6 +93,7 @@ export async function GET(request: NextRequest) {
           'Nama Ruangan',
           'Status AC',
           'Status Lampu',
+          'Status Music',
           'Kondisi Ruangan',
           'Catatan / Checklist',
           'Waktu Cek (WITA)',
@@ -108,6 +110,8 @@ export async function GET(request: NextRequest) {
         });
         const acLabel = c.acStatus === 'on' ? 'ON' : c.acStatus === 'off' ? 'OFF' : 'T/A';
         const lightLabel = c.lightStatus === 'on' ? 'ON' : 'OFF';
+        const rawMusic = (c.checklistValues as any)?.['Music'] || (c.checklistValues as any)?.['music'];
+        const musicLabel = rawMusic === 'on' ? 'ON' : rawMusic === 'off' ? 'OFF' : (c.room?.hasMusic ? '-' : 'T/A');
         const condLabel = c.condition === 'normal' ? 'Normal / Aman' : '⚠️ Ada Temuan';
         rowsSession.push([
           idx + 1,
@@ -116,6 +120,7 @@ export async function GET(request: NextRequest) {
           c.roomNameSnapshot,
           acLabel,
           lightLabel,
+          musicLabel,
           condLabel,
           c.remarks || '-',
           timeStr,
@@ -134,6 +139,7 @@ export async function GET(request: NextRequest) {
         { wch: 14 },
         { wch: 28 },
         { wch: 12 },
+        { wch: 14 },
         { wch: 14 },
         { wch: 22 },
         { wch: 35 },

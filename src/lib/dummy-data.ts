@@ -43,6 +43,7 @@ export interface Room {
   patrolOrder: number;
   hasAc: boolean;
   hasLight: boolean;
+  hasMusic?: boolean;
   photoGuide: string;
   isActive: boolean;
 }
@@ -159,7 +160,7 @@ export const rooms: Room[] = [
   // Semi Basement (SB)
   { id: 'room-sb-01', floorId: 'floor-sb', code: 'SB-01', name: 'R. POMPA HYDRANT', patrolOrder: 1, hasAc: false, hasLight: true, photoGuide: 'Foto pompa hydrant', isActive: true },
   { id: 'room-sb-02', floorId: 'floor-sb', code: 'SB-02', name: 'R. GENSET', patrolOrder: 2, hasAc: false, hasLight: true, photoGuide: 'Foto panel utama genset', isActive: true },
-  { id: 'room-sb-03', floorId: 'floor-sb', code: 'SB-03', name: 'R.SECURITY (Musik nyala 07:00-21:00)', patrolOrder: 3, hasAc: true, hasLight: true, photoGuide: 'Foto pos security', isActive: true },
+  { id: 'room-sb-03', floorId: 'floor-sb', code: 'SB-03', name: 'R.SECURITY (Musik nyala 07:00-21:00)', patrolOrder: 3, hasAc: true, hasLight: true, hasMusic: true, photoGuide: 'Foto pos security', isActive: true },
   { id: 'room-sb-04', floorId: 'floor-sb', code: 'SB-04', name: 'R. CAPASITOR', patrolOrder: 4, hasAc: false, hasLight: true, photoGuide: 'Foto panel capacitor', isActive: true },
   { id: 'room-sb-05', floorId: 'floor-sb', code: 'SB-05', name: 'KANTIN', patrolOrder: 5, hasAc: false, hasLight: true, photoGuide: 'Foto area kantin', isActive: true },
   { id: 'room-sb-06', floorId: 'floor-sb', code: 'SB-06', name: 'MUSHOLLA', patrolOrder: 6, hasAc: true, hasLight: true, photoGuide: 'Foto area musholla', isActive: true },

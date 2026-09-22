@@ -8,6 +8,7 @@ interface RoomCheck {
   id: string;
   acStatus: 'on' | 'off' | 'not_available';
   lightStatus: 'on' | 'off';
+  checklistValues?: Record<string, string> | null;
   condition: 'normal' | 'finding';
   remarks: string | null;
   checkedAt: string;
@@ -19,6 +20,7 @@ interface RoomItem {
   name: string;
   hasAc: boolean;
   hasLight: boolean;
+  hasMusic?: boolean;
   check: RoomCheck | null;
 }
 
@@ -277,14 +279,17 @@ function PrintPatrolBookContent() {
           <thead>
             <tr>
               <th rowSpan={2} style={{ width: '80px' }}>LOKASI LANTAI</th>
-              <th rowSpan={2} style={{ width: '220px' }}>NAMA RUANGAN</th>
+              <th rowSpan={2} style={{ width: '200px' }}>NAMA RUANGAN</th>
               <th rowSpan={2} style={{ width: '60px' }}>JAM</th>
-              <th colSpan={2} style={{ width: '80px' }}>AC</th>
-              <th colSpan={2} style={{ width: '80px' }}>LAMPU</th>
+              <th colSpan={2} style={{ width: '70px' }}>AC</th>
+              <th colSpan={2} style={{ width: '70px' }}>LAMPU</th>
+              <th colSpan={2} style={{ width: '70px' }}>MUSIC</th>
               <th rowSpan={2}>KETERANGAN (situasi ruangan)</th>
-              <th rowSpan={2} style={{ width: '110px' }}>PARAF PJ. RUANGAN</th>
+              <th rowSpan={2} style={{ width: '100px' }}>PARAF PJ. RUANGAN</th>
             </tr>
             <tr>
+              <th>ON</th>
+              <th>OFF</th>
               <th>ON</th>
               <th>OFF</th>
               <th>ON</th>
@@ -329,6 +334,13 @@ function PrintPatrolBookContent() {
                     </td>
                     <td className={styles.checkCell}>
                       {check && check.lightStatus === 'off' ? '✓' : ''}
+                    </td>
+                    {/* Music Checkboxes */}
+                    <td className={styles.checkCell}>
+                      {room.hasMusic && check && (check.checklistValues?.['Music'] === 'on' || check.checklistValues?.['music'] === 'on') ? '✓' : ''}
+                    </td>
+                    <td className={styles.checkCell}>
+                      {room.hasMusic && check && (check.checklistValues?.['Music'] === 'off' || check.checklistValues?.['music'] === 'off') ? '✓' : ''}
                     </td>
                     {/* Remarks */}
                     <td className={styles.remarksCell}>

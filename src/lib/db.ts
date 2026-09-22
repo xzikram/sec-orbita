@@ -92,6 +92,7 @@ export interface CachedRoom {
   patrolOrder: number;
   hasAc: boolean;
   hasLight: boolean;
+  hasMusic?: boolean;
   photoGuide?: string;
   checklistTemplateId?: string | null;
   checklistTemplate?: { id: string; name: string; items: string[]; isDefault?: boolean } | null;

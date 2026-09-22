@@ -413,6 +413,11 @@ export default function FloorDetailPage({
                             Lampu {check.lightStatus === 'on' ? 'ON' : 'OFF'}
                           </span>
                         )}
+                        {(check.checklistValues?.['Music'] || check.checklistValues?.['music']) && (
+                          <span className={`${styles.checkTag} ${(check.checklistValues?.['Music'] === 'on' || check.checklistValues?.['music'] === 'on') ? styles.tagOn : styles.tagOff}`}>
+                            Music {(check.checklistValues?.['Music'] === 'on' || check.checklistValues?.['music'] === 'on') ? 'ON' : 'OFF'}
+                          </span>
+                        )}
                         {check.condition === 'finding' && (
                           <span className={`${styles.checkTag} ${styles.tagFinding}`}>
                             Ada Temuan

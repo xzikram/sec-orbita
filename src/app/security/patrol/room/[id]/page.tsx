@@ -74,6 +74,10 @@ export default function RoomCheckPage({
     return initialRoom && !initialRoom.hasAc ? 'not_available' : null;
   });
   const [lightStatus, setLightStatus] = useState<LightStatus | null>(null);
+  const [musicStatus, setMusicStatus] = useState<'on' | 'off' | 'not_available' | null>(() => {
+    const initialRoom = getRoomById(currentRoomId);
+    return initialRoom && !initialRoom.hasMusic ? 'not_available' : null;
+  });
   const [checklistValues, setChecklistValues] = useState<Record<string, string>>({});
   const [condition, setCondition] = useState<'normal' | 'finding' | null>(null);
   const [remarks, setRemarks] = useState('');
@@ -172,6 +176,11 @@ export default function RoomCheckPage({
             setAcStatus(null);
           }
           setLightStatus(null);
+          if (!resolvedRoom.hasMusic) {
+            setMusicStatus('not_available');
+          } else {
+            setMusicStatus(null);
+          }
 
           // 3. Resilient floor rooms list for progression
           const fRooms = await getResilientRoomsForFloor(resolvedRoom.floorId);
@@ -278,9 +287,14 @@ export default function RoomCheckPage({
       const n = item.toLowerCase().trim();
       return n !== 'kondisi ruangan' && n !== 'status ruangan' && n !== 'kondisi';
     });
+    // Ensure Music item is available if room.hasMusic === true
+    if (room?.hasMusic && !items.some(i => i.toLowerCase().includes('music') || i.toLowerCase().includes('musik'))) {
+      items.push('Music');
+    }
     if (items.length === 0) {
       const fallback = ['Lampu'];
       if (room?.hasAc !== false) fallback.unshift('AC');
+      if (room?.hasMusic) fallback.push('Music');
       return fallback;
     }
     return items;
@@ -293,6 +307,9 @@ export default function RoomCheckPage({
     }
     if (lower.includes('lampu') || lower.includes('light')) {
       return room?.hasLight && !lightStatus;
+    }
+    if (lower.includes('music') || lower.includes('musik')) {
+      return room?.hasMusic && (!musicStatus || musicStatus === 'not_available');
     }
     return !checklistValues[item];
   });
@@ -418,6 +435,7 @@ export default function RoomCheckPage({
     if (photoRequired && !photo) return false;
     if (room.hasAc && !acStatus) return false;
     if (room.hasLight && !lightStatus) return false;
+    if (room.hasMusic && (!musicStatus || musicStatus === 'not_available')) return false;
     if (missingItem) return false;
     if (!condition) return false;
     if (condition === 'finding' && (!findingCategory || !findingDescription.trim())) return false;
@@ -437,6 +455,7 @@ export default function RoomCheckPage({
       };
       if (acStatus) finalChecklistValues['AC'] = acStatus;
       if (lightStatus) finalChecklistValues['Lampu'] = lightStatus;
+      if (musicStatus && musicStatus !== 'not_available') finalChecklistValues['Music'] = musicStatus;
       if (condition) finalChecklistValues['Kondisi Ruangan'] = condition;
 
       const result = await submitRoomCheck({
@@ -526,6 +545,7 @@ export default function RoomCheckPage({
             setCondition(null);
             setAcStatus(nextRoom.hasAc ? null : 'not_available');
             setLightStatus(null);
+            setMusicStatus(nextRoom.hasMusic ? null : 'not_available');
             setChecklistValues({});
             setCurrentRoomId(nextRoom.id);
             if (typeof window !== 'undefined') {
@@ -980,6 +1000,45 @@ export default function RoomCheckPage({
               );
             }
 
+            if (lower.includes('music') || lower.includes('musik')) {
+              return (
+                <div key={item} className={styles.utilityCard}>
+                  <div className={styles.utilityLabel}>
+                    <span>🎵 {item}</span>
+                    {!room.hasMusic && <span className={styles.noAcBadge}>TIDAK ADA</span>}
+                  </div>
+                  {!room.hasMusic ? (
+                    <div className={styles.noAcNotice}>
+                      <span>Area ini tanpa Music Gedung</span>
+                    </div>
+                  ) : (
+                    <div className={styles.btnGroupCompact}>
+                      <button
+                        type="button"
+                        className={`${styles.btnCompact} ${musicStatus === 'on' ? styles.activeOn : ''}`}
+                        onClick={() => {
+                          setMusicStatus('on');
+                          setChecklistValues(prev => ({ ...prev, [item]: 'on', Music: 'on', music: 'on' }));
+                        }}
+                      >
+                        ON
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.btnCompact} ${musicStatus === 'off' ? styles.activeOff : ''}`}
+                        onClick={() => {
+                          setMusicStatus('off');
+                          setChecklistValues(prev => ({ ...prev, [item]: 'off', Music: 'off', music: 'off' }));
+                        }}
+                      >
+                        OFF
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             const isCond = isConditionItem(item);
             const val = checklistValues[item];
             return (
@@ -1147,6 +1206,7 @@ export default function RoomCheckPage({
                 {!photo ? '⚠️ Ambil foto bukti terlebih dahulu' :
                  (room.hasAc && !acStatus) ? '⚠️ Pilih status AC (ON / OFF)' :
                  (room.hasLight && !lightStatus) ? '⚠️ Pilih status lampu (ON / OFF)' :
+                 (room.hasMusic && (!musicStatus || musicStatus === 'not_available')) ? '⚠️ Pilih status Music Gedung (ON / OFF)' :
                  missingItem ? `⚠️ Pilih status ${missingItem} (${isConditionItem(missingItem) ? 'NORMAL / KENDALA' : 'ON / OFF'})` :
                  !condition ? '⚠️ Pilih status (Aman / Ada Temuan)' :
                  (condition === 'finding' && !findingCategory) ? '⚠️ Pilih kategori temuan' :
