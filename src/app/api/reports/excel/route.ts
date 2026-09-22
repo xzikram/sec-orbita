@@ -253,72 +253,7 @@ export async function GET(request: NextRequest) {
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Laporan');
 
     // ----------------------------------------------------
-    // SHEET 2: LEMBAR CEKLIST RUANGAN LENGKAP
-    // ----------------------------------------------------
-    const checklistRows: any[][] = [
-      ['RS MATA JEC ORBITA @ MAKASSAR'],
-      ['LEMBAR BUKTI CEKLIST FISIK PEMERIKSAAN RUANGAN & FASILITAS'],
-      ['Periode:', periodLabel],
-      [],
-      [
-        'No',
-        'Tanggal Patroli',
-        'Waktu Scan (WITA)',
-        'Shift / Sesi',
-        'Petugas Security',
-        'NIK',
-        'Lantai',
-        'Kode Ruangan',
-        'Nama Ruangan',
-        'Status AC',
-        'Status Lampu',
-        'Kondisi Fisik / Pintu',
-        'Catatan / Temuan Lapangan',
-      ],
-    ];
-
-    flatChecks.forEach((c, idx) => {
-      checklistRows.push([
-        idx + 1,
-        c.date,
-        c.timeWita,
-        c.shift,
-        c.officer,
-        c.officerId,
-        c.floor,
-        c.code,
-        c.room,
-        c.acStatus,
-        c.lightStatus,
-        c.condition,
-        c.remarks,
-      ]);
-    });
-
-    if (flatChecks.length === 0) {
-      checklistRows.push(['Belum ada data ceklist ruangan dalam rentang periode yang dipilih']);
-    }
-
-    const wsChecklist = XLSX.utils.aoa_to_sheet(checklistRows);
-    wsChecklist['!cols'] = [
-      { wch: 6 },
-      { wch: 14 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 22 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 25 },
-      { wch: 16 },
-      { wch: 16 },
-      { wch: 22 },
-      { wch: 35 },
-    ];
-    XLSX.utils.book_append_sheet(wb, wsChecklist, 'Ceklist Ruangan');
-
-    // ----------------------------------------------------
-    // SHEET 3: REKAP TEMUAN KENDALA (FINDINGS)
+    // SHEET 2: REKAP TEMUAN KENDALA (FINDINGS)
     // ----------------------------------------------------
     const findingsRows: any[][] = [
       ['RS MATA JEC ORBITA @ MAKASSAR'],
@@ -589,7 +524,10 @@ export async function GET(request: NextRequest) {
         if (sessLeft) {
           const checks = sessLeft.sessionFloors.flatMap(sf => sf.patrolChecks);
           const checkedCount = checks.length;
-          const rate = totalActiveRooms > 0 ? Math.min(100, Math.round((checkedCount / totalActiveRooms) * 100)) : 100;
+          let rate = totalActiveRooms > 0 ? Math.min(100, Math.round((checkedCount / totalActiveRooms) * 100)) : 100;
+          if ((sessLeft.status === 'completed' && rate >= 95) || rate >= 99) {
+            rate = 100;
+          }
           const findings = checks.filter(c => c.condition === 'finding').length;
 
           let timeStr = '—';
@@ -637,7 +575,10 @@ export async function GET(request: NextRequest) {
         if (sessRight) {
           const checks = sessRight.sessionFloors.flatMap(sf => sf.patrolChecks);
           const checkedCount = checks.length;
-          const rate = totalActiveRooms > 0 ? Math.min(100, Math.round((checkedCount / totalActiveRooms) * 100)) : 100;
+          let rate = totalActiveRooms > 0 ? Math.min(100, Math.round((checkedCount / totalActiveRooms) * 100)) : 100;
+          if ((sessRight.status === 'completed' && rate >= 95) || rate >= 99) {
+            rate = 100;
+          }
           const findings = checks.filter(c => c.condition === 'finding').length;
 
           let timeStr = '—';
@@ -763,12 +704,10 @@ export async function GET(request: NextRequest) {
       XLSX.utils.book_append_sheet(wb, wsCompliance, 'Form Kepatuhan Bulanan');
       XLSX.utils.book_append_sheet(wb, wsRanking, 'Peringkat Kinerja Security');
       XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Laporan');
-      XLSX.utils.book_append_sheet(wb, wsChecklist, 'Ceklist Ruangan');
       XLSX.utils.book_append_sheet(wb, wsFindings, 'Temuan Kendala');
       XLSX.utils.book_append_sheet(wb, wsMatrix, 'Matriks 8 Patroli');
     } else {
       XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Laporan');
-      XLSX.utils.book_append_sheet(wb, wsChecklist, 'Ceklist Ruangan');
       XLSX.utils.book_append_sheet(wb, wsFindings, 'Temuan Kendala');
       XLSX.utils.book_append_sheet(wb, wsMatrix, 'Matriks 8 Patroli');
     }

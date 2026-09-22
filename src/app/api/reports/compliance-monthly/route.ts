@@ -108,7 +108,11 @@ export async function GET(request: NextRequest) {
           const findingsInSession = allChecks.filter(c => c.condition === 'finding');
           totalFindingsInMonth += findingsInSession.length;
 
-          const rate = totalRooms > 0 ? Math.min(100, Math.round((checkedCount / totalRooms) * 100)) : 100;
+          let rate = totalRooms > 0 ? Math.min(100, Math.round((checkedCount / totalRooms) * 100)) : 100;
+          // Sesi yang sudah berstatus resmi 'completed' atau mencapai >= 99% (toleransi 1 ruangan dinonaktifkan/dihapus di master) dianggap 100% tuntas
+          if ((sess.status === 'completed' && rate >= 95) || rate >= 99) {
+            rate = 100;
+          }
           if (rate === 100) perfectSessionsCount++;
           else if (rate > 0) partialSessionsCount++;
 

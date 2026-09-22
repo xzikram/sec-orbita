@@ -188,7 +188,7 @@ interface RankingReportData {
 }
 
 export default function ExportReportPage() {
-  const [activeTab, setActiveTab] = useState<'compliance' | 'ranking' | 'checklist' | 'matrix' | 'summary'>('compliance');
+  const [activeTab, setActiveTab] = useState<'compliance' | 'ranking' | 'matrix' | 'summary'>('compliance');
   const [type, setType] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [date, setDate] = useState('');
   const [shiftFilter, setShiftFilter] = useState<'all' | 'pagi' | 'siang' | 'malam'>('all');
@@ -277,14 +277,6 @@ export default function ExportReportPage() {
     return true;
   });
 
-  const filteredChecks = (data?.checks || []).filter(c => {
-    if (shiftFilter === 'all') return true;
-    const shift = (c.shiftName || '').toLowerCase();
-    if (shiftFilter === 'pagi') return shift.includes('pagi');
-    if (shiftFilter === 'siang') return shift.includes('siang');
-    if (shiftFilter === 'malam') return shift.includes('malam');
-    return true;
-  });
 
   const getPeriodLabel = () => {
     if (!data?.summary) return '';
@@ -408,12 +400,6 @@ export default function ExportReportPage() {
           🏆 Peringkat Kinerja Security
         </button>
         <button
-          className={`${styles.tabBtn} ${activeTab === 'checklist' ? styles.tabBtnActive : ''}`}
-          onClick={() => setActiveTab('checklist')}
-        >
-          📋 Lembar Ceklistan Ruangan
-        </button>
-        <button
           className={`${styles.tabBtn} ${activeTab === 'matrix' ? styles.tabBtnActive : ''}`}
           onClick={() => setActiveTab('matrix')}
         >
@@ -443,15 +429,13 @@ export default function ExportReportPage() {
             <h2 className={styles.reportTitle}>
               {activeTab === 'compliance' && `FORM KEPATUHAN PATROLI KEAMANAN BULAN ${(complianceData?.period.monthName || '').toUpperCase()} ${complianceData?.period.year || ''}`}
               {activeTab === 'ranking' && `LAPORAN PERINGKAT & EVALUASI KINERJA SECURITY BULAN ${(rankingData?.period.monthName || '').toUpperCase()} ${rankingData?.period.year || ''}`}
-              {activeTab === 'checklist' && 'LEMBAR BUKTI CEKLIST FISIK PEMERIKSAAN RUANGAN & FASILITAS'}
               {activeTab === 'matrix' && 'MATRIKS KONTROL 8 SESI PATROLI KEAMANAN RUANGAN (SHIFT PAGI & SHIFT MALAM)'}
               {activeTab === 'summary' && 'LAPORAN REKAPITULASI PATROLI SECURITY DIGITAL'}
             </h2>
             <p className={styles.reportMeta}>
-              {activeTab === 'compliance' && complianceData && `Periode: 01 s/d ${complianceData.period.daysInMonth} ${complianceData.period.monthName} ${complianceData.period.year} • Target Standar: 133 Ruangan / Sesi`}
+              {activeTab === 'compliance' && complianceData && `Periode: 01 s/d ${complianceData.period.daysInMonth} ${complianceData.period.monthName} ${complianceData.period.year} • Target Standar: ${complianceData.period.totalRooms || 133} Ruangan / Sesi`}
               {activeTab === 'ranking' && rankingData && `Periode: ${rankingData.period.label} • Evaluasi Kepatuhan & Disiplin Jaga`}
               {activeTab !== 'compliance' && activeTab !== 'ranking' && getPeriodLabel()} 
-              {activeTab === 'checklist' && shiftFilter !== 'all' && ` • Shift: ${shiftFilter.toUpperCase()}`}
               {activeTab === 'matrix' && floorFilter !== 'all' && ` • Filter: ${data?.matrix?.floors?.find(f => f.id === floorFilter)?.name}`}
             </p>
           </div>
@@ -485,7 +469,7 @@ export default function ExportReportPage() {
                     <div className={styles.kpiCard}>
                       <div className={styles.kpiLabel}>Sesi Sempurna (100%)</div>
                       <div className={styles.kpiValue} style={{ color: '#15803d' }}>{complianceData.summary.perfectSessionsCount}</div>
-                      <div className={styles.kpiSub}>133 Ruangan Lengkap</div>
+                      <div className={styles.kpiSub}>{complianceData.period.totalRooms || 133} Ruangan Lengkap</div>
                     </div>
                     <div className={styles.kpiCard}>
                       <div className={styles.kpiLabel}>Sesi Sebagian (80-99%)</div>
@@ -602,7 +586,7 @@ export default function ExportReportPage() {
 
                   {/* Keterangan & Catatan Kepatuhan */}
                   <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '20px', padding: '10px 14px', background: '#f8fafc', borderRadius: '6px' }}>
-                    <span>🟢 <strong>100%:</strong> Ronda tuntas seluruh 133 ruangan</span>
+                    <span>🟢 <strong>100%:</strong> Ronda tuntas seluruh {complianceData.period.totalRooms || 133} ruangan</span>
                     <span>🟡 <strong>80–99%:</strong> Sebagian besar selesai (ada ruangan terlewat/terkunci)</span>
                     <span>🔴 <strong>&lt;80% / 0%:</strong> Patroli tidak tuntas / terlewat</span>
                   </div>
@@ -723,101 +707,7 @@ export default function ExportReportPage() {
             </div>
           )}
 
-          {/* ==================================================== */}
-          {/* TAB 1: LEMBAR CEKLISTAN FISIK RUANGAN                */}
-          {/* ==================================================== */}
-          {activeTab === 'checklist' && data && (
-            <div>
-              <div className={styles.section}>
-                <div className={styles.sectionTitle}>
-                  <span>Daftar Titik Pemeriksaan Ruangan</span>
-                  <span className={styles.badgeTotal}>{filteredChecks.length} Ruangan Diperiksa</span>
-                </div>
 
-                {filteredChecks.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', border: '1px dashed #cbd5e0', borderRadius: '8px', color: '#718096', fontStyle: 'italic', fontSize: '13px' }}>
-                    Belum ada data pemeriksaan ruangan pada periode dan filter shift ini.
-                  </div>
-                ) : (
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th style={{ width: '4%', textAlign: 'center' }}>No</th>
-                        {type !== 'daily' && <th style={{ width: '12%' }}>Tanggal</th>}
-                        <th style={{ width: '9%' }}>Waktu</th>
-                        <th style={{ width: '12%' }}>Shift</th>
-                        <th style={{ width: '11%' }}>Lantai</th>
-                        <th style={{ width: '22%' }}>Nama Ruangan</th>
-                        <th style={{ width: '10%', textAlign: 'center' }}>Status AC</th>
-                        <th style={{ width: '10%', textAlign: 'center' }}>Lampu</th>
-                        <th style={{ width: '10%', textAlign: 'center' }}>Kondisi</th>
-                        <th style={{ width: '12%' }}>Petugas</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredChecks.map((chk, idx) => (
-                        <tr key={chk.id}>
-                          <td style={{ textAlign: 'center', color: '#718096' }}>{idx + 1}</td>
-                          {type !== 'daily' && <td>{chk.date}</td>}
-                          <td style={{ fontWeight: 600 }}>{chk.time}</td>
-                          <td>{chk.shiftName}</td>
-                          <td>{chk.floor}</td>
-                          <td>
-                            <strong>{chk.room}</strong>
-                            {chk.remarks && (
-                              <div style={{ fontSize: '11px', color: '#4a5568', marginTop: '2px', fontStyle: 'italic' }}>
-                                Catatan: {chk.remarks}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            {chk.acStatus === 'on' ? (
-                              <span className={styles.badgeOk}>❄️ ON</span>
-                            ) : chk.acStatus === 'off' ? (
-                              <span className={styles.badgeMuted}>⭕ OFF</span>
-                            ) : (
-                              <span className={styles.badgeMuted}>— T/A</span>
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            {chk.lightStatus === 'on' ? (
-                              <span className={styles.badgeWarn}>💡 ON</span>
-                            ) : (
-                              <span className={styles.badgeMuted}>🌑 OFF</span>
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            {chk.condition === 'normal' ? (
-                              <span className={styles.badgeOk}>✓ Normal</span>
-                            ) : (
-                              <span className={styles.badgeDanger}>⚠️ Temuan</span>
-                            )}
-                          </td>
-                          <td>{chk.officer}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
-              {/* Signature Block 3 Pihak */}
-              <div className={styles.signatureSection}>
-                <div className={styles.signatureBox}>
-                  <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Petugas Patroli,</p>
-                  <div className={styles.signatureLine}>Security Bertugas</div>
-                </div>
-                <div className={styles.signatureBox}>
-                  <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Diperiksa oleh,</p>
-                  <div className={styles.signatureLine}>Komandan Regu (Danru)</div>
-                </div>
-                <div className={styles.signatureBox}>
-                  <p style={{ fontSize: '11px', color: '#4a5568', margin: 0 }}>Mengetahui / Menyetujui,</p>
-                  <div className={styles.signatureLine}>Supervisor Keamanan / GA</div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* ==================================================== */}
           {/* TAB 2: MATRIKS KONTROL 8 PATROLI (SHIFT PAGI & MALAM)*/}
