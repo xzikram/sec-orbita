@@ -21,6 +21,7 @@ interface SessionItem {
   floorCount: number;
   checkedRoomsCount: number;
   findingCount: number;
+  complianceRate?: number;
 }
 
 interface FindingItem {
@@ -352,9 +353,20 @@ export default function ReportsPage() {
                         <span className={styles.shiftTag}>{sess.shiftName}</span>
                       </div>
 
-                      <div className={styles.sessionHeaderRight}>
+                      <div className={styles.sessionHeaderRight} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span className={`badge ${sess.status === 'completed' ? 'badge-success' : sess.status === 'in_progress' ? 'badge-info' : 'badge-neutral'}`}>
                           {sess.status === 'completed' ? '✅ Selesai' : sess.status === 'in_progress' ? '⏳ Sedang Berjalan' : 'Terjadwal'}
+                        </span>
+                        <span
+                          className="badge"
+                          style={{
+                            backgroundColor: (sess.complianceRate ?? 0) === 100 ? '#dcfce7' : (sess.complianceRate ?? 0) >= 80 ? '#fef3c7' : '#fee2e2',
+                            color: (sess.complianceRate ?? 0) === 100 ? '#15803d' : (sess.complianceRate ?? 0) >= 80 ? '#b45309' : '#b91c1c',
+                            fontWeight: 700,
+                            border: `1px solid ${(sess.complianceRate ?? 0) === 100 ? '#bbf7d0' : (sess.complianceRate ?? 0) >= 80 ? '#fde68a' : '#fecaca'}`,
+                          }}
+                        >
+                          {sess.complianceRate ?? (sess.status === 'completed' ? 100 : 0)}%
                         </span>
                       </div>
                     </div>
@@ -418,6 +430,27 @@ export default function ReportsPage() {
                           title="Cetak format buku laporan patroli resmi"
                         >
                           🖨️ Cetak Buku
+                        </button>
+
+                        <button
+                          onClick={() => window.open(`/api/reports/excel?sessionId=${sess.id}`, '_blank')}
+                          title="Unduh Buku Mutasi Patroli Sesi dalam format Excel (.xlsx)"
+                          style={{
+                            background: '#f0fdf4',
+                            color: '#166534',
+                            border: '1px solid #bbf7d0',
+                            borderRadius: 'var(--radius-md, 6px)',
+                            padding: '6px 12px',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          📊 Excel Buku
                         </button>
                       </div>
                     </div>

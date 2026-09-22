@@ -242,12 +242,18 @@ export async function GET(request: NextRequest) {
 
     const runCount = scheduleMatrix.filter(s => s.isRun).length;
     const skippedCount = scheduleMatrix.length - runCount;
+    const totalActiveRooms = allFloorsWithRooms.reduce((sum, f) => sum + f.rooms.length, 0);
 
     return NextResponse.json({
       summary,
       sessions: sessions.map(s => {
         const totalChecks = s.sessionFloors.reduce((sum, sf) => sum + sf.patrolChecks.length, 0);
         const findingChecks = s.sessionFloors.reduce((cnt, sf) => cnt + sf.patrolChecks.filter(c => c.condition === 'finding').length, 0);
+        let rate = totalActiveRooms > 0 ? Math.min(100, Math.round((totalChecks / totalActiveRooms) * 100)) : 100;
+        if ((s.status === 'completed' && rate >= 95) || rate >= 99) {
+          rate = 100;
+        }
+
         return {
           id: s.id,
           patrolNumber: s.patrolNumber,
@@ -265,6 +271,7 @@ export async function GET(request: NextRequest) {
           floorCount: s.sessionFloors.length,
           checkedRoomsCount: totalChecks,
           findingCount: findingChecks,
+          complianceRate: rate,
         };
       }),
       checks,

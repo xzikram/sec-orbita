@@ -205,6 +205,23 @@ function PrintPatrolBookContent() {
           <button className="btn btn-outline btn-sm text-white" onClick={() => router.back()}>
             Kembali
           </button>
+          <button
+            className="btn btn-sm"
+            style={{
+              backgroundColor: '#047857',
+              color: '#ffffff',
+              border: '1px solid #059669',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+            onClick={() => window.open(`/api/reports/excel?sessionId=${sessionId}`, '_blank')}
+            title="Unduh Buku Patroli format Excel (.xlsx)"
+          >
+            📊 Unduh Excel
+          </button>
           <button className="btn btn-primary btn-sm" onClick={handlePrint}>
             🖨️ Cetak Laporan
           </button>

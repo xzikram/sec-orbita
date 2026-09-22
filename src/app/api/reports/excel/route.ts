@@ -11,6 +11,192 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId');
+
+    // ----------------------------------------------------
+    // EXPORT SINGLE SESSION PATROL BOOK TO EXCEL
+    // ----------------------------------------------------
+    if (sessionId) {
+      const session = await prisma.patrolSession.findUnique({
+        where: { id: sessionId },
+        include: {
+          user: { select: { name: true, employeeId: true } },
+          schedule: true,
+          shift: true,
+          sessionFloors: {
+            include: {
+              floor: true,
+              patrolChecks: {
+                include: {
+                  user: { select: { name: true, employeeId: true } },
+                },
+                orderBy: [
+                  { floorNameSnapshot: 'asc' },
+                  { roomOrderSnapshot: 'asc' },
+                  { checkedAt: 'asc' },
+                ],
+              },
+            },
+            orderBy: { floor: { sortOrder: 'asc' } },
+          },
+          findings: {
+            include: {
+              user: { select: { name: true } },
+              room: { select: { name: true, code: true } },
+            },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+
+      if (!session) {
+        return NextResponse.json({ error: 'Sesi patroli tidak ditemukan' }, { status: 404 });
+      }
+
+      const totalActiveRooms = await prisma.room.count({ where: { isActive: true } });
+      const allChecks = session.sessionFloors.flatMap(sf => sf.patrolChecks);
+      const totalChecks = allChecks.length;
+      let complianceRate = totalActiveRooms > 0 ? Math.min(100, Math.round((totalChecks / totalActiveRooms) * 100)) : 100;
+      if ((session.status === 'completed' && complianceRate >= 95) || complianceRate >= 99) {
+        complianceRate = 100;
+      }
+
+      const sessionDateStr = session.patrolDate.toISOString().split('T')[0];
+      const startWita = session.startedAt
+        ? new Date(session.startedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' }) + ' WITA'
+        : '—';
+      const endWita = session.completedAt
+        ? new Date(session.completedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' }) + ' WITA'
+        : (session.status === 'in_progress' ? 'Sedang Berjalan' : '—');
+
+      const wbSession = XLSX.utils.book_new();
+
+      // Sheet 1: Buku Mutasi Sesi
+      const rowsSession: any[][] = [
+        ['RS MATA JEC ORBITA @ MAKASSAR'],
+        ['BUKU MUTASI PATROLI SATUAN PENGAMANAN (SECURITY)'],
+        [],
+        ['INFORMASI SESI PATROLI', '', 'STATUS & KINERJA'],
+        ['No. Patroli / Sesi', `Patroli #${session.patrolNumber} (${session.schedule?.name || 'Ronda'})`, 'Status Sesi', session.status === 'completed' ? 'SELESAI (100%)' : session.status.toUpperCase()],
+        ['Tanggal Patroli', sessionDateStr, 'Tingkat Kepatuhan', `${complianceRate}% (${totalChecks}/${totalActiveRooms} Ruangan)`],
+        ['Jadwal Resmi', `${session.schedule?.startTime || '—'} s/d ${session.schedule?.endTime || '—'} WITA`, 'Shift', session.shift?.name || '-'],
+        ['Waktu Pelaksanaan', `${startWita} s/d ${endWita}`, 'Total Lantai Diperiksa', `${session.sessionFloors.length} Lantai`],
+        ['Petugas Security', session.user?.name || 'Petugas', 'NIK / ID Petugas', session.user?.employeeId || '-'],
+        ['Catatan Sesi', session.notes || 'Aman terkendali', 'Total Temuan Kendala', `${session.findings.length} Temuan`],
+        [],
+        ['RINCIAN PEMERIKSAAN RUANGAN PER LANTAI'],
+        [
+          'No',
+          'Lantai',
+          'Kode Ruangan',
+          'Nama Ruangan',
+          'Status AC',
+          'Status Lampu',
+          'Kondisi Ruangan',
+          'Catatan / Checklist',
+          'Waktu Cek (WITA)',
+          'Petugas Pemeriksa',
+        ],
+      ];
+
+      allChecks.forEach((c, idx) => {
+        const timeStr = new Date(c.checkedAt).toLocaleTimeString('id-ID', {
+          timeZone: 'Asia/Makassar',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+        const acLabel = c.acStatus === 'on' ? 'ON' : c.acStatus === 'off' ? 'OFF' : 'T/A';
+        const lightLabel = c.lightStatus === 'on' ? 'ON' : 'OFF';
+        const condLabel = c.condition === 'normal' ? 'Normal / Aman' : '⚠️ Ada Temuan';
+        rowsSession.push([
+          idx + 1,
+          c.floorNameSnapshot,
+          c.roomCodeSnapshot,
+          c.roomNameSnapshot,
+          acLabel,
+          lightLabel,
+          condLabel,
+          c.remarks || '-',
+          timeStr,
+          c.user?.name || session.user?.name || 'Petugas',
+        ]);
+      });
+
+      if (allChecks.length === 0) {
+        rowsSession.push(['Belum ada data pemeriksaan ruangan pada sesi ini']);
+      }
+
+      const wsMutasi = XLSX.utils.aoa_to_sheet(rowsSession);
+      wsMutasi['!cols'] = [
+        { wch: 6 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 28 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 22 },
+        { wch: 35 },
+        { wch: 18 },
+        { wch: 22 },
+      ];
+      XLSX.utils.book_append_sheet(wbSession, wsMutasi, `Buku Patroli Sesi #${session.patrolNumber}`);
+
+      // Sheet 2: Temuan Kendala (jika ada)
+      if (session.findings.length > 0) {
+        const rowsFindings: any[][] = [
+          ['RS MATA JEC ORBITA @ MAKASSAR'],
+          ['DAFTAR TEMUAN KENDALA - ' + `PATROLI #${session.patrolNumber}`],
+          [],
+          ['No Tiket', 'Waktu Lapor (WITA)', 'Lantai', 'Ruangan', 'Kategori', 'Deskripsi Masalah', 'Status Penanganan', 'Pelapor'],
+        ];
+
+        session.findings.forEach(f => {
+          const fTime = new Date(f.createdAt).toLocaleTimeString('id-ID', {
+            timeZone: 'Asia/Makassar',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          const fStatus = f.status === 'resolved' ? 'SELESAI (RESOLVED)' : f.status === 'in_progress' ? 'DALAM PROSES' : 'BARU (OPEN)';
+          rowsFindings.push([
+            f.findingNumber,
+            fTime,
+            f.floorNameSnapshot,
+            f.roomNameSnapshot,
+            f.category.toUpperCase(),
+            f.description,
+            fStatus,
+            f.user?.name || 'Petugas',
+          ]);
+        });
+
+        const wsFind = XLSX.utils.aoa_to_sheet(rowsFindings);
+        wsFind['!cols'] = [
+          { wch: 14 },
+          { wch: 18 },
+          { wch: 16 },
+          { wch: 24 },
+          { wch: 16 },
+          { wch: 40 },
+          { wch: 20 },
+          { wch: 20 },
+        ];
+        XLSX.utils.book_append_sheet(wbSession, wsFind, 'Temuan Kendala');
+      }
+
+      const bufSession = XLSX.write(wbSession, { type: 'buffer', bookType: 'xlsx' });
+      const filenameSession = `Buku_Patroli_Sesi_${session.patrolNumber}_${sessionDateStr}.xlsx`;
+
+      return new NextResponse(bufSession, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${filenameSession}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+
     const type = searchParams.get('type') || 'daily'; // daily, weekly, monthly
     const dateParam = searchParams.get('date') || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' });
     const shiftParam = searchParams.get('shift') || 'all'; // all, pagi, siang, malam

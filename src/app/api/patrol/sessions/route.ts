@@ -245,3 +245,115 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }
+
+// DELETE /api/patrol/sessions - Delete a patrol session with clean cascading (Admin only)
+export async function DELETE(request: NextRequest) {
+  const auth = await getAuthUser();
+  if (!auth || auth.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden. Hanya admin yang berhak menghapus sesi patroli.' }, { status: 403 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID sesi patroli wajib disertakan' }, { status: 400 });
+    }
+
+    const session = await prisma.patrolSession.findUnique({
+      where: { id },
+      include: {
+        user: { select: { name: true } },
+        schedule: { select: { name: true } },
+      },
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: 'Sesi patroli tidak ditemukan' }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Get session floors
+      const sessionFloors = await tx.patrolSessionFloor.findMany({
+        where: { sessionId: id },
+        select: { id: true },
+      });
+      const sfIds = sessionFloors.map(sf => sf.id);
+
+      // 2. Get checks in these session floors
+      const checks = await tx.patrolCheck.findMany({
+        where: { sessionFloorId: { in: sfIds } },
+        select: { id: true },
+      });
+      const checkIds = checks.map(c => c.id);
+
+      // 3. Find findings related to this session or checks
+      const findings = await tx.finding.findMany({
+        where: {
+          OR: [
+            { sessionId: id },
+            { checkId: { in: checkIds } },
+          ],
+        },
+        select: { id: true },
+      });
+      const findingIds = findings.map(f => f.id);
+
+      // 4. Delete finding updates
+      if (findingIds.length > 0) {
+        await tx.findingUpdate.deleteMany({
+          where: { findingId: { in: findingIds } },
+        });
+        // 5. Delete findings
+        await tx.finding.deleteMany({
+          where: { id: { in: findingIds } },
+        });
+      }
+
+      // 6. Delete photos
+      if (checkIds.length > 0) {
+        await tx.patrolPhoto.deleteMany({
+          where: { checkId: { in: checkIds } },
+        });
+        // 7. Delete checks
+        await tx.patrolCheck.deleteMany({
+          where: { id: { in: checkIds } },
+        });
+      }
+
+      // 8. Delete session floors
+      if (sfIds.length > 0) {
+        await tx.patrolSessionFloor.deleteMany({
+          where: { id: { in: sfIds } },
+        });
+      }
+
+      // 9. Delete patrol session
+      await tx.patrolSession.delete({
+        where: { id },
+      });
+
+      // 10. Audit log
+      await tx.activityLog.create({
+        data: {
+          userId: auth.id,
+          action: 'delete_patrol_session',
+          entityType: 'patrol_session',
+          entityId: id,
+          metadata: {
+            deletedBy: auth.name,
+            officer: session.user?.name,
+            patrolNumber: session.patrolNumber,
+          },
+        },
+      });
+    });
+
+    return NextResponse.json({ success: true, message: 'Sesi patroli berhasil dihapus' });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Gagal menghapus sesi patroli';
+    console.error('Delete patrol session error:', error);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}

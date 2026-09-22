@@ -21,6 +21,7 @@ interface SessionItem {
   floorCount: number;
   checkedRoomsCount: number;
   findingCount: number;
+  complianceRate?: number;
 }
 
 interface FindingItem {
@@ -158,6 +159,36 @@ export default function AdminReportsPage() {
       } finally {
         setLoadingDetailId(null);
       }
+    }
+  };
+
+  // Delete a patrol session (Admin only)
+  const handleDeleteSession = async (sessionId: string, patrolNumber: number, officer: string) => {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus Sesi Patroli #${patrolNumber} oleh ${officer}?\n\nSeluruh data checklist ruangan, foto, dan temuan pada sesi ini akan dihapus secara permanen dari sistem.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/patrol/sessions?id=${sessionId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert('Sesi patroli berhasil dihapus.');
+        // Refresh report data
+        const reportRes = await fetch(`/api/reports/generate?type=daily&date=${selectedDate}`);
+        if (reportRes.ok) {
+          const reportData = await reportRes.json();
+          setSummary(reportData.summary || null);
+          setSessions(reportData.sessions || []);
+          setFindings(reportData.findings || []);
+        }
+      } else {
+        alert(data.error || 'Gagal menghapus sesi patroli');
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Terjadi kesalahan saat menghapus sesi patroli');
     }
   };
 
@@ -354,9 +385,20 @@ export default function AdminReportsPage() {
                         <span className={styles.shiftTag}>{sess.shiftName}</span>
                       </div>
 
-                      <div className={styles.sessionHeaderRight}>
+                      <div className={styles.sessionHeaderRight} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span className={`badge ${sess.status === 'completed' ? 'badge-success' : sess.status === 'in_progress' ? 'badge-info' : 'badge-neutral'}`}>
                           {sess.status === 'completed' ? '✅ Selesai' : sess.status === 'in_progress' ? '⏳ Sedang Berjalan' : 'Terjadwal'}
+                        </span>
+                        <span
+                          className="badge"
+                          style={{
+                            backgroundColor: (sess.complianceRate ?? 0) === 100 ? '#dcfce7' : (sess.complianceRate ?? 0) >= 80 ? '#fef3c7' : '#fee2e2',
+                            color: (sess.complianceRate ?? 0) === 100 ? '#15803d' : (sess.complianceRate ?? 0) >= 80 ? '#b45309' : '#b91c1c',
+                            fontWeight: 700,
+                            border: `1px solid ${(sess.complianceRate ?? 0) === 100 ? '#bbf7d0' : (sess.complianceRate ?? 0) >= 80 ? '#fde68a' : '#fecaca'}`,
+                          }}
+                        >
+                          {sess.complianceRate ?? (sess.status === 'completed' ? 100 : 0)}%
                         </span>
                       </div>
                     </div>
@@ -417,9 +459,51 @@ export default function AdminReportsPage() {
                         <button
                           className={styles.printBtn}
                           onClick={() => window.open(`/admin/reports/print?sessionId=${sess.id}`, '_blank')}
-                          title="Cetak format buku laporan patroli resmi"
+                          title="Cetak format buku laporan patroli resmi (PDF/Print)"
                         >
                           🖨️ Cetak Buku
+                        </button>
+
+                        <button
+                          onClick={() => window.open(`/api/reports/excel?sessionId=${sess.id}`, '_blank')}
+                          title="Unduh Buku Mutasi Patroli Sesi dalam format Excel (.xlsx)"
+                          style={{
+                            background: '#f0fdf4',
+                            color: '#166534',
+                            border: '1px solid #bbf7d0',
+                            borderRadius: 'var(--radius-md, 6px)',
+                            padding: '6px 12px',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          📊 Excel Buku
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteSession(sess.id, sess.patrolNumber, sess.officer)}
+                          title="Hapus sesi patroli ini (permanen)"
+                          style={{
+                            background: '#fff1f2',
+                            color: '#e11d48',
+                            border: '1px solid #fecdd3',
+                            borderRadius: 'var(--radius-md, 6px)',
+                            padding: '6px 12px',
+                            fontSize: '12.5px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          🗑️ Hapus
                         </button>
                       </div>
                     </div>
