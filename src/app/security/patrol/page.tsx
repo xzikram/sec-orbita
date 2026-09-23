@@ -57,8 +57,10 @@ export default function PatrolPage() {
   const [mounted, setMounted] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
+  const [offlineQrCount, setOfflineQrCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showEarlyFinishModal, setShowEarlyFinishModal] = useState(false);
+  const [showEarlyQrWarning, setShowEarlyQrWarning] = useState(false);
   const [earlyReason, setEarlyReason] = useState('Panggilan Darurat / Insiden IGD');
   const [earlyNotes, setEarlyNotes] = useState('');
   const [submittingEarly, setSubmittingEarly] = useState(false);
@@ -110,11 +112,15 @@ export default function PatrolPage() {
           } catch {}
         }
 
-        // 2. Get offline checks from IndexedDB
+        // 2. Get offline checks and QR scans from IndexedDB
         try {
-          const { getOfflineChecks } = await import('@/lib/db');
-          const offline = await getOfflineChecks();
+          const { getOfflineChecks, getOfflineQrScans } = await import('@/lib/db');
+          const [offline, offlineQrs] = await Promise.all([
+            getOfflineChecks().catch(() => []),
+            getOfflineQrScans().catch(() => []),
+          ]);
           setOfflineChecks(offline);
+          setOfflineQrCount(offlineQrs.length);
         } catch (e) {
           console.error('IndexedDB load error:', e);
         }
@@ -182,9 +188,20 @@ export default function PatrolPage() {
     } catch {}
   };
 
-  const handleEarlyFinish = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEarlyFinish = async (e?: React.FormEvent, forceBypass?: boolean) => {
+    if (e) e.preventDefault();
     if (!currentSession?.id) return;
+
+    const hasChecks = checkedRooms > 0;
+    const hasQr = currentSession.sessionFloors?.some((sf: any) => sf.qrValidated) || offlineQrCount > 0;
+    const isEmergency = earlyReason.includes('Darurat Ekstrem') || earlyReason.includes('Kode Merah');
+
+    // Option B: If rooms checked > 0 and no barcode scan yet, require scan unless extreme emergency
+    if (hasChecks && !hasQr && !isEmergency && !forceBypass) {
+      setShowEarlyQrWarning(true);
+      return;
+    }
+
     setSubmittingEarly(true);
     try {
       const res = await fetch('/api/patrol/sessions/early-finish', {
@@ -211,6 +228,12 @@ export default function PatrolPage() {
     } finally {
       setSubmittingEarly(false);
     }
+  };
+
+  const handleEmergencyBypass = () => {
+    setEarlyReason('🚨 Panggilan Darurat Ekstrem / Kode Merah');
+    setShowEarlyQrWarning(false);
+    handleEarlyFinish(undefined, true);
   };
 
   const handleStartOrResumeDirectly = async () => {
@@ -309,6 +332,8 @@ export default function PatrolPage() {
         patrolChecks: [],
       }));
 
+  const sessionHasQr = sessionFloorsSource.some((s: any) => s.qrValidated) || offlineQrCount > 0;
+
   const rawFloorProgress = sessionFloorsSource.map((sf: any) => {
     const floor = floors.find(f => 
       f.id === sf.floorId || 
@@ -329,11 +354,11 @@ export default function PatrolPage() {
     const total = floorRooms.length;
     const percent = total > 0 ? Math.round((checked / total) * 100) : 0;
 
-    // Strict status: only completed if ALL rooms checked AND QR validated
+    // Completed if ALL rooms checked AND session has at least 1 physical QR verified
     let computedStatus: 'completed' | 'waiting_qr' | 'in_progress' | 'pending' = 'pending';
-    if (sf.qrValidated && percent === 100) {
+    if (percent === 100 && (sf.qrValidated || sessionHasQr)) {
       computedStatus = 'completed';
-    } else if (percent === 100 && !sf.qrValidated) {
+    } else if (percent === 100 && !sf.qrValidated && !sessionHasQr) {
       computedStatus = 'waiting_qr';
     } else if (checked > 0 || sf.status === 'in_progress') {
       computedStatus = 'in_progress';
@@ -356,6 +381,8 @@ export default function PatrolPage() {
   const floorProgress = [...rawFloorProgress].sort((a, b) => {
     return isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder;
   });
+
+  const activeOrFirstFloor = floorProgress.find(f => f.computedStatus === 'in_progress' || f.computedStatus === 'waiting_qr') || floorProgress[0];
 
   if (loading) {
     return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat progress patroli...</p></div>;
@@ -609,7 +636,7 @@ export default function PatrolPage() {
                 {fp.computedStatus === 'waiting_qr' && (
                   <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#b45309', background: '#fef3c7', padding: '5px 9px', borderRadius: '6px', fontWeight: 600 }}>
                     <span>📱</span>
-                    <span>Semua Ruangan Selesai — Wajib Scan QR Lantai</span>
+                    <span>Ruangan Selesai — Belum Ada Scan Barcode Sesi</span>
                   </div>
                 )}
 
@@ -645,70 +672,128 @@ export default function PatrolPage() {
           padding: '16px',
           backdropFilter: 'blur(3px)'
         }}>
-          <div className="card animate-scale-in" style={{ width: '100%', maxWidth: '400px', padding: '20px', borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '20px' }}>⚠️</span>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Akhiri Patroli Lebih Awal?</h3>
-            </div>
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 14px 0', lineHeight: 1.4 }}>
-              Patroli ini belum selesai 100%. Pilih alasan resmi di bawah ini agar tercatat transparan di laporan supervisor:
-            </p>
+          {showEarlyQrWarning ? (
+            <div className="card animate-scale-in" style={{ width: '100%', maxWidth: '400px', padding: '22px', borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)', border: '1px solid #fecaca', background: '#fff' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                  ⚠️
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15.5px', fontWeight: 800, color: '#991b1b' }}>Verifikasi Barcode Diperlukan</h3>
+                  <span style={{ fontSize: '11px', color: '#b91c1c' }}>SOP Verifikasi Fisik RS Mata JEC ORBITA</span>
+                </div>
+              </div>
+              <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                Anda telah memeriksa <strong>{checkedRooms} ruangan</strong>, tetapi <strong>belum melakukan scan barcode sama sekali</strong> dalam sesi ini.
+                <br /><br />
+                SOP mengharuskan minimal <strong>1 kali scan barcode</strong> di lantai mana saja untuk memvalidasi bahwa patroli dilakukan secara fisik di lokasi.
+              </p>
 
-            <form onSubmit={handleEarlyFinish}>
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px', color: 'var(--text-primary)' }}>
-                  Alasan Berhenti:
-                </label>
-                <select
-                  className="form-input"
-                  style={{ width: '100%', fontSize: '12px', padding: '8px' }}
-                  value={earlyReason}
-                  onChange={(e) => setEarlyReason(e.target.value)}
-                  required
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <Link
+                  href={`/security/patrol/floor/${activeOrFirstFloor?.floor?.id || activeOrFirstFloor?.floorId}/qr-scan`}
+                  className="btn btn-primary"
+                  style={{ fontWeight: 700, justifyContent: 'center', padding: '10px' }}
                 >
-                  <option value="Panggilan Darurat / Insiden IGD">🚨 Panggilan Darurat / Insiden IGD</option>
-                  <option value="Lantai / Area Steril (Tindakan Pasien/Operasi)">🏥 Lantai / Area Steril (Tindakan Pasien/Operasi)</option>
-                  <option value="Waktu Shift Berakhir / Apel & Serah Terima">⏰ Waktu Shift Berakhir / Apel & Serah Terima</option>
-                  <option value="Pintu / Akses Area Terkunci">🚪 Pintu / Akses Area Terkunci</option>
-                  <option value="Instruksi Komandan Regu (Danru)">👮 Instruksi Komandan Regu (Danru)</option>
-                  <option value="Lainnya">📝 Lainnya (Isi catatan di bawah)</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px', color: 'var(--text-primary)' }}>
-                  Catatan Tambahan (Opsional):
-                </label>
-                <textarea
-                  className="form-input"
-                  rows={2}
-                  style={{ width: '100%', fontSize: '12px', resize: 'none' }}
-                  placeholder="Contoh: Dipanggil penanganan pasien gaduh gelisah di lobi..."
-                  value={earlyNotes}
-                  onChange={(e) => setEarlyNotes(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  📱 Scan Barcode di {activeOrFirstFloor?.floor?.name || 'Lantai Ini'}
+                </Link>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={handleEmergencyBypass}
+                  style={{
+                    fontSize: '11.5px',
+                    color: '#dc2626',
+                    borderColor: '#fca5a5',
+                    background: '#fef2f2',
+                    fontWeight: 700,
+                    padding: '8px'
+                  }}
+                >
+                  🚨 Panggilan Darurat Ekstrem / Kode Merah (Bypass Barcode)
+                </button>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
-                  onClick={() => setShowEarlyFinishModal(false)}
-                  disabled={submittingEarly}
+                  onClick={() => setShowEarlyQrWarning(false)}
+                  style={{ color: 'var(--text-muted)' }}
                 >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-danger btn-sm"
-                  style={{ background: '#dc2626', color: '#fff', border: 'none' }}
-                  disabled={submittingEarly}
-                >
-                  {submittingEarly ? 'Menyimpan...' : 'Konfirmasi Selesai'}
+                  Kembali ke Form Alasan
                 </button>
               </div>
-            </form>
-          </div>
+            </div>
+          ) : (
+            <div className="card animate-scale-in" style={{ width: '100%', maxWidth: '400px', padding: '20px', borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '20px' }}>⚠️</span>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Akhiri Patroli Lebih Awal?</h3>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 14px 0', lineHeight: 1.4 }}>
+                {checkedRooms === 0 
+                  ? 'Belum ada ruangan yang diperiksa. Sesi ini dapat langsung diakhiri.'
+                  : `Patroli baru selesai ${checkedRooms} dari ${totalRooms} ruangan. Pilih alasan resmi di bawah ini:`}
+              </p>
+
+              <form onSubmit={handleEarlyFinish}>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px', color: 'var(--text-primary)' }}>
+                    Alasan Berhenti:
+                  </label>
+                  <select
+                    className="form-input"
+                    style={{ width: '100%', fontSize: '12px', padding: '8px' }}
+                    value={earlyReason}
+                    onChange={(e) => setEarlyReason(e.target.value)}
+                    required
+                  >
+                    <option value="Panggilan Darurat / Insiden IGD">🚨 Panggilan Darurat / Insiden IGD</option>
+                    <option value="🚨 Panggilan Darurat Ekstrem / Kode Merah">🚨 Panggilan Darurat Ekstrem / Kode Merah</option>
+                    <option value="Lantai / Area Steril (Tindakan Pasien/Operasi)">🏥 Lantai / Area Steril (Tindakan Pasien/Operasi)</option>
+                    <option value="Waktu Shift Berakhir / Apel & Serah Terima">⏰ Waktu Shift Berakhir / Apel & Serah Terima</option>
+                    <option value="Pintu / Akses Area Terkunci">🚪 Pintu / Akses Area Terkunci</option>
+                    <option value="Instruksi Komandan Regu (Danru)">👮 Instruksi Komandan Regu (Danru)</option>
+                    <option value="Lainnya">📝 Lainnya (Isi catatan di bawah)</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px', color: 'var(--text-primary)' }}>
+                    Catatan Tambahan (Opsional):
+                  </label>
+                  <textarea
+                    className="form-input"
+                    rows={2}
+                    style={{ width: '100%', fontSize: '12px', resize: 'none' }}
+                    placeholder="Contoh: Dipanggil penanganan pasien gaduh gelisah di lobi..."
+                    value={earlyNotes}
+                    onChange={(e) => setEarlyNotes(e.target.value)}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      setShowEarlyFinishModal(false);
+                      setShowEarlyQrWarning(false);
+                    }}
+                    disabled={submittingEarly}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-danger btn-sm"
+                    style={{ background: '#dc2626', color: '#fff', border: 'none' }}
+                    disabled={submittingEarly}
+                  >
+                    {submittingEarly ? 'Menyimpan...' : 'Konfirmasi Selesai'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
       )}
     </div>

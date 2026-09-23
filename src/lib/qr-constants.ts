@@ -209,3 +209,23 @@ export function isOfficialQrValidForFloor(floorCodeOrId: string, scannedToken: s
   return false;
 }
 
+export function extractQrToken(raw: string): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && parsed.token) return String(parsed.token).trim();
+  } catch {}
+  return trimmed;
+}
+
+/**
+ * Validasi apakah suatu token QR cocok dengan lantai manapun di RS Mata JEC ORBITA.
+ * Mengembalikan objek OfficialFloorQR jika valid, atau undefined jika tidak valid.
+ */
+export function validateAnyOfficialFloorQr(scannedText: string): OfficialFloorQR | undefined {
+  if (!scannedText) return undefined;
+  const token = extractQrToken(scannedText);
+  return getFloorByQrToken(token);
+}
+

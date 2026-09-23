@@ -8,6 +8,7 @@ import { getCachedSettings } from '@/lib/settings-client';
 import { reportClientError } from '@/lib/error-reporter';
 import { getDefaultChecklistItems } from '@/lib/offline-cache';
 import {
+  floors,
   getRoomById,
   getFloorById,
   getRoomsByFloor,
@@ -64,6 +65,7 @@ export default function RoomCheckPage({
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
+  const [hasSessionQr, setHasSessionQr] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [isCapturing, setIsCapturing] = useState(false);
@@ -189,13 +191,29 @@ export default function RoomCheckPage({
           }
         }
 
-        // 4. Get offline checks from IndexedDB
+        // 4. Get offline checks and QR scans from IndexedDB
         try {
-          const { getOfflineChecks } = await import('@/lib/db');
-          const offline = await getOfflineChecks();
+          const { getOfflineChecks, getOfflineQrScans } = await import('@/lib/db');
+          const [offline, offlineQrs] = await Promise.all([
+            getOfflineChecks().catch(() => []),
+            getOfflineQrScans().catch(() => []),
+          ]);
           setOfflineChecks(offline);
+          if (offlineQrs && offlineQrs.length > 0) {
+            setHasSessionQr(true);
+          }
         } catch (e) {
           console.error('IndexedDB load error:', e);
+        }
+
+        // Check cached active session for qrValidated
+        if (cachedSess) {
+          try {
+            const parsed = JSON.parse(cachedSess);
+            if (parsed.sessionFloors?.some((sf: any) => sf.qrValidated)) {
+              setHasSessionQr(true);
+            }
+          } catch {}
         }
 
         // 5. Unblock UI immediately — 100% ready offline in < 25ms
@@ -224,6 +242,9 @@ export default function RoomCheckPage({
               const active = sessions.find((s: any) => s.status === 'in_progress' && (!myId || s.userId === myId)) || null;
               if (active) {
                 setSession(active);
+                if (active.sessionFloors?.some((sf: any) => sf.qrValidated)) {
+                  setHasSessionQr(true);
+                }
                 try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
               }
             }
@@ -549,9 +570,52 @@ export default function RoomCheckPage({
               window.history.replaceState(null, '', `/security/patrol/room/${nextRoom.id}`);
             }
           } else {
-            // All rooms done on this floor! Go straight to floor QR Scan
-            const floorTarget = floor ? floor.id : room.floorId;
-            const targetUrl = `/security/patrol/floor/${floorTarget}/qr-scan`;
+            // All rooms done on this floor! Mark floor completed in cached session
+            try {
+              const cached = localStorage.getItem('cached-active-session');
+              if (cached) {
+                const sess = JSON.parse(cached);
+                if (Array.isArray(sess.sessionFloors)) {
+                  const targetCode = floor ? floor.code : room.floorId;
+                  const sf = sess.sessionFloors.find((f: any) => 
+                    f.floorCodeSnapshot === targetCode || f.floorId === room.floorId || f.floor?.code === targetCode
+                  );
+                  if (sf) {
+                    sf.status = 'completed';
+                    sf.completedAt = new Date().toISOString();
+                    localStorage.setItem('cached-active-session', JSON.stringify(sess));
+                  }
+                }
+              }
+            } catch {}
+
+            // Determine if QR is needed or already verified
+            const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
+            const sortedFloors = [...floors].sort((a, b) => isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder);
+            const currentFloorCode = (floor?.code || '').toUpperCase();
+            const currentIdx = sortedFloors.findIndex(f => f.id === room.floorId || f.code.toUpperCase() === currentFloorCode);
+            const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
+
+            // Check if any QR was validated in this session
+            let sessionAlreadyHasQr = hasSessionQr;
+            try {
+              const cached = localStorage.getItem('cached-active-session');
+              if (cached) {
+                const sess = JSON.parse(cached);
+                if (sess.sessionFloors?.some((sf: any) => sf.qrValidated)) sessionAlreadyHasQr = true;
+              }
+            } catch {}
+
+            let targetUrl = '';
+            if (sessionAlreadyHasQr) {
+              // 1-barcode-per-session rule: Physical presence already verified! Directly continue to next floor or summary!
+              targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
+            } else {
+              // No barcode verified yet: Prompt scan on this floor (can also be skipped by officer)
+              const floorTarget = floor ? floor.id : room.floorId;
+              targetUrl = `/security/patrol/floor/${floorTarget}/qr-scan`;
+            }
+
             if (typeof window !== 'undefined' && !navigator.onLine) {
               window.location.href = targetUrl;
             } else {
@@ -566,7 +630,7 @@ export default function RoomCheckPage({
             url: window.location.href,
           });
           const floorTarget = floor ? floor.id : room.floorId;
-          const targetUrl = `/security/patrol/floor/${floorTarget}/qr-scan`;
+          const targetUrl = hasSessionQr ? '/security/patrol' : `/security/patrol/floor/${floorTarget}/qr-scan`;
           if (typeof window !== 'undefined' && !navigator.onLine) {
             window.location.href = targetUrl;
           } else {
@@ -820,30 +884,57 @@ export default function RoomCheckPage({
               </div>
             </div>
             {isFloorFullyChecked && (
-              <button
-                type="button"
-                style={{
-                  background: '#059669',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  cursor: 'pointer'
-                }}
-                onClick={() => {
-                  const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}/qr-scan`;
-                  if (typeof window !== 'undefined' && !navigator.onLine) {
-                    window.location.href = targetUrl;
-                  } else {
-                    router.push(targetUrl);
-                  }
-                }}
-              >
-                Scan QR →
-              </button>
+              hasSessionQr ? (
+                <button
+                  type="button"
+                  style={{
+                    background: '#059669',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => {
+                    const targetUrl = `/security/patrol`;
+                    if (typeof window !== 'undefined' && !navigator.onLine) {
+                      window.location.href = targetUrl;
+                    } else {
+                      router.push(targetUrl);
+                    }
+                  }}
+                >
+                  Lantai Selesai ✓ →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  style={{
+                    background: '#059669',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap',
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => {
+                    const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}/qr-scan`;
+                    if (typeof window !== 'undefined' && !navigator.onLine) {
+                      window.location.href = targetUrl;
+                    } else {
+                      router.push(targetUrl);
+                    }
+                  }}
+                >
+                  Scan QR →
+                </button>
+              )
             )}
           </div>
         )}

@@ -41,6 +41,7 @@ export default function QRScanPage({
   const [manualToken, setManualToken] = useState('');
   const [submittingManual, setSubmittingManual] = useState(false);
   const [syncedCount, setSyncedCount] = useState<number | null>(null);
+  const [verifiedFloorInfo, setVerifiedFloorInfo] = useState<{ name: string; code: string } | null>(null);
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
@@ -196,6 +197,34 @@ export default function QRScanPage({
     );
   }
 
+  const handleSkipScan = () => {
+    // Current floor's rooms are already 100% checked. Mark it completed locally and proceed to next floor!
+    try {
+      const cached = localStorage.getItem('cached-active-session');
+      if (cached) {
+        const sess = JSON.parse(cached);
+        if (Array.isArray(sess.sessionFloors)) {
+          const targetCode = floor ? floor.code : id;
+          const sf = sess.sessionFloors.find((f: any) => 
+            f.floorCodeSnapshot === targetCode || f.id === sessionFloor?.id || f.floorId === id || f.floor?.code === targetCode
+          );
+          if (sf) {
+            sf.status = 'completed';
+            sf.completedAt = new Date().toISOString();
+            localStorage.setItem('cached-active-session', JSON.stringify(sess));
+          }
+        }
+      }
+    } catch {}
+
+    const targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      window.location.href = targetUrl;
+    } else {
+      router.push(targetUrl);
+    }
+  };
+
   const handleScanSuccess = async (scannedText: string) => {
     const rawTrimmed = scannedText.trim();
     let tokenValue = rawTrimmed;
@@ -204,33 +233,33 @@ export default function QRScanPage({
       if (parsed.token) tokenValue = String(parsed.token).trim();
     } catch {}
 
-    const { isOfficialQrValidForFloor, getFloorByQrToken } = await import('@/lib/qr-constants');
+    const { validateAnyOfficialFloorQr, isOfficialQrValidForFloor, getFloorByQrToken } = await import('@/lib/qr-constants');
     const targetFloorCode = floor ? floor.code : id;
-    const isPhysicalValid = isOfficialQrValidForFloor(targetFloorCode, tokenValue);
+    const anyOfficial = validateAnyOfficialFloorQr(tokenValue);
+    const isFloorMatch = isOfficialQrValidForFloor(targetFloorCode, tokenValue);
+    const matchedOfficial = anyOfficial || (isFloorMatch ? getFloorByQrToken(tokenValue) : undefined);
 
-    // If QR does not match this floor, inform user immediately without server calls
-    if (!isPhysicalValid) {
-      const matchedOtherFloor = getFloorByQrToken(tokenValue);
+    // If QR does not match ANY official sticker in RS Mata JEC ORBITA
+    if (!matchedOfficial && !isFloorMatch) {
       setScanState('error');
-      if (matchedOtherFloor) {
-        setErrorMsg(`QR ini milik ${matchedOtherFloor.floorName}. Silakan scan stiker QR di ${floor?.name || 'lantai ini'}.`);
-      } else {
-        setErrorMsg('QR Code tidak sesuai dengan stiker fisik di lantai ini.');
-      }
+      setErrorMsg('QR Code tidak valid sebagai stiker fisik resmi RS Mata JEC ORBITA.');
       return;
     }
 
-    // Physical QR code is 100% verified!
-    const floorCode = floor ? floor.code : (getFloorByQrToken(tokenValue)?.floorCode || '');
+    const verifiedFloorCode = matchedOfficial ? matchedOfficial.floorCode : targetFloorCode;
+    const verifiedFloorName = matchedOfficial ? matchedOfficial.floorName : (floor?.name || `Lantai ${targetFloorCode}`);
+    setVerifiedFloorInfo({ name: verifiedFloorName, code: verifiedFloorCode });
+
+    const currentFloorCode = floor ? floor.code : id;
     const sfId = sessionFloor?.id || (floor ? `sf-${floor.code.toLowerCase()}` : id);
 
     // 1. Immediately save scan record to IndexedDB
     try {
       const { saveOfflineQrScan } = await import('@/lib/db');
       await saveOfflineQrScan({
-        id: `qr-scan-${Date.now()}-${floorCode}`,
+        id: `qr-scan-${Date.now()}-${verifiedFloorCode}`,
         sessionFloorId: sfId,
-        floorCode,
+        floorCode: verifiedFloorCode,
         qrToken: tokenValue,
         scannedAt: new Date().toISOString(),
       });
@@ -238,21 +267,37 @@ export default function QRScanPage({
       console.warn('Save offline QR scan notice:', dbErr);
     }
 
-    // 2. Mark floor completed in cached active session in localStorage
+    // 2. Mark floor completed & QR validated in cached active session in localStorage
     try {
       const cached = localStorage.getItem('cached-active-session');
       if (cached) {
         const sess = JSON.parse(cached);
         if (Array.isArray(sess.sessionFloors)) {
-          const sf = sess.sessionFloors.find((f: any) => 
-            f.floorCodeSnapshot === floorCode || f.id === sfId || f.floorId === id || f.floor?.code === floorCode
+          // Mark current floor completed
+          const curSf = sess.sessionFloors.find((f: any) => 
+            f.floorCodeSnapshot === currentFloorCode || f.id === sfId || f.floorId === id || f.floor?.code === currentFloorCode
           );
-          if (sf) {
-            sf.status = 'completed';
-            sf.qrValidated = true;
-            sf.completedAt = new Date().toISOString();
-            localStorage.setItem('cached-active-session', JSON.stringify(sess));
+          if (curSf) {
+            curSf.status = 'completed';
+            curSf.completedAt = new Date().toISOString();
           }
+
+          // Mark verified floor with QR validated
+          const verifiedSf = sess.sessionFloors.find((f: any) =>
+            f.floorCodeSnapshot === verifiedFloorCode || f.floor?.code === verifiedFloorCode
+          );
+          if (verifiedSf) {
+            verifiedSf.qrValidated = true;
+            verifiedSf.qrScannedAt = new Date().toISOString();
+            verifiedSf.qrTokenUsed = tokenValue;
+            verifiedSf.status = 'completed';
+          } else if (curSf) {
+            curSf.qrValidated = true;
+            curSf.qrScannedAt = new Date().toISOString();
+            curSf.qrTokenUsed = tokenValue;
+          }
+
+          localStorage.setItem('cached-active-session', JSON.stringify(sess));
         }
       }
     } catch {}
@@ -264,7 +309,6 @@ export default function QRScanPage({
     setScanState('success');
 
     // 4. Background non-blocking sync: attempt server validation & memory wipe
-    // If offline or server unreachable, stays safely in IndexedDB without any error screen
     (async () => {
       try {
         const { syncOfflineData } = await import('@/lib/sync');
@@ -285,7 +329,7 @@ export default function QRScanPage({
       } else {
         router.push(targetUrl);
       }
-    }, 2200);
+    }, 2400);
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -306,7 +350,12 @@ export default function QRScanPage({
             </svg>
           </div>
           <h2 className={styles.resultTitle}>Verifikasi Berhasil!</h2>
-          <p className={styles.resultText}>{floor?.name} telah selesai dipatroli</p>
+          <p className={styles.resultText} style={{ fontWeight: 800, color: 'var(--color-success-700)', fontSize: '15px', marginBottom: '4px' }}>
+            📍 Terverifikasi di {verifiedFloorInfo?.name || floor?.name}
+          </p>
+          <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', maxWidth: '340px', margin: '0 auto 12px', lineHeight: 1.4 }}>
+            Pemeriksaan {floor?.name} selesai. Kehadiran fisik sesi ini telah sah tervalidasi dan Anda tidak perlu lagi melakukan scan barcode di lantai lainnya.
+          </p>
           <div className={styles.resultMeta} style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
             {isOfflineScan ? (
               <>
@@ -317,9 +366,9 @@ export default function QRScanPage({
               </>
             ) : (
               <>
-                <span className="badge badge-success badge-lg">✓ QR Code Tervalidasi Online</span>
+                <span className="badge badge-success badge-lg">✓ Kehadiran Fisik Tervalidasi</span>
                 <span style={{ fontSize: '12px', color: 'var(--color-success-700)', fontWeight: '600', textAlign: 'center', maxWidth: '320px' }}>
-                  ☁️ Seluruh pemeriksaan ruangan & foto telah diterima server. Memori HP telah dibersihkan.
+                  ☁️ Sesi patroli ini telah memenuhi SOP kehadiran fisik RS Mata JEC ORBITA.
                 </span>
               </>
             )}
@@ -411,6 +460,32 @@ export default function QRScanPage({
             hideHeader={true}
           />
         </div>
+      </div>
+
+      {/* Skip button for 1-barcode-per-session SOP */}
+      <div style={{ marginTop: '14px', textAlign: 'center' }}>
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={handleSkipScan}
+          style={{
+            fontSize: '12px',
+            fontWeight: 700,
+            padding: '8px 16px',
+            borderRadius: '10px',
+            color: 'var(--color-primary-700)',
+            borderColor: 'var(--color-primary-300)',
+            background: 'var(--color-primary-50)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          <span>⏩ Lewati & Scan di Lantai Lain Nanti</span>
+        </button>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+          *Cukup 1x scan barcode di lantai manapun per sesi patroli
+        </p>
       </div>
 
       {/* Manual Input Fallback (for damaged/unreadable printed stickers) */}

@@ -88,19 +88,21 @@ export async function POST(request: NextRequest) {
       // Use raw token directly
     }
 
-    const { isOfficialQrValidForFloor, OFFICIAL_QR_MAP } = await import('@/lib/qr-constants');
+    const { validateAnyOfficialFloorQr, isOfficialQrValidForFloor, OFFICIAL_QR_MAP } = await import('@/lib/qr-constants');
     const floorCode = sessionFloor.floor.code;
     const dbToken = sessionFloor.floor.qrCode?.token;
 
-    const isOfficial = isOfficialQrValidForFloor(floorCode, rawToken);
-    const isDbMatch = dbToken ? dbToken.toUpperCase() === rawToken.toUpperCase() : false;
-    const qrValid = isOfficial || isDbMatch;
+    // Check if token matches the current floor OR ANY official floor of RS Mata JEC ORBITA (Universal Barcode)
+    const isFloorMatch = isOfficialQrValidForFloor(floorCode, rawToken) || (dbToken ? dbToken.toUpperCase() === rawToken.toUpperCase() : false);
+    const anyOfficialMatch = validateAnyOfficialFloorQr(rawToken);
 
-    if (!qrValid) {
-      return NextResponse.json({ error: 'QR code tidak valid untuk lantai ini', valid: false }, { status: 400 });
+    if (!isFloorMatch && !anyOfficialMatch) {
+      return NextResponse.json({ error: 'QR code tidak valid sebagai stiker fisik resmi RS Mata JEC ORBITA', valid: false }, { status: 400 });
     }
 
-    const tokenToSave = OFFICIAL_QR_MAP[floorCode.toUpperCase()] || dbToken || rawToken;
+    const verifiedFloorCode = anyOfficialMatch ? anyOfficialMatch.floorCode : floorCode;
+    const verifiedFloorName = anyOfficialMatch ? anyOfficialMatch.floorName : sessionFloor.floor.name;
+    const tokenToSave = anyOfficialMatch ? anyOfficialMatch.token : (OFFICIAL_QR_MAP[floorCode.toUpperCase()] || dbToken || rawToken);
 
     // Verify that all active rooms on this floor have been inspected before allowing QR seal completion
     const totalFloorRooms = await prisma.room.count({
@@ -123,15 +125,58 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Update session floor as validated
+    const now = new Date();
+
+    // 1. Mark current floor completed
     await prisma.patrolSessionFloor.update({
       where: { id: sessionFloor.id },
-      data: { qrValidated: true, qrScannedAt: new Date(), qrTokenUsed: tokenToSave, status: 'completed', completedAt: new Date() },
+      data: {
+        status: 'completed',
+        completedAt: now,
+        ...(verifiedFloorCode === floorCode ? {
+          qrValidated: true,
+          qrScannedAt: now,
+          qrTokenUsed: tokenToSave,
+        } : {}),
+      },
     });
+
+    // 2. If the scanned barcode belongs to another floor in this session, also mark that floor as qrValidated
+    if (verifiedFloorCode !== floorCode && sessionFloor.sessionId) {
+      const scannedSf = await prisma.patrolSessionFloor.findFirst({
+        where: {
+          sessionId: sessionFloor.sessionId,
+          OR: [
+            { floorCodeSnapshot: verifiedFloorCode },
+            { floor: { code: verifiedFloorCode } },
+          ],
+        },
+      });
+      if (scannedSf) {
+        await prisma.patrolSessionFloor.update({
+          where: { id: scannedSf.id },
+          data: {
+            qrValidated: true,
+            qrScannedAt: now,
+            qrTokenUsed: tokenToSave,
+          },
+        });
+      }
+    }
 
     // Log activity
     await prisma.activityLog.create({
-      data: { userId: auth.id, action: 'scan_qr', entityType: 'patrol_session_floor', entityId: sessionFloor.id },
+      data: {
+        userId: auth.id,
+        action: 'scan_qr',
+        entityType: 'patrol_session_floor',
+        entityId: sessionFloor.id,
+        metadata: {
+          scannedFloorCode: verifiedFloorCode,
+          scannedFloorName: verifiedFloorName,
+          currentFloorCode: floorCode,
+        },
+      },
     });
 
     // Check if all floors are completed
@@ -153,7 +198,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ valid: true, message: 'QR validasi berhasil' });
+    return NextResponse.json({
+      valid: true,
+      message: `QR verifikasi fisik berhasil (${verifiedFloorName})`,
+      verifiedFloorCode,
+      verifiedFloorName,
+    });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Server error';
     return NextResponse.json({ error: msg }, { status: 500 });

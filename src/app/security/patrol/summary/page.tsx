@@ -18,6 +18,7 @@ export default function PatrolSummaryPage() {
   const [roomsCheckedCount, setRoomsCheckedCount] = useState(0);
   const [floorsCompletedCount, setFloorsCompletedCount] = useState(floors.length);
   const [sessionFindings, setSessionFindings] = useState<any[]>([]);
+  const [qrVerifiedInfo, setQrVerifiedInfo] = useState<{ floorName: string; time: string; floorCode: string } | null>(null);
 
   // Sync state
   const [offlinePendingCount, setOfflinePendingCount] = useState(0);
@@ -135,10 +136,44 @@ export default function PatrolSummaryPage() {
 
           const compFloors = s.sessionFloors?.filter((sf: any) => sf.status === 'completed' || sf.qrValidated).length;
           setFloorsCompletedCount(compFloors !== undefined && compFloors > 0 ? compFloors : (offQr.length > 0 ? offQr.length : floors.length));
+
+          // Resolve which floor has the physical QR presence scan
+          let verifiedQrData: { floorName: string; time: string; floorCode: string } | null = null;
+          const qrSf = s.sessionFloors?.find((sf: any) => sf.qrValidated);
+          if (qrSf) {
+            const scanTime = qrSf.qrScannedAt ? new Date(qrSf.qrScannedAt) : (s.completedAt ? new Date(s.completedAt) : new Date());
+            verifiedQrData = {
+              floorName: qrSf.floorNameSnapshot || qrSf.floor?.name || `Lantai ${qrSf.floorCodeSnapshot || ''}`,
+              floorCode: qrSf.floorCodeSnapshot || qrSf.floor?.code || '',
+              time: scanTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }),
+            };
+          } else if (offQr && offQr.length > 0) {
+            const lastOff = offQr[offQr.length - 1];
+            const scanTime = lastOff.scannedAt ? new Date(lastOff.scannedAt) : new Date();
+            const { getFloorById } = await import('@/lib/dummy-data');
+            const fl = getFloorById(lastOff.floorCode);
+            verifiedQrData = {
+              floorName: fl?.name || `Lantai ${lastOff.floorCode}`,
+              floorCode: lastOff.floorCode,
+              time: scanTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }),
+            };
+          }
+          setQrVerifiedInfo(verifiedQrData);
         } else {
           setEndTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }));
           setRoomsCheckedCount(offChecks.length);
           setFloorsCompletedCount(offQr.length > 0 ? offQr.length : 0);
+          if (offQr && offQr.length > 0) {
+            const lastOff = offQr[offQr.length - 1];
+            const scanTime = lastOff.scannedAt ? new Date(lastOff.scannedAt) : new Date();
+            const { getFloorById } = await import('@/lib/dummy-data');
+            const fl = getFloorById(lastOff.floorCode);
+            setQrVerifiedInfo({
+              floorName: fl?.name || `Lantai ${lastOff.floorCode}`,
+              floorCode: lastOff.floorCode,
+              time: scanTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }),
+            });
+          }
         }
       } catch (err) {
         console.error('Summary load error:', err);
@@ -258,6 +293,31 @@ export default function PatrolSummaryPage() {
           </div>
         </div>
       </div>
+
+      {/* Physical Barcode Presence Verification Card */}
+      {qrVerifiedInfo ? (
+        <div className="card" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '14px 16px', borderRadius: '12px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontWeight: 800, fontSize: '13px' }}>
+            <span>📍</span>
+            <span>Kehadiran Fisik Tervalidasi Barcode: {qrVerifiedInfo.floorName}</span>
+          </div>
+          <p style={{ margin: '4px 0 0 24px', fontSize: '11.5px', color: '#15803d', lineHeight: 1.4 }}>
+            Terverifikasi pada pukul <strong>{qrVerifiedInfo.time} WITA</strong> • Memenuhi SOP verifikasi fisik patroli RS Mata JEC ORBITA
+          </p>
+        </div>
+      ) : (
+        <div className="card" style={{ background: '#fffbeb', border: '1px solid #fef3c7', padding: '12px 14px', borderRadius: '12px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#92400e', fontWeight: 700, fontSize: '12px' }}>
+            <span>⚠️</span>
+            <span>Tidak Ada Scan Barcode Fisik Tercatat</span>
+          </div>
+          <p style={{ margin: '3px 0 0 22px', fontSize: '11px', color: '#b45309' }}>
+            {session?.status === 'incomplete' 
+              ? 'Sesi patroli diakhiri lebih awal sebelum verifikasi barcode fisik.'
+              : 'Verifikasi barcode belum tersinkronisasi atau dilewati.'}
+          </p>
+        </div>
+      )}
 
       {/* Floor breakdown */}
       <div className={`card ${styles.breakdownCard}`}>

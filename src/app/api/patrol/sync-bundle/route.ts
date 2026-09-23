@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAuthUser } from '@/lib/auth';
 import { rooms as mockRooms } from '@/lib/dummy-data';
-import { isOfficialQrValidForFloor, OFFICIAL_QR_MAP } from '@/lib/qr-constants';
+import { isOfficialQrValidForFloor, OFFICIAL_QR_MAP, validateAnyOfficialFloorQr } from '@/lib/qr-constants';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -315,29 +315,52 @@ export async function POST(request: NextRequest) {
           sf.floorCodeSnapshot?.toUpperCase() === String(q.floorCode || '').toUpperCase()
         );
 
-        if (targetSf) {
-          const floorCode = targetSf.floor.code;
-          const isOfficial = isOfficialQrValidForFloor(floorCode, rawToken);
-          const dbToken = targetSf.floor.qrCode?.token;
-          const isDbMatch = dbToken ? dbToken.toUpperCase() === rawToken.toUpperCase() : false;
+        const anyOfficial = validateAnyOfficialFloorQr(rawToken);
+        const floorCode = targetSf?.floor.code || q.floorCode || '';
+        const isOfficial = isOfficialQrValidForFloor(floorCode, rawToken);
+        const dbToken = targetSf?.floor.qrCode?.token;
+        const isDbMatch = dbToken ? dbToken.toUpperCase() === rawToken.toUpperCase() : false;
 
-          if (isOfficial || isDbMatch || rawToken.length > 3) {
-            const tokenToSave = OFFICIAL_QR_MAP[floorCode.toUpperCase()] || dbToken || rawToken;
-            const scanTimestamp = q.scannedAt ? new Date(q.scannedAt) : new Date();
+        if (anyOfficial || isOfficial || isDbMatch || rawToken.length > 3) {
+          const verifiedCode = anyOfficial ? anyOfficial.floorCode : floorCode;
+          const tokenToSave = anyOfficial ? anyOfficial.token : (OFFICIAL_QR_MAP[verifiedCode.toUpperCase()] || dbToken || rawToken);
+          const scanTimestamp = q.scannedAt ? new Date(q.scannedAt) : new Date();
 
+          // 1. Mark target floor completed
+          if (targetSf) {
             await prisma.patrolSessionFloor.update({
               where: { id: targetSf.id },
               data: {
-                qrValidated: true,
-                qrScannedAt: scanTimestamp,
-                qrTokenUsed: tokenToSave,
                 status: 'completed',
                 completedAt: scanTimestamp,
+                ...(verifiedCode === targetSf.floor.code ? {
+                  qrValidated: true,
+                  qrScannedAt: scanTimestamp,
+                  qrTokenUsed: tokenToSave,
+                } : {}),
               },
             });
-
-            syncedQrScanIds.push(q.id);
           }
+
+          // 2. If scanned barcode is for another floor, mark that floor qrValidated
+          if (verifiedCode && activeSession && (!targetSf || verifiedCode !== targetSf.floor.code)) {
+            const scannedSf = activeSession.sessionFloors?.find(sf =>
+              sf.floor.code.toUpperCase() === verifiedCode.toUpperCase() ||
+              sf.floorCodeSnapshot?.toUpperCase() === verifiedCode.toUpperCase()
+            );
+            if (scannedSf) {
+              await prisma.patrolSessionFloor.update({
+                where: { id: scannedSf.id },
+                data: {
+                  qrValidated: true,
+                  qrScannedAt: scanTimestamp,
+                  qrTokenUsed: tokenToSave,
+                },
+              });
+            }
+          }
+
+          syncedQrScanIds.push(q.id);
         }
       } catch (qrErr) {
         console.error('Batch sync QR error for item:', q.id, qrErr);

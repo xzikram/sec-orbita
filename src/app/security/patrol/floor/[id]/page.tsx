@@ -26,6 +26,7 @@ export default function FloorDetailPage({
   const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
+  const [hasSessionQr, setHasSessionQr] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fallbackFloor = getFloorById(id) || 
@@ -126,13 +127,23 @@ export default function FloorDetailPage({
           setFloorRooms(defaultRooms);
         }
 
-        // 3. Get offline checks from IndexedDB
+        // 3. Get offline checks and QR scans from IndexedDB
         try {
-          const { getOfflineChecks } = await import('@/lib/db');
-          const offline = await getOfflineChecks();
+          const { getOfflineChecks, getOfflineQrScans } = await import('@/lib/db');
+          const [offline, offlineQrs] = await Promise.all([
+            getOfflineChecks().catch(() => []),
+            getOfflineQrScans().catch(() => []),
+          ]);
           setOfflineChecks(offline);
+          if (offlineQrs && offlineQrs.length > 0) {
+            setHasSessionQr(true);
+          }
         } catch (e) {
           console.error('IndexedDB load error:', e);
+        }
+
+        if (activeSess?.sessionFloors?.some((sf: any) => sf.qrValidated)) {
+          setHasSessionQr(true);
         }
 
         // 4. Set loading false immediately (< 25ms render)
@@ -158,6 +169,9 @@ export default function FloorDetailPage({
               const active = sessions.find((s: any) => s.status === 'in_progress' && (!myId || s.userId === myId)) || null;
               if (active) {
                 setSession(active);
+                if (active.sessionFloors?.some((sf: any) => sf.qrValidated)) {
+                  setHasSessionQr(true);
+                }
                 try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
               }
             }
@@ -262,6 +276,37 @@ export default function FloorDetailPage({
     if (typeof window !== 'undefined' && !navigator.onLine && floor) {
       if (e) e.preventDefault();
       window.location.href = `/security/patrol/floor/${floor.id}/qr-scan`;
+    }
+  };
+
+  const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
+  const sortedFloors = [...floors].sort((a, b) => isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder);
+  const currentIdx = sortedFloors.findIndex(f => f.id === floor?.id || f.code === floor?.code);
+  const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
+
+  const handleSkipFloorQr = () => {
+    try {
+      const cached = localStorage.getItem('cached-active-session');
+      if (cached) {
+        const sess = JSON.parse(cached);
+        if (Array.isArray(sess.sessionFloors)) {
+          const sf = sess.sessionFloors.find((f: any) => 
+            f.floorCodeSnapshot === (floor?.code || id) || f.id === sessionFloor?.id || f.floorId === id || f.floor?.code === (floor?.code || id)
+          );
+          if (sf) {
+            sf.status = 'completed';
+            sf.completedAt = new Date().toISOString();
+            localStorage.setItem('cached-active-session', JSON.stringify(sess));
+          }
+        }
+      }
+    } catch {}
+
+    const targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      window.location.href = targetUrl;
+    } else {
+      router.push(targetUrl);
     }
   };
 
@@ -473,18 +518,55 @@ export default function FloorDetailPage({
           )}
 
       {/* QR Validated or Scan CTA */}
-      {(sessionFloor?.qrValidated && percent === 100) ? (
+      {((sessionFloor?.qrValidated || hasSessionQr) && percent === 100) ? (
         <div className="card animate-scale-in" style={{ marginTop: '1.5rem', background: 'var(--color-success-50)', border: '1px solid var(--color-success-200)', textAlign: 'center', padding: '1.5rem 1.25rem', borderRadius: '12px' }}>
           <div style={{ color: 'var(--color-success-700)', fontWeight: 800, fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '50%', background: 'var(--color-success-600)', color: '#fff', fontSize: '15px' }}>✓</span>
-            Lantai Selesai & Tervalidasi QR
+            Lantai Selesai
           </div>
           <p style={{ fontSize: '13px', color: 'var(--color-neutral-600)', margin: '0 0 14px' }}>
-            Seluruh titik pemeriksaan di {floor.name} telah dicek dan validasi QR fisik berhasil.
+            {sessionFloor?.qrValidated
+              ? `Seluruh titik pemeriksaan di ${floor.name} telah selesai dan barcode fisik lantai ini telah tervalidasi.`
+              : `Seluruh titik pemeriksaan di ${floor.name} telah selesai. Kehadiran fisik sesi patroli ini telah tervalidasi.`}
           </p>
-          <Link href="/security/patrol" className="btn btn-outline btn-sm" style={{ fontWeight: 600 }} onClick={handleGoToPatrol}>
-            Kembali ke Rute Patroli →
-          </Link>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '280px', margin: '0 auto' }}>
+            {nextFloor ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-lg"
+                style={{ fontWeight: 700 }}
+                onClick={() => {
+                  const target = `/security/patrol/floor/${nextFloor.id}`;
+                  if (typeof window !== 'undefined' && !navigator.onLine) {
+                    window.location.href = target;
+                  } else {
+                    router.push(target);
+                  }
+                }}
+              >
+                Lanjut ke {nextFloor.name} →
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-primary btn-lg"
+                style={{ fontWeight: 700 }}
+                onClick={() => {
+                  const target = `/security/patrol/summary`;
+                  if (typeof window !== 'undefined' && !navigator.onLine) {
+                    window.location.href = target;
+                  } else {
+                    router.push(target);
+                  }
+                }}
+              >
+                Lihat Ringkasan Patroli 🎉
+              </button>
+            )}
+            <Link href="/security/patrol" className="btn btn-ghost btn-sm" style={{ fontWeight: 600 }} onClick={handleGoToPatrol}>
+              Lihat Rute Patroli
+            </Link>
+          </div>
         </div>
       ) : percent === 100 ? (
         <div className={`${styles.qrCta} animate-scale-in`} style={{ marginTop: '1.5rem' }}>
@@ -499,22 +581,39 @@ export default function FloorDetailPage({
             </div>
             <h3 className={styles.qrCtaTitle}>Semua Ruangan Selesai!</h3>
             <p className={styles.qrCtaText}>
-              Langkah Terakhir: Scan QR fisik di dinding untuk menutup lantai ini
+              Scan stiker barcode di lantai ini untuk verifikasi kehadiran fisik (cukup 1x scan per sesi patroli).
             </p>
-            <Link
-              href={`/security/patrol/floor/${floor.id}/qr-scan`}
-              className="btn btn-success btn-xl"
-              id="btn-scan-qr"
-              onClick={handleGoToQr}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-              </svg>
-              Scan QR Lantai
-            </Link>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', maxWidth: '300px', margin: '0 auto' }}>
+              <Link
+                href={`/security/patrol/floor/${floor.id}/qr-scan`}
+                className="btn btn-success btn-xl"
+                id="btn-scan-qr"
+                onClick={handleGoToQr}
+                style={{ fontWeight: 700 }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="14" y="14" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                </svg>
+                Scan Barcode Kehadiran
+              </Link>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={handleSkipFloorQr}
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: 'var(--color-primary-700)',
+                  borderColor: 'var(--color-primary-300)',
+                  background: 'var(--color-primary-50)',
+                }}
+              >
+                ⏩ Lewati & Scan di Lantai Lain Nanti
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
