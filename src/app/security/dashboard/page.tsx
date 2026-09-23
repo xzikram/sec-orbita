@@ -182,9 +182,17 @@ export default function SecurityDashboard() {
       setPrepareStatusText('Data offline siap! Masuk ke rute patroli...');
       await new Promise(r => setTimeout(r, 150));
 
-      router.push('/security/patrol');
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        window.location.href = '/security/patrol';
+      } else {
+        router.push('/security/patrol');
+      }
     } catch {
-      router.push('/security/patrol');
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        window.location.href = '/security/patrol';
+      } else {
+        router.push('/security/patrol');
+      }
     } finally {
       setIsPreparingOffline(false);
     }
@@ -631,7 +639,13 @@ export default function SecurityDashboard() {
             <Link
               href={`/security/patrol/floor/${resumeState.floorId}`}
               className="btn btn-primary btn-sm"
-              onClick={() => localStorage.removeItem('lastPatrolState')}
+              onClick={(e) => {
+                localStorage.removeItem('lastPatrolState');
+                if (typeof window !== 'undefined' && !navigator.onLine) {
+                  e.preventDefault();
+                  window.location.href = `/security/patrol/floor/${resumeState.floorId}`;
+                }
+              }}
             >
               Lanjutkan →
             </Link>

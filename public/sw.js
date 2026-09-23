@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v17';
+const CACHE_NAME = 'sec-patrol-v19';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',

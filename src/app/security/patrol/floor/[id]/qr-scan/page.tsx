@@ -188,7 +188,14 @@ export default function QRScanPage({
         </p>
         <button
           className="btn btn-primary btn-lg"
-          onClick={() => router.push(`/security/patrol/floor/${floor.id}`)}
+          onClick={() => {
+            const targetUrl = `/security/patrol/floor/${floor.id}`;
+            if (typeof window !== 'undefined' && !navigator.onLine) {
+              window.location.href = targetUrl;
+            } else {
+              router.push(targetUrl);
+            }
+          }}
           style={{ fontWeight: 700 }}
         >
           ← Selesaikan Pemeriksaan Ruangan
@@ -380,7 +387,14 @@ export default function QRScanPage({
                 <button
                   type="button"
                   className="btn btn-primary btn-lg"
-                  onClick={() => router.push(`/security/patrol/floor/${nextFloor.id}`)}
+                  onClick={() => {
+                    const targetUrl = `/security/patrol/floor/${nextFloor.id}`;
+                    if (typeof window !== 'undefined' && !navigator.onLine) {
+                      window.location.href = targetUrl;
+                    } else {
+                      router.push(targetUrl);
+                    }
+                  }}
                   style={{ fontWeight: 700 }}
                 >
                   Lanjut ke {nextFloor.name} →
@@ -388,7 +402,14 @@ export default function QRScanPage({
                 <button
                   type="button"
                   className="btn btn-outline btn-sm"
-                  onClick={() => router.push('/security/patrol')}
+                  onClick={() => {
+                    const targetUrl = '/security/patrol';
+                    if (typeof window !== 'undefined' && !navigator.onLine) {
+                      window.location.href = targetUrl;
+                    } else {
+                      router.push(targetUrl);
+                    }
+                  }}
                 >
                   Lihat Rute Patroli
                 </button>
@@ -397,7 +418,14 @@ export default function QRScanPage({
               <button
                 type="button"
                 className="btn btn-primary btn-lg"
-                onClick={() => router.push('/security/patrol/summary')}
+                onClick={() => {
+                  const targetUrl = '/security/patrol/summary';
+                  if (typeof window !== 'undefined' && !navigator.onLine) {
+                    window.location.href = targetUrl;
+                  } else {
+                    router.push(targetUrl);
+                  }
+                }}
                 style={{ fontWeight: 700 }}
               >
                 Lihat Ringkasan Patroli 🎉

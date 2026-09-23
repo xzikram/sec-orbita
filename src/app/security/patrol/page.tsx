@@ -239,23 +239,73 @@ export default function PatrolPage() {
   const handleStartOrResumeDirectly = async () => {
     setIsStartingDirectly(true);
     try {
-      const res = await fetch('/api/patrol/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (res.ok) {
-        const newSess = await res.json();
-        setSession(newSess);
-        try {
-          localStorage.setItem('cached-active-session', JSON.stringify(newSess));
-        } catch {}
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Gagal memulai atau melanjutkan sesi patroli.');
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        const res = await fetch('/api/patrol/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (res.ok) {
+          const newSess = await res.json();
+          setSession(newSess);
+          try {
+            localStorage.setItem('cached-active-session', JSON.stringify(newSess));
+          } catch {}
+          return;
+        }
       }
+
+      // Offline fallback: Create resilient offline session locally
+      let currentUserId: string | undefined = undefined;
+      try {
+        const cu = localStorage.getItem('cached-user');
+        if (cu) currentUserId = JSON.parse(cu).id;
+      } catch {}
+
+      const { floors: fallbackFloors, getCurrentSchedule } = await import('@/lib/dummy-data');
+      const sched = getCurrentSchedule();
+      const offlineSession = {
+        id: `offline-sess-${Date.now()}`,
+        userId: currentUserId,
+        patrolNumber: sched.patrolNumber || 1,
+        status: 'in_progress',
+        startedAt: new Date().toISOString(),
+        schedule: sched,
+        sessionFloors: fallbackFloors.map((f: any) => ({
+          id: `sf-${f.code.toLowerCase()}`,
+          floorId: f.id,
+          floorNameSnapshot: f.name,
+          floorCodeSnapshot: f.code,
+          status: 'pending',
+          qrValidated: false,
+          patrolChecks: [],
+        })),
+      };
+      localStorage.setItem('cached-active-session', JSON.stringify(offlineSession));
+      setSession(offlineSession);
     } catch {
-      alert('Gagal menghubungi server untuk memulai sesi patroli.');
+      try {
+        const { floors: fallbackFloors, getCurrentSchedule } = await import('@/lib/dummy-data');
+        const sched = getCurrentSchedule();
+        const offlineSession = {
+          id: `offline-sess-${Date.now()}`,
+          patrolNumber: sched.patrolNumber || 1,
+          status: 'in_progress',
+          startedAt: new Date().toISOString(),
+          schedule: sched,
+          sessionFloors: fallbackFloors.map((f: any) => ({
+            id: `sf-${f.code.toLowerCase()}`,
+            floorId: f.id,
+            floorNameSnapshot: f.name,
+            floorCodeSnapshot: f.code,
+            status: 'pending',
+            qrValidated: false,
+            patrolChecks: [],
+          })),
+        };
+        localStorage.setItem('cached-active-session', JSON.stringify(offlineSession));
+        setSession(offlineSession);
+      } catch {}
     } finally {
       setIsStartingDirectly(false);
     }
@@ -694,6 +744,12 @@ export default function PatrolPage() {
                   href={`/security/patrol/floor/${activeOrFirstFloor?.floor?.id || activeOrFirstFloor?.floorId}/qr-scan`}
                   className="btn btn-primary"
                   style={{ fontWeight: 700, justifyContent: 'center', padding: '10px' }}
+                  onClick={(e) => {
+                    if (typeof window !== 'undefined' && !navigator.onLine) {
+                      e.preventDefault();
+                      window.location.href = `/security/patrol/floor/${activeOrFirstFloor?.floor?.id || activeOrFirstFloor?.floorId}/qr-scan`;
+                    }
+                  }}
                 >
                   📱 Scan Barcode di {activeOrFirstFloor?.floor?.name || 'Lantai Ini'}
                 </Link>
