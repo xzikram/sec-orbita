@@ -170,6 +170,8 @@ export default function SecurityLayout({
       try {
         const errorMsg = event.message || 'Window Error';
         if (errorMsg.includes('ResizeObserver')) return;
+        if (errorMsg.includes('ServiceWorker') || errorMsg.includes('/sw.js')) return;
+        if (errorMsg.includes('Failed to fetch') && !navigator.onLine) return;
         reportClientError({
           message: errorMsg,
           stack: event.error?.stack || `${event.filename}:${event.lineno}:${event.colno}`,
@@ -183,6 +185,8 @@ export default function SecurityLayout({
         const reason = event.reason;
         const msg = typeof reason === 'string' ? reason : reason?.message || 'Unhandled Promise Rejection';
         if (msg.includes('AbortError')) return;
+        if (msg.includes('ServiceWorker') || msg.includes('/sw.js')) return;
+        if (msg.includes('Failed to fetch') && !navigator.onLine) return;
         reportClientError({
           message: msg,
           stack: reason?.stack || null,

@@ -105,10 +105,20 @@ export default function RootLayout({
                   navigator.serviceWorker.register('/sw.js')
                     .then(function(reg) {
                       console.log('PWA Service Worker registered:', reg.scope);
-                      reg.update();
+                      // Safe online-only update check with error suppression
+                      if (navigator.onLine) {
+                        reg.update().catch(function() {});
+                      }
+                      // Cleanly check updates when internet is reconnected
+                      window.addEventListener('online', function() {
+                        reg.update().catch(function() {});
+                      });
+                      // Gentle periodic check (every 15 mins, only if online)
                       setInterval(function() {
-                        reg.update();
-                      }, 60000);
+                        if (navigator.onLine) {
+                          reg.update().catch(function() {});
+                        }
+                      }, 15 * 60 * 1000);
                     })
                     .catch(function(err) {
                       console.warn('PWA Service Worker registration error:', err);

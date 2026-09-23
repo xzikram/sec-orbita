@@ -21,6 +21,18 @@ const STORAGE_KEY = 'queued_system_errors';
 export async function reportClientError(payload: SystemErrorPayload): Promise<void> {
   if (typeof window === 'undefined') return;
 
+  const msg = String(payload.message || '');
+  // Ignore expected network drop / ServiceWorker update failures (false alarms)
+  if (
+    msg.includes('ServiceWorker') ||
+    msg.includes('/sw.js') ||
+    msg.includes('ResizeObserver') ||
+    (msg.includes('Failed to fetch') && !navigator.onLine) ||
+    (msg.includes('NetworkError') && !navigator.onLine)
+  ) {
+    return;
+  }
+
   // Read cached user info if available
   let userId = payload.userId;
   let userName = payload.userName;
