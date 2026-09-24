@@ -215,6 +215,10 @@ export default function PatrolPage() {
       });
       if (res.ok) {
         try {
+          const { clearTemporaryOfflineMedia } = await import('@/lib/db');
+          await clearTemporaryOfflineMedia();
+        } catch {}
+        try {
           localStorage.removeItem('cached-active-session');
           localStorage.removeItem('lastPatrolState');
         } catch {}
@@ -361,7 +365,7 @@ export default function PatrolPage() {
       (s.floor?.code && s.floor.code.toUpperCase() === f.code.toUpperCase())
     );
     fRooms.forEach(r => {
-      if (isRoomChecked(r, sf?.patrolChecks, offlineChecks)) {
+      if (isRoomChecked(r, sf?.patrolChecks, offlineChecks, currentSession.id)) {
         checkedRoomCodesSet.add(r.code);
       }
     });
@@ -395,7 +399,7 @@ export default function PatrolPage() {
     
     const combinedFloorChecked = new Set<string>();
     floorRooms.forEach(r => {
-      if (isRoomChecked(r, sf.patrolChecks, offlineChecks)) {
+      if (isRoomChecked(r, sf.patrolChecks, offlineChecks, currentSession.id)) {
         combinedFloorChecked.add(r.code);
       }
     });

@@ -11,14 +11,31 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const { scheduleId, previousSessionId, reason, notes } = body;
 
-    if (!scheduleId) {
-      return NextResponse.json({ error: 'Schedule ID wajib disertakan' }, { status: 400 });
+    let schedule = null;
+    if (scheduleId) {
+      schedule = await prisma.patrolSchedule.findUnique({ where: { id: scheduleId } });
     }
 
-    const schedule = await prisma.patrolSchedule.findUnique({ where: { id: scheduleId } });
+    if (!schedule) {
+      const allSchedules = await prisma.patrolSchedule.findMany({ orderBy: { patrolNumber: 'asc' } });
+      const nowTime = new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Makassar',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date()).replace('.', ':');
+
+      schedule = allSchedules.find(s => {
+        if (s.startTime < s.endTime) {
+          return nowTime >= s.startTime && nowTime < s.endTime;
+        }
+        return nowTime >= s.startTime || nowTime < s.endTime;
+      }) || allSchedules[0];
+    }
+
     if (!schedule) {
       return NextResponse.json({ error: 'Jadwal patroli tujuan tidak ditemukan' }, { status: 404 });
     }
@@ -54,16 +71,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (prevSessionToClose && prevSessionToClose.status === 'in_progress') {
-      const closureReason = reason || 'Petugas sebelumnya belum menyelesaikan / pergantian putaran';
-      const closureLog = `[DITUTUP OLEH PETUGAS LAIN]\nDitutup oleh: ${auth.name} (${auth.employeeId || 'Petugas'}) pukul ${timeMakassar} WITA saat memulai ${schedule.name} (Ronda #${schedule.patrolNumber}).\nAlasan: ${closureReason}${notes ? `\nCatatan Tambahan: ${notes}` : ''}`;
+    if (prevSessionToClose && (prevSessionToClose.status === 'in_progress' || prevSessionToClose.status === 'incomplete')) {
+      const closureReason = reason || 'Pergantian putaran jadwal patroli';
+      const closureLog = `[DITUTUP UNTUK RONDA BARU]\nDitutup oleh: ${auth.name} (${auth.employeeId || 'Petugas'}) pukul ${timeMakassar} WITA saat memulai ${schedule.name} (Ronda #${schedule.patrolNumber}).\nAlasan: ${closureReason}${notes ? `\nCatatan Tambahan: ${notes}` : ''}`;
       const updatedPrevNotes = [prevSessionToClose.notes, closureLog].filter(Boolean).join('\n\n');
 
       await prisma.patrolSession.update({
         where: { id: prevSessionToClose.id },
         data: {
           status: 'incomplete',
-          completedAt: now,
+          completedAt: prevSessionToClose.completedAt || now,
           notes: updatedPrevNotes,
         },
       });
@@ -96,15 +113,38 @@ export async function POST(request: NextRequest) {
           patrolDate,
         },
       },
-      include: { sessionFloors: true },
+      include: {
+        user: { select: { id: true, name: true, employeeId: true } },
+        schedule: true,
+        sessionFloors: {
+          include: {
+            floor: true,
+            patrolChecks: {
+              include: { findings: true },
+            },
+          },
+        },
+      },
     });
 
     if (existingTargetSession) {
       if (existingTargetSession.status !== 'in_progress') {
         // Reopen if needed or return existing
-        await prisma.patrolSession.update({
+        existingTargetSession = await prisma.patrolSession.update({
           where: { id: existingTargetSession.id },
           data: { status: 'in_progress' },
+          include: {
+            user: { select: { id: true, name: true, employeeId: true } },
+            schedule: true,
+            sessionFloors: {
+              include: {
+                floor: true,
+                patrolChecks: {
+                  include: { findings: true },
+                },
+              },
+            },
+          },
         });
       }
       return NextResponse.json({

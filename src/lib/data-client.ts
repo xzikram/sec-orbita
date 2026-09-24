@@ -3,6 +3,7 @@
 import { saveOfflineCheck, saveOfflineFinding } from './db';
 
 export interface RoomCheckPayload {
+  sessionId?: string;
   sessionFloorId: string;
   roomId: string;
   roomCode?: string;

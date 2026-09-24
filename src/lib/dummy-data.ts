@@ -516,7 +516,8 @@ export function getRoomById(roomId: string): Room | undefined {
 export function isRoomChecked(
   room: { id: string; code: string; floorId?: string },
   sessionFloorChecks: any[] = [],
-  offlineChecks: any[] = []
+  offlineChecks: any[] = [],
+  currentSessionId?: string
 ): boolean {
   if (!room) return false;
   const roomCode = String(room.code || '').toUpperCase().trim();
@@ -539,6 +540,12 @@ export function isRoomChecked(
   if (Array.isArray(offlineChecks) && offlineChecks.length > 0) {
     const offMatch = offlineChecks.some((c: any) => {
       if (!c) return false;
+
+      // Session isolation: If check has sessionId and currentSessionId is provided, reject if not matching
+      if (c.sessionId && currentSessionId && c.sessionId !== currentSessionId) {
+        return false;
+      }
+
       // Direct roomCode match
       const cRoomCode = String(c.roomCode || '').toUpperCase().trim();
       if (roomCode && cRoomCode === roomCode) return true;

@@ -223,7 +223,7 @@ export default function FloorDetailPage({
   // Combine online (DB) checks and offline checks for this floor by code snapshot
   const combinedCheckedSet = new Set<string>();
   floorRooms.forEach((r: Room) => {
-    if (isRoomChecked(r, sessionFloor?.patrolChecks, offlineChecks)) {
+    if (isRoomChecked(r, sessionFloor?.patrolChecks, offlineChecks, currentSession?.id)) {
       combinedCheckedSet.add(r.code);
     }
   });

@@ -210,3 +210,5 @@ security/
    - Foto hasil upload tersimpan di dua direktori cadangan: `public/uploads/patrol/` dan `uploads/patrol/`. Pastikan folder ini memiliki izin tulis (*write permission*) pada server produksi.
 4. **Inspeksi Log Error**:
    - Jika ada laporan kendala dari petugas di lapangan, buka menu **Sistem > Log Error Sistem** (`/admin/error-logs`) untuk melihat pesan error, stack trace, tipe browser, dan URL saat kendala terjadi.
+5. **Pemisahan Sesi Incomplete & Ronda Baru**:
+   - Jika petugas mengakhiri ronda lebih awal (status `incomplete`), lalu memulai patroli pada jadwal ronda berikutnya (misal 3 jam setelahnya), dashboard secara cerdas mendeteksi pergantian jadwal ronda dan menyajikan tombol **Mulai Patroli Baru** yang menutup sesi sebelumnya via API `override-next` serta membersihkan residu checklist IndexedDB, sehingga ronda baru dimulai fresh 0%. Dokumentasi terperinci tersedia pada berkas `CATATAN_UPDATE_RONDA_PATROLI.md`.

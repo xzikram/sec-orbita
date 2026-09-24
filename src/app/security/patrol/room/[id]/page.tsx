@@ -335,7 +335,7 @@ export default function RoomCheckPage({
   // Combine online (DB) checks and offline checks for this floor (by code snapshot)
   const combinedCheckedSet = new Set<string>();
   activeFloorRooms.forEach((r: any) => {
-    if (isRoomChecked(r, sessionFloor?.patrolChecks, offlineChecks)) {
+    if (isRoomChecked(r, sessionFloor?.patrolChecks, offlineChecks, currentSession?.id)) {
       combinedCheckedSet.add(r.code);
     }
   });
@@ -477,6 +477,7 @@ export default function RoomCheckPage({
       if (condition) finalChecklistValues['Kondisi Ruangan'] = condition;
 
       const result = await submitRoomCheck({
+        sessionId: activeSessionId,
         sessionFloorId,
         roomId: room.id,
         roomCode: room.code,
@@ -814,7 +815,7 @@ export default function RoomCheckPage({
   const totalRoomsCount = Math.max(1, activeFloorRooms.length);
   const currentRoomOrder = currentRoomIndex !== -1 ? currentRoomIndex + 1 : 1;
   const displayRoomOrder = Math.min(Math.max(1, currentRoomOrder), totalRoomsCount);
-  const isCurrentRoomAlreadyChecked = isRoomChecked(room, sessionFloor?.patrolChecks, offlineChecks);
+  const isCurrentRoomAlreadyChecked = isRoomChecked(room, sessionFloor?.patrolChecks, offlineChecks, currentSession?.id);
 
   return (
     <div className="page-content" style={{ paddingBottom: '32px' }}>

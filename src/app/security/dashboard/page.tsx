@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getRealtimeShift, getOppositeShift } from '@/lib/shifts';
+import { getCurrentSchedule } from '@/lib/dummy-data';
 import styles from './dashboard.module.css';
 
 interface SessionFloor {
@@ -193,6 +194,160 @@ export default function SecurityDashboard() {
       } else {
         router.push('/security/patrol');
       }
+    } finally {
+      setIsPreparingOffline(false);
+    }
+  };
+
+  const handleStartNewPatrolRound = async (prevSessionId?: string) => {
+    setIsPreparingOffline(true);
+    setPrepareProgress(20);
+    setPrepareStatusText('Menyiapkan sesi ronda baru...');
+
+    try {
+      // 1. Clear old temporary offline checks from previous session so new round is fresh 0%
+      const { clearTemporaryOfflineMedia } = await import('@/lib/db');
+      await clearTemporaryOfflineMedia();
+      try {
+        localStorage.removeItem('cached-active-session');
+        localStorage.removeItem('lastPatrolState');
+      } catch {}
+
+      setPrepareProgress(45);
+      setPrepareStatusText('Mengunduh katalog 12 Lantai & 133 Ruangan...');
+      const { downloadPatrolPackage } = await import('@/lib/offline-cache');
+      const res = await downloadPatrolPackage();
+
+      let cached = null;
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          // Use override-next to gracefully finalize previous incomplete session and start new round
+          const sessRes = await fetch('/api/patrol/sessions/override-next', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              previousSessionId: prevSessionId,
+              reason: 'Memulai ronda jadwal baru',
+            }),
+          });
+          if (sessRes.ok) {
+            const data = await sessRes.json();
+            if (data.session) {
+              cached = JSON.stringify(data.session);
+              localStorage.setItem('cached-active-session', cached);
+            }
+          } else {
+            // Fallback to standard POST /api/patrol/sessions
+            const postRes = await fetch('/api/patrol/sessions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({}),
+            });
+            if (postRes.ok) {
+              const newSess = await postRes.json();
+              cached = JSON.stringify(newSess);
+              localStorage.setItem('cached-active-session', cached);
+            }
+          }
+        } catch (err) {
+          console.error('Error starting new round override:', err);
+        }
+      }
+
+      if (!cached) {
+        const { floors: fallbackFloors, getCurrentSchedule } = await import('@/lib/dummy-data');
+        const sched = getCurrentSchedule();
+        const offlineSession = {
+          id: `offline-sess-${Date.now()}`,
+          userId: currentUser?.id || undefined,
+          patrolNumber: sched.patrolNumber || 1,
+          status: 'in_progress',
+          scheduleId: sched.id,
+          schedule: sched,
+          startedAt: new Date().toISOString(),
+          sessionFloors: (fallbackFloors || []).map(f => ({
+            id: `sf-${f.code.toLowerCase()}`,
+            floorId: f.id,
+            floorNameSnapshot: f.name,
+            floorCodeSnapshot: f.code,
+            status: 'pending',
+            qrValidated: false,
+            patrolChecks: [],
+          })),
+        };
+        cached = JSON.stringify(offlineSession);
+        localStorage.setItem('cached-active-session', cached);
+      }
+
+      setPrepareProgress(85);
+      setPrepareStatusText(`Menyimpan ${res.roomsCount || 133} ruangan & token QR fisik di HP...`);
+      await new Promise(r => setTimeout(r, 200));
+
+      setPrepareProgress(100);
+      setPrepareStatusText('Ronda baru siap dimulai!');
+      await new Promise(r => setTimeout(r, 150));
+
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        window.location.href = '/security/patrol';
+      } else {
+        router.push('/security/patrol');
+      }
+    } catch (err) {
+      console.error('New round prep error:', err);
+      router.push('/security/patrol');
+    } finally {
+      setIsPreparingOffline(false);
+    }
+  };
+
+  const handleResumeIncompleteRound = async (incompleteSession: PatrolSession) => {
+    setIsPreparingOffline(true);
+    setPrepareProgress(20);
+    setPrepareStatusText(`Menyiapkan kelanjutan Ronda #${incompleteSession.patrolNumber}...`);
+
+    try {
+      setPrepareProgress(45);
+      setPrepareStatusText('Mengunduh katalog 12 Lantai & 133 Ruangan...');
+      const { downloadPatrolPackage } = await import('@/lib/offline-cache');
+      await downloadPatrolPackage();
+
+      let cached = null;
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        try {
+          const sessRes = await fetch('/api/patrol/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scheduleId: incompleteSession.scheduleId,
+            }),
+          });
+          if (sessRes.ok) {
+            const newSess = await sessRes.json();
+            cached = JSON.stringify(newSess);
+            localStorage.setItem('cached-active-session', cached);
+          }
+        } catch (postErr) {
+          console.error('Online session resume error:', postErr);
+        }
+      }
+
+      if (!cached) {
+        cached = JSON.stringify({
+          ...incompleteSession,
+          status: 'in_progress',
+        });
+        localStorage.setItem('cached-active-session', cached);
+      }
+
+      setPrepareProgress(90);
+      setPrepareStatusText('Sesi patroli siap dilanjutkan!');
+      await new Promise(r => setTimeout(r, 200));
+
+      setPrepareProgress(100);
+      router.push('/security/patrol');
+    } catch (err) {
+      console.error('Resume round error:', err);
+      router.push('/security/patrol');
     } finally {
       setIsPreparingOffline(false);
     }
@@ -559,6 +714,11 @@ export default function SecurityDashboard() {
     }
   };
 
+  const currentSched = getCurrentSchedule();
+  const isOldRound = data?.incompleteSession
+    ? (data.incompleteSession.patrolNumber !== currentSched.patrolNumber)
+    : false;
+
   return (
     <div className={`${styles.dashboardContainer} ${showHandoverForm ? styles.dashboardScrollable : ''}`}>
       <div className={styles.topSection}>
@@ -747,20 +907,36 @@ export default function SecurityDashboard() {
           </div>
         </div>
       ) : data?.incompleteSession ? (
-        <div className={`card animate-slide-up ${styles.emptyPatrolCard}`} style={{ borderLeft: '4px solid var(--color-warning-500, #f59e0b)' }}>
-          <div className={`card-body ${styles.emptyPatrolBody}`}>
-            <div className={styles.emptyPatrolIconCircle} style={{ background: '#fffbeb', color: '#d97706' }}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
+        isOldRound ? (
+          <div className={`card animate-slide-up ${styles.emptyPatrolCard}`} style={{ borderLeft: '4px solid var(--color-primary-500, #3b82f6)' }}>
+            <div className={`card-body ${styles.emptyPatrolBody}`}>
+              <div className={styles.emptyPatrolIconCircle} style={{ background: '#eff6ff', color: '#2563eb' }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+              </div>
+              <h3 className={styles.emptyPatrolTitle}>Waktu Ronda #{currentSched.patrolNumber} Telah Tiba ({currentSched.startTime} - {currentSched.endTime})</h3>
+              <p className={styles.emptyPatrolDesc}>
+                Ronda #{data.incompleteSession.patrolNumber} sebelumnya diselesaikan sebagian. Tekan <strong>Mulai Patroli Baru</strong> di bawah untuk membuka putaran baru dari awal, atau pilih lanjutkan sisa ronda sebelumnya jika diizinkan.
+              </p>
             </div>
-            <h3 className={styles.emptyPatrolTitle}>Patroli Selesai Sebagian (Ronda #{data.incompleteSession.patrolNumber})</h3>
-            <p className={styles.emptyPatrolDesc}>
-              Sesi patroli sebelumnya diakhiri lebih awal. Tekan tombol di bawah untuk melanjutkan sisa rute tanpa kehilangan data.
-            </p>
           </div>
-        </div>
+        ) : (
+          <div className={`card animate-slide-up ${styles.emptyPatrolCard}`} style={{ borderLeft: '4px solid var(--color-warning-500, #f59e0b)' }}>
+            <div className={`card-body ${styles.emptyPatrolBody}`}>
+              <div className={styles.emptyPatrolIconCircle} style={{ background: '#fffbeb', color: '#d97706' }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </div>
+              <h3 className={styles.emptyPatrolTitle}>Patroli Selesai Sebagian (Ronda #{data.incompleteSession.patrolNumber})</h3>
+              <p className={styles.emptyPatrolDesc}>
+                Sesi patroli diakhiri lebih awal. Jam operasional Ronda #{data.incompleteSession.patrolNumber} masih berlangsung hingga {data.incompleteSession.schedule?.endTime || currentSched.endTime} WITA. Tekan tombol di bawah untuk melanjutkan sisa rute.
+              </p>
+            </div>
+          </div>
+        )
       ) : (
         <div className={`card animate-slide-up ${styles.emptyPatrolCard}`}>
           <div className={`card-body ${styles.emptyPatrolBody}`}>
@@ -770,7 +946,7 @@ export default function SecurityDashboard() {
               </svg>
             </div>
             <h3 className={styles.emptyPatrolTitle}>Belum Ada Patroli Aktif</h3>
-            <p className={styles.emptyPatrolDesc}>Tidak ada sesi patroli aktif saat ini</p>
+            <p className={styles.emptyPatrolDesc}>Tidak ada sesi patroli aktif saat ini. Tekan tombol di bawah untuk memulai Ronda #{currentSched.patrolNumber}.</p>
           </div>
         </div>
       )}
@@ -969,23 +1145,65 @@ export default function SecurityDashboard() {
             Lanjutkan Patroli (Ronda #{data.session.patrolNumber})
           </button>
         ) : data?.incompleteSession ? (
-          <button
-            type="button"
-            onClick={handleNavigateToPatrolWithPreDownload}
-            disabled={isPreparingOffline}
-            className="btn btn-warning"
-            style={{ width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: '#d97706', borderColor: '#d97706', color: '#ffffff', boxShadow: '0 3px 12px rgba(217, 119, 6, 0.3)' }}
-            id="btn-start-patrol"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
-            Lanjutkan Patroli Sebagian (Ronda #{data.incompleteSession.patrolNumber})
-          </button>
+          isOldRound ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => handleStartNewPatrolRound(data.incompleteSession?.id)}
+                disabled={isPreparingOffline}
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 3px 12px rgba(37, 99, 235, 0.25)' }}
+                id="btn-start-patrol"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                Mulai Patroli Baru (Ronda #{currentSched.patrolNumber})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleResumeIncompleteRound(data.incompleteSession!)}
+                disabled={isPreparingOffline}
+                className="btn btn-outline"
+                style={{ width: '100%', padding: '10px 14px', fontSize: '13px', fontWeight: 600, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#b45309', borderColor: '#f59e0b', background: '#fffbeb' }}
+                id="btn-resume-old-round"
+              >
+                <span>↩️</span>
+                Lanjutkan Sisa Ronda #{data.incompleteSession.patrolNumber} (Sebelumnya)
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => handleResumeIncompleteRound(data.incompleteSession!)}
+                disabled={isPreparingOffline}
+                className="btn btn-warning"
+                style={{ width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: '#d97706', borderColor: '#d97706', color: '#ffffff', boxShadow: '0 3px 12px rgba(217, 119, 6, 0.3)' }}
+                id="btn-start-patrol"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+                Lanjutkan Patroli Sebagian (Ronda #{data.incompleteSession.patrolNumber})
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStartNewPatrolRound(data.incompleteSession?.id)}
+                disabled={isPreparingOffline}
+                className="btn btn-outline"
+                style={{ width: '100%', padding: '8px 12px', fontSize: '12px', fontWeight: 600, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'var(--text-secondary)' }}
+                id="btn-restart-new-round"
+              >
+                <span>🔄</span>
+                Mulai Ulang Ronda #{currentSched.patrolNumber} dari Awal
+              </button>
+            </div>
+          )
         ) : (
           <button
             type="button"
-            onClick={handleNavigateToPatrolWithPreDownload}
+            onClick={() => handleStartNewPatrolRound()}
             disabled={isPreparingOffline}
             className="btn btn-primary"
             style={{ width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 3px 12px rgba(37, 99, 235, 0.25)' }}
@@ -994,7 +1212,7 @@ export default function SecurityDashboard() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            Mulai Patroli Baru
+            Mulai Patroli Baru (Ronda #{currentSched.patrolNumber})
           </button>
         )}
       </div>

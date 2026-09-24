@@ -155,7 +155,7 @@ export default function QRScanPage({
   const floorRooms = floor ? getRoomsByFloor(floor.id) : [];
   const uniqueChecked = new Set<string>();
   floorRooms.forEach(r => {
-    if (isRoomChecked(r, sessionFloor?.patrolChecks, offlineChecks)) {
+    if (isRoomChecked(r, sessionFloor?.patrolChecks, offlineChecks, currentSession?.id)) {
       uniqueChecked.add(r.code);
     }
   });

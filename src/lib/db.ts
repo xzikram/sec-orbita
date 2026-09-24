@@ -49,6 +49,7 @@ function openDB(): Promise<IDBDatabase> {
 
 export interface OfflineCheck {
   id: string;
+  sessionId?: string;
   sessionFloorId: string;
   roomId: string;
   roomCode?: string;
