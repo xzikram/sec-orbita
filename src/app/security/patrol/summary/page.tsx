@@ -35,6 +35,25 @@ export default function PatrolSummaryPage() {
     } catch {}
   };
 
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    setSyncProgress(10);
+    setSyncStatusText('Menghubungi server...');
+
+    const result = await syncOfflineData((p) => {
+      setSyncProgress(p.percent);
+      setSyncStatusText(p.statusText);
+    });
+
+    setIsSyncing(false);
+    if (result.success) {
+      setSyncSuccessMsg('Semua data patroli berhasil disinkronkan ke server & penyimpanan lokal HP telah dibersihkan.');
+      setOfflinePendingCount(0);
+    } else {
+      setSyncStatusText(result.error || 'Koneksi gagal. Pastikan terhubung ke Wi-Fi RS.');
+    }
+  };
+
   useEffect(() => {
     checkOffline();
 
@@ -75,10 +94,35 @@ export default function PatrolSummaryPage() {
           getOfflineQrScans().catch(() => []),
         ]);
 
+        const totalPending = offChecks.length + offFindings.length + offQr.length;
+        setOfflinePendingCount(totalPending);
+
+        // Auto-sync in background if online and pending items exist
+        if (totalPending > 0 && navigator.onLine) {
+          handleManualSync();
+        }
+
         if (s) {
           setSession(s);
           setPatrolNumber(s.patrolNumber || 1);
           if (s.schedule?.name) setScheduleName(s.schedule.name);
+
+          // If session was still marked in_progress, finalize it as completed
+          if (s.status === 'in_progress') {
+            try {
+              s.status = 'completed';
+              s.completedAt = s.completedAt || new Date().toISOString();
+              localStorage.removeItem('cached-active-session');
+              localStorage.removeItem('lastPatrolState');
+            } catch {}
+            if (navigator.onLine && s.id && !s.id.startsWith('offline-')) {
+              fetch('/api/patrol/sessions/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: s.id }),
+              }).catch(() => null);
+            }
+          }
 
           const start = s.startedAt ? new Date(s.startedAt) : new Date();
           const end = s.completedAt ? new Date(s.completedAt) : new Date();
@@ -180,26 +224,23 @@ export default function PatrolSummaryPage() {
       }
     }
     loadSummary();
+
+    const handleOnline = () => {
+      checkOffline();
+      handleManualSync();
+    };
+    const handleSyncComplete = () => {
+      checkOffline();
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline-sync-complete', handleSyncComplete);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline-sync-complete', handleSyncComplete);
+    };
   }, []);
-
-  const handleManualSync = async () => {
-    setIsSyncing(true);
-    setSyncProgress(10);
-    setSyncStatusText('Menghubungi server...');
-
-    const result = await syncOfflineData((p) => {
-      setSyncProgress(p.percent);
-      setSyncStatusText(p.statusText);
-    });
-
-    setIsSyncing(false);
-    if (result.success) {
-      setSyncSuccessMsg('Semua data patroli berhasil terkirim ke server & penyimpanan lokal HP telah dibersihkan.');
-      setOfflinePendingCount(0);
-    } else {
-      setSyncStatusText(result.error || 'Koneksi gagal. Pastikan terhubung ke Wi-Fi RS.');
-    }
-  };
 
   return (
     <div className="page-container" style={{ paddingBottom: 100 }}>

@@ -182,8 +182,10 @@ export async function ensureFreshPatrolCatalog(force: boolean = false): Promise<
   if (typeof window === 'undefined') return;
   try {
     const currentVer = localStorage.getItem('patrol-catalog-version');
-    if (force || currentVer !== CATALOG_CACHE_VERSION) {
-      console.log('[OfflineCache] Catalog version mismatch detected. Refreshing master catalog...');
+    const lastCacheTime = localStorage.getItem('offline-patrol-cache-time');
+    const isStale = !lastCacheTime || (Date.now() - new Date(lastCacheTime).getTime() > 10 * 60 * 1000);
+
+    if (force || currentVer !== CATALOG_CACHE_VERSION || (navigator.onLine && isStale)) {
       await downloadPatrolPackage();
     }
   } catch (err) {

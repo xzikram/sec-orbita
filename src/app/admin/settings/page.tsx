@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [watermarkTimestamp, setWatermarkTimestamp] = useState(true);
   const [blockGallery, setBlockGallery] = useState(false);
   const [requireQr, setRequireQr] = useState(true);
+  const [qrScanMode, setQrScanMode] = useState<'session' | 'per_floor'>('session');
   const [gpsValidation, setGpsValidation] = useState(false);
   const [notifLate, setNotifLate] = useState(true);
   const [notifFinding, setNotifFinding] = useState(true);
@@ -34,6 +35,7 @@ export default function SettingsPage() {
           if (data.watermark_timestamp !== undefined) setWatermarkTimestamp(data.watermark_timestamp === 'true');
           if (data.block_gallery !== undefined) setBlockGallery(data.block_gallery === 'true');
           if (data.require_qr !== undefined) setRequireQr(data.require_qr === 'true');
+          if (data.qr_scan_mode) setQrScanMode(data.qr_scan_mode === 'per_floor' ? 'per_floor' : 'session');
           if (data.gps_validation !== undefined) setGpsValidation(data.gps_validation === 'true');
           if (data.notif_late !== undefined) setNotifLate(data.notif_late === 'true');
           if (data.notif_finding !== undefined) setNotifFinding(data.notif_finding === 'true');
@@ -58,6 +60,7 @@ export default function SettingsPage() {
         watermark_timestamp: String(watermarkTimestamp),
         block_gallery: String(blockGallery),
         require_qr: String(requireQr),
+        qr_scan_mode: qrScanMode,
         gps_validation: String(gpsValidation),
         notif_late: String(notifLate),
         notif_finding: String(notifFinding),
@@ -228,6 +231,67 @@ export default function SettingsPage() {
                 onClick={() => setRequireQr(!requireQr)}
                 style={{ cursor: 'pointer' }}
               />
+            </div>
+            <div className={styles.settingRow} style={{ alignItems: 'flex-start' }}>
+              <div className={styles.settingInfo}>
+                <span className={styles.settingLabel}>Aturan Scan Barcode</span>
+                <span className={styles.settingDesc}>Pilih metode verifikasi kehadiran fisik yang wajib dipenuhi security</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '240px' }}>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: requireQr ? 'pointer' : 'not-allowed',
+                  fontSize: '13px',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  background: qrScanMode === 'session' ? 'var(--color-primary-50, #eff6ff)' : 'var(--color-neutral-50, #f8fafc)',
+                  border: qrScanMode === 'session' ? '1.5px solid var(--color-primary-500, #3b82f6)' : '1px solid var(--border-color, #e2e8f0)',
+                  opacity: requireQr ? 1 : 0.5,
+                }}>
+                  <input
+                    type="radio"
+                    name="qr_scan_mode"
+                    value="session"
+                    checked={qrScanMode === 'session'}
+                    disabled={!requireQr}
+                    onChange={() => setQrScanMode('session')}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--color-primary-600)' }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>1 Barcode per Sesi</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Cukup scan 1 barcode di lantai mana saja</div>
+                  </div>
+                </label>
+
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: requireQr ? 'pointer' : 'not-allowed',
+                  fontSize: '13px',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  background: qrScanMode === 'per_floor' ? 'var(--color-primary-50, #eff6ff)' : 'var(--color-neutral-50, #f8fafc)',
+                  border: qrScanMode === 'per_floor' ? '1.5px solid var(--color-primary-500, #3b82f6)' : '1px solid var(--border-color, #e2e8f0)',
+                  opacity: requireQr ? 1 : 0.5,
+                }}>
+                  <input
+                    type="radio"
+                    name="qr_scan_mode"
+                    value="per_floor"
+                    checked={qrScanMode === 'per_floor'}
+                    disabled={!requireQr}
+                    onChange={() => setQrScanMode('per_floor')}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--color-primary-600)' }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Scan Tiap Lantai</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Wajib scan barcode di setiap lantai</div>
+                  </div>
+                </label>
+              </div>
             </div>
             <div className={styles.settingRow}>
               <div className={styles.settingInfo}>

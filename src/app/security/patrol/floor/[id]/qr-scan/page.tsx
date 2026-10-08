@@ -4,6 +4,7 @@ import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import QRScanner from '@/components/QRScanner';
 import { getFloorById, getRoomsByFloor, floors, isRoomChecked } from '@/lib/dummy-data';
+import { getCachedSettings } from '@/lib/settings-client';
 import styles from './qrscan.module.css';
 
 export default function QRScanPage({
@@ -42,6 +43,7 @@ export default function QRScanPage({
   const [submittingManual, setSubmittingManual] = useState(false);
   const [syncedCount, setSyncedCount] = useState<number | null>(null);
   const [verifiedFloorInfo, setVerifiedFloorInfo] = useState<{ name: string; code: string } | null>(null);
+  const [settings, setSettings] = useState(() => getCachedSettings());
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
@@ -111,6 +113,10 @@ export default function QRScanPage({
         // 3. Render immediately (< 25ms)
         setLoading(false);
 
+        import('@/lib/settings-client').then(({ fetchAndCacheSettings }) => {
+          fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
+        }).catch(() => {});
+
         // 4. Background network update if online
         if (navigator.onLine) {
           const controller = new AbortController();
@@ -159,7 +165,17 @@ export default function QRScanPage({
       uniqueChecked.add(r.code);
     }
   });
-  const isAllRoomsChecked = floorRooms.length === 0 || uniqueChecked.size >= floorRooms.length;
+  if (Array.isArray(sessionFloor?.patrolChecks)) {
+    sessionFloor.patrolChecks.forEach((c: any) => {
+      const cCode = c.roomCodeSnapshot;
+      if (cCode) uniqueChecked.add(cCode);
+    });
+  }
+  const isAllRoomsChecked = 
+    sessionFloor?.status === 'completed' ||
+    floorRooms.length === 0 || 
+    uniqueChecked.size >= floorRooms.length ||
+    (sessionFloor?.patrolChecks && sessionFloor.patrolChecks.length >= floorRooms.length);
 
   // Calculate next floor based on user route direction
   const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
@@ -250,6 +266,14 @@ export default function QRScanPage({
     if (!matchedOfficial && !isFloorMatch) {
       setScanState('error');
       setErrorMsg('QR Code tidak valid sebagai stiker fisik resmi RS Mata JEC ORBITA.');
+      return;
+    }
+
+    // In per_floor mode, the scanned QR must match this specific floor!
+    const qrScanMode = settings.qr_scan_mode || 'session';
+    if (qrScanMode === 'per_floor' && !isFloorMatch) {
+      setScanState('error');
+      setErrorMsg(`Mode verifikasi tiap lantai aktif. Anda harus scan stiker barcode ${floor?.name || targetFloorCode} (QR yang di-scan milik ${matchedOfficial?.floorName || 'lantai lain'}).`);
       return;
     }
 
@@ -361,7 +385,9 @@ export default function QRScanPage({
             📍 Terverifikasi di {verifiedFloorInfo?.name || floor?.name}
           </p>
           <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', maxWidth: '340px', margin: '0 auto 12px', lineHeight: 1.4 }}>
-            Pemeriksaan {floor?.name} selesai. Kehadiran fisik sesi ini telah sah tervalidasi dan Anda tidak perlu lagi melakukan scan barcode di lantai lainnya.
+            {settings.qr_scan_mode === 'per_floor'
+              ? `Pemeriksaan dan barcode ${verifiedFloorInfo?.name || floor?.name} berhasil diverifikasi. Lanjutkan ke lantai berikutnya.`
+              : `Pemeriksaan ${floor?.name} selesai. Kehadiran fisik sesi ini telah sah tervalidasi dan Anda tidak perlu lagi melakukan scan barcode di lantai lainnya.`}
           </p>
           <div className={styles.resultMeta} style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
             {isOfflineScan ? (
@@ -490,31 +516,39 @@ export default function QRScanPage({
         </div>
       </div>
 
-      {/* Skip button for 1-barcode-per-session SOP */}
-      <div style={{ marginTop: '14px', textAlign: 'center' }}>
-        <button
-          type="button"
-          className="btn btn-outline"
-          onClick={handleSkipScan}
-          style={{
-            fontSize: '12px',
-            fontWeight: 700,
-            padding: '8px 16px',
-            borderRadius: '10px',
-            color: 'var(--color-primary-700)',
-            borderColor: 'var(--color-primary-300)',
-            background: 'var(--color-primary-50)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-        >
-          <span>⏩ Lewati & Scan di Lantai Lain Nanti</span>
-        </button>
-        <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-          *Cukup 1x scan barcode di lantai manapun per sesi patroli
-        </p>
-      </div>
+      {/* Skip button for 1-barcode-per-session SOP (only shown if qrScanMode !== 'per_floor') */}
+      {settings.qr_scan_mode !== 'per_floor' ? (
+        <div style={{ marginTop: '14px', textAlign: 'center' }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={handleSkipScan}
+            style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              padding: '8px 16px',
+              borderRadius: '10px',
+              color: 'var(--color-primary-700)',
+              borderColor: 'var(--color-primary-300)',
+              background: 'var(--color-primary-50)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>⏩ Lewati & Scan di Lantai Lain Nanti</span>
+          </button>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+            *Cukup 1x scan barcode di lantai manapun per sesi patroli
+          </p>
+        </div>
+      ) : (
+        <div style={{ marginTop: '14px', textAlign: 'center' }}>
+          <span className="badge badge-primary" style={{ fontSize: '11px', padding: '6px 12px' }}>
+            🔒 Mode Tiap Lantai: Wajib scan barcode di {floor?.name}
+          </span>
+        </div>
+      )}
 
       {/* Manual Input Fallback (for damaged/unreadable printed stickers) */}
       <div style={{ marginTop: '10px', textAlign: 'center' }}>

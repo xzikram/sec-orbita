@@ -33,11 +33,34 @@ export type SyncProgressCallback = (progress: {
   statusText: string;
 }) => void;
 
+let activeSyncPromise: Promise<SyncResult> | null = null;
+
 export async function syncOfflineData(onProgress?: SyncProgressCallback): Promise<SyncResult> {
   if (typeof window !== 'undefined' && !navigator.onLine) {
     return { success: false, checksSynced: 0, findingsSynced: 0, qrScansSynced: 0, error: 'Perangkat offline' };
   }
 
+  // Concurrency guard: reuse ongoing sync to prevent duplicate requests
+  if (activeSyncPromise) {
+    return activeSyncPromise;
+  }
+
+  activeSyncPromise = (async () => {
+    try {
+      const res = await executeSync(onProgress);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('offline-sync-complete', { detail: res }));
+      }
+      return res;
+    } finally {
+      activeSyncPromise = null;
+    }
+  })();
+
+  return activeSyncPromise;
+}
+
+async function executeSync(onProgress?: SyncProgressCallback): Promise<SyncResult> {
   // Also flush queued error logs to server
   flushQueuedSystemErrors().catch(() => {});
 

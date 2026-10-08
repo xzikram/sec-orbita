@@ -112,10 +112,8 @@ export default function SecurityLayout({
         flushQueuedSystemErrors().catch(() => {});
         fetchAndCacheSettings().catch(() => {});
         const { syncOfflineData } = await import('@/lib/sync');
-        const res = await syncOfflineData();
-        if (res.checksSynced > 0 || res.findingsSynced > 0) {
-          checkOffline();
-        }
+        await syncOfflineData();
+        checkOffline();
       } catch (err) {
         console.warn('Auto-sync on Wi-Fi reconnect:', err);
       }
@@ -129,16 +127,33 @@ export default function SecurityLayout({
     flushQueuedSystemErrors().catch(() => {});
     fetchAndCacheSettings().catch(() => {});
 
-    // Check offline data count
+    // Check offline data count and auto-sync if online
     const checkOffline = async () => {
       try {
         const { getOfflineCount } = await import('@/lib/db');
         const counts = await getOfflineCount();
-        setOfflineCount(counts.checks + counts.findings);
+        const total = counts.checks + counts.findings + (counts.qrScans || 0);
+        setOfflineCount(total);
+        if (typeof navigator !== 'undefined' && navigator.onLine && total > 0) {
+          const { syncOfflineData } = await import('@/lib/sync');
+          syncOfflineData().catch(() => {});
+        }
       } catch { /* ignore */ }
     };
     checkOffline();
-    const offlineInterval = setInterval(checkOffline, 30000);
+    const offlineInterval = setInterval(checkOffline, 20000);
+
+    const handleSyncComplete = () => {
+      checkOffline();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkOffline();
+      }
+    };
+
+    window.addEventListener('offline-sync-complete', handleSyncComplete);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Instant user from local cache (offline resilient)
     const cachedUser = localStorage.getItem('cached-user');
@@ -201,6 +216,8 @@ export default function SecurityLayout({
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('offline-sync-complete', handleSyncComplete);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('error', handleGlobalError);
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
       clearInterval(offlineInterval);

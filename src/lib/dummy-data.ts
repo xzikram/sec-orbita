@@ -510,30 +510,75 @@ export function getRoomById(roomId: string): Room | undefined {
 }
 
 /**
+ * Normalizes a room code to handle zero-padding, prefix, and formatting variations.
+ * e.g. "SB-01" -> "SB-1", "SB-1" -> "SB-1", "ROOM-SB-04" -> "SB-4", "P2-03" -> "P2-3"
+ */
+export function normalizeRoomCode(code: string): string {
+  if (!code) return '';
+  const clean = String(code).toUpperCase().trim().replace(/\s+/g, '');
+  return clean.replace(/^(?:ROOM-)?([A-Z0-9]+)[-_]0*(\d+)$/, '$1-$2');
+}
+
+/**
  * Robustly checks if a room has been inspected, cross-checking both
  * online DB session checks and IndexedDB offline checks with full UUID/code resilience.
  */
 export function isRoomChecked(
-  room: { id: string; code: string; floorId?: string },
+  room: { id: string; code: string; name?: string; floorId?: string },
   sessionFloorChecks: any[] = [],
   offlineChecks: any[] = [],
   currentSessionId?: string
 ): boolean {
   if (!room) return false;
   const roomCode = String(room.code || '').toUpperCase().trim();
+  const normRoomCode = normalizeRoomCode(roomCode);
   const roomId = String(room.id || '').toLowerCase().trim();
+  const roomName = String(room.name || '').toUpperCase().trim();
+
+  const checkMatchesRoom = (c: any): boolean => {
+    if (!c) return false;
+
+    // 1. Direct or normalized roomCode match
+    const cCode = String(c.roomCodeSnapshot || c.roomCode || '').toUpperCase().trim();
+    if (cCode) {
+      if (roomCode && cCode === roomCode) return true;
+      if (normRoomCode && normalizeRoomCode(cCode) === normRoomCode) return true;
+    }
+
+    // 2. Direct room ID match or normalized code/ID match
+    const cRoomId = String(c.roomId || '').trim();
+    if (cRoomId) {
+      const cRoomIdLower = cRoomId.toLowerCase();
+      if (roomId && cRoomIdLower === roomId) return true;
+      if (roomCode && (cRoomIdLower === roomCode.toLowerCase() || cRoomIdLower === `room-${roomCode.toLowerCase()}`)) return true;
+      if (normRoomCode && normalizeRoomCode(cRoomId) === normRoomCode) return true;
+
+      // 3. UUID mapping via dbRoomCodeMap
+      if (dbRoomCodeMap[cRoomIdLower]) {
+        const mappedCode = dbRoomCodeMap[cRoomIdLower];
+        if (roomCode && mappedCode.toUpperCase() === roomCode) return true;
+        if (normRoomCode && normalizeRoomCode(mappedCode) === normRoomCode) return true;
+      }
+
+      // 4. Resolved room lookup via catalog
+      const resolved = getRoomById(cRoomId);
+      if (resolved) {
+        if (roomCode && resolved.code.toUpperCase() === roomCode) return true;
+        if (normRoomCode && normalizeRoomCode(resolved.code) === normRoomCode) return true;
+        if (roomId && resolved.id.toLowerCase() === roomId) return true;
+      }
+    }
+
+    // 5. Room name match (ensures match if room code or ID changed during editing in admin)
+    const cName = String(c.roomNameSnapshot || c.roomName || '').toUpperCase().trim();
+    if (roomName && cName && roomName === cName) return true;
+
+    return false;
+  };
 
   // 1. Check DB checks in sessionFloor
   if (Array.isArray(sessionFloorChecks) && sessionFloorChecks.length > 0) {
-    const dbMatch = sessionFloorChecks.some((c: any) => {
-      if (!c) return false;
-      const cCode = String(c.roomCodeSnapshot || '').toUpperCase().trim();
-      if (roomCode && cCode === roomCode) return true;
-      const cRoomId = String(c.roomId || '').toLowerCase().trim();
-      if (cRoomId && (cRoomId === roomId || cRoomId === roomCode.toLowerCase())) return true;
-      return false;
-    });
-    if (dbMatch) return true;
+    if (sessionFloorChecks.some(checkMatchesRoom)) return true;
   }
 
   // 2. Check offline checks (IndexedDB)
@@ -546,22 +591,7 @@ export function isRoomChecked(
         return false;
       }
 
-      // Direct roomCode match
-      const cRoomCode = String(c.roomCode || '').toUpperCase().trim();
-      if (roomCode && cRoomCode === roomCode) return true;
-
-      const cRoomId = String(c.roomId || '').trim();
-      if (!cRoomId) return false;
-      const cRoomIdLower = cRoomId.toLowerCase();
-
-      // Direct ID or code match
-      if (cRoomIdLower === roomId || (roomCode && cRoomIdLower === roomCode.toLowerCase())) return true;
-
-      // Resolved room match via static catalog / DB map
-      const resolved = getRoomById(cRoomId);
-      if (resolved && roomCode && resolved.code.toUpperCase() === roomCode) return true;
-
-      return false;
+      return checkMatchesRoom(c);
     });
     if (offMatch) return true;
   }

@@ -65,7 +65,9 @@ export default function RoomCheckPage({
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
+  const [offlineQrs, setOfflineQrs] = useState<any[]>([]);
   const [hasSessionQr, setHasSessionQr] = useState(false);
+  const [settings, setSettings] = useState(() => getCachedSettings());
   const [loading, setLoading] = useState(true);
 
   const [isCapturing, setIsCapturing] = useState(false);
@@ -184,27 +186,58 @@ export default function RoomCheckPage({
             setMusicStatus(null);
           }
 
-          // 3. Resilient floor rooms list for progression
+          // 3. Resilient floor rooms list for progression (sorted by custom order if set)
           const fRooms = await getResilientRoomsForFloor(resolvedRoom.floorId);
           if (fRooms && fRooms.length > 0) {
-            setFloorRooms(fRooms);
+            const targetFloorCode = String(resolvedRoom.code || '').split('-')[0].toUpperCase();
+            const empId = currentUserId || 'guest';
+            const savedCodesStr = localStorage.getItem(`patrol-order-codes-${empId}-${targetFloorCode}`) || localStorage.getItem(`patrol-order-codes-guest-${targetFloorCode}`);
+            if (savedCodesStr) {
+              try {
+                const savedCodes = JSON.parse(savedCodesStr) as string[];
+                if (Array.isArray(savedCodes) && savedCodes.length > 0) {
+                  const sorted = [...fRooms].sort((a, b) => {
+                    const idxA = savedCodes.indexOf(a.code.toUpperCase());
+                    const idxB = savedCodes.indexOf(b.code.toUpperCase());
+                    if (idxA === -1 && idxB === -1) return (a.patrolOrder ?? 0) - (b.patrolOrder ?? 0);
+                    if (idxA === -1) return 1;
+                    if (idxB === -1) return -1;
+                    return idxA - idxB;
+                  });
+                  const sortedCodes = new Set(sorted.map(r => r.code.toUpperCase()));
+                  const missing = fRooms.filter(r => !sortedCodes.has(r.code.toUpperCase()));
+                  setFloorRooms([...sorted, ...missing]);
+                } else {
+                  setFloorRooms(fRooms);
+                }
+              } catch {
+                setFloorRooms(fRooms);
+              }
+            } else {
+              setFloorRooms(fRooms);
+            }
           }
         }
 
         // 4. Get offline checks and QR scans from IndexedDB
         try {
           const { getOfflineChecks, getOfflineQrScans } = await import('@/lib/db');
-          const [offline, offlineQrs] = await Promise.all([
+          const [offline, offlineQrsList] = await Promise.all([
             getOfflineChecks().catch(() => []),
             getOfflineQrScans().catch(() => []),
           ]);
           setOfflineChecks(offline);
-          if (offlineQrs && offlineQrs.length > 0) {
+          setOfflineQrs(offlineQrsList || []);
+          if (offlineQrsList && offlineQrsList.length > 0) {
             setHasSessionQr(true);
           }
         } catch (e) {
           console.error('IndexedDB load error:', e);
         }
+
+        import('@/lib/settings-client').then(({ fetchAndCacheSettings }) => {
+          fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
+        }).catch(() => {});
 
         // Check cached active session for qrValidated
         if (cachedSess) {
@@ -571,7 +604,52 @@ export default function RoomCheckPage({
               window.history.replaceState(null, '', `/security/patrol/room/${nextRoom.id}`);
             }
           } else {
-            // All rooms done on this floor! Mark floor completed in cached session
+            // Determine if QR is needed or already verified
+            const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
+            const sortedFloors = [...floors].sort((a, b) => isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder);
+            const currentFloorCode = (floor?.code || '').toUpperCase();
+            const currentIdx = sortedFloors.findIndex(f => f.id === room.floorId || f.code.toUpperCase() === currentFloorCode);
+            const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
+
+            const isRequireQr = settings.require_qr !== 'false';
+            const qrScanMode = settings.qr_scan_mode || 'session';
+
+            let thisFloorHasQr = false;
+            let sessionAlreadyHasQr = hasSessionQr;
+
+            try {
+              const cached = localStorage.getItem('cached-active-session');
+              if (cached) {
+                const sess = JSON.parse(cached);
+                const targetCode = floor ? floor.code : room.floorId;
+                const sf = sess.sessionFloors?.find((f: any) => 
+                  f.floorCodeSnapshot === targetCode || f.floorId === room.floorId || f.floor?.code === targetCode
+                );
+                if (sf?.qrValidated) {
+                  thisFloorHasQr = true;
+                }
+                if (sess.sessionFloors?.some((sfItem: any) => sfItem.qrValidated)) {
+                  sessionAlreadyHasQr = true;
+                }
+              }
+            } catch {}
+
+            // Also check offlineQrs
+            const floorCodeClean = String(floor?.code || room.floorId || '').replace(/^floor-/, '').replace(/^sf-/, '').toUpperCase().trim();
+            if (offlineQrs.some((q: any) => {
+              const qCode = String(q.floorCode || '').toUpperCase().trim();
+              return (floorCodeClean && qCode === floorCodeClean) ||
+                q.sessionFloorId === room.floorId ||
+                q.sessionFloorId === `sf-${floorCodeClean.toLowerCase()}`;
+            })) {
+              thisFloorHasQr = true;
+            }
+
+            const isFloorQrSatisfied = !isRequireQr || (
+              qrScanMode === 'per_floor' ? thisFloorHasQr : (thisFloorHasQr || sessionAlreadyHasQr)
+            );
+
+            // Mark floor completed in cached session
             try {
               const cached = localStorage.getItem('cached-active-session');
               if (cached) {
@@ -582,37 +660,22 @@ export default function RoomCheckPage({
                     f.floorCodeSnapshot === targetCode || f.floorId === room.floorId || f.floor?.code === targetCode
                   );
                   if (sf) {
-                    sf.status = 'completed';
-                    sf.completedAt = new Date().toISOString();
+                    if (isFloorQrSatisfied) {
+                      sf.status = 'completed';
+                      sf.completedAt = new Date().toISOString();
+                    }
                     localStorage.setItem('cached-active-session', JSON.stringify(sess));
                   }
                 }
               }
             } catch {}
 
-            // Determine if QR is needed or already verified
-            const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
-            const sortedFloors = [...floors].sort((a, b) => isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder);
-            const currentFloorCode = (floor?.code || '').toUpperCase();
-            const currentIdx = sortedFloors.findIndex(f => f.id === room.floorId || f.code.toUpperCase() === currentFloorCode);
-            const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
-
-            // Check if any QR was validated in this session
-            let sessionAlreadyHasQr = hasSessionQr;
-            try {
-              const cached = localStorage.getItem('cached-active-session');
-              if (cached) {
-                const sess = JSON.parse(cached);
-                if (sess.sessionFloors?.some((sf: any) => sf.qrValidated)) sessionAlreadyHasQr = true;
-              }
-            } catch {}
-
             let targetUrl = '';
-            if (sessionAlreadyHasQr) {
-              // 1-barcode-per-session rule: Physical presence already verified! Directly continue to next floor or summary!
+            if (isFloorQrSatisfied) {
+              // Physical presence verified according to active rule! Directly continue to next floor or summary!
               targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
             } else {
-              // No barcode verified yet: Prompt scan on this floor (can also be skipped by officer)
+              // QR verification required before continuing
               const floorTarget = floor ? floor.id : room.floorId;
               targetUrl = `/security/patrol/floor/${floorTarget}/qr-scan`;
             }

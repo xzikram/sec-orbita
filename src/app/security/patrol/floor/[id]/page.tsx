@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Room } from '@/lib/dummy-data';
@@ -11,6 +11,7 @@ import {
   isRoomChecked,
 } from '@/lib/dummy-data';
 import styles from './floor.module.css';
+import { getCachedSettings } from '@/lib/settings-client';
 
 export default function FloorDetailPage({
   params,
@@ -23,10 +24,15 @@ export default function FloorDetailPage({
   const [session, setSession] = useState<any>(null);
   const [dbFloor, setDbFloor] = useState<any>(null);
   const [floorRooms, setFloorRooms] = useState<Room[]>([]);
+  const [defaultFloorRooms, setDefaultFloorRooms] = useState<Room[]>([]);
+  const [saveToastText, setSaveToastText] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
+  const [offlineQrs, setOfflineQrs] = useState<any[]>([]);
   const [hasSessionQr, setHasSessionQr] = useState(false);
+  const [settings, setSettings] = useState(() => getCachedSettings());
   const [loading, setLoading] = useState(true);
 
   const fallbackFloor = getFloorById(id) || 
@@ -102,40 +108,88 @@ export default function FloorDetailPage({
         // 3. Resolve rooms from IndexedDB master_rooms
         const resolvedFloor = matchedFloor || fallbackFloor;
         const targetFloorIdentifier = resolvedFloor ? (resolvedFloor.code || resolvedFloor.id) : id;
+        const targetFloorCode = String(resolvedFloor?.code || dbFloor?.code || id).replace(/^floor-/, '').replace(/^sf-/, '').toUpperCase().trim();
         const { getResilientRoomsForFloor } = await import('@/lib/offline-cache');
         const defaultRooms = await getResilientRoomsForFloor(targetFloorIdentifier);
+        setDefaultFloorRooms(defaultRooms);
 
-        const savedOrder = localStorage.getItem(`patrol-order-${empId}-${id}`);
-        if (savedOrder) {
+        const applyRoomOrdering = (roomsToOrder: Room[], savedCodes: string[]): Room[] => {
+          const sorted = [...roomsToOrder].sort((a, b) => {
+            const idxA = savedCodes.indexOf(a.code.toUpperCase());
+            const idxB = savedCodes.indexOf(b.code.toUpperCase());
+            if (idxA === -1 && idxB === -1) return (a.patrolOrder ?? 0) - (b.patrolOrder ?? 0);
+            if (idxA === -1) return 1;
+            if (idxB === -1) return -1;
+            return idxA - idxB;
+          });
+          const sortedCodes = new Set(sorted.map(r => r.code.toUpperCase()));
+          const missing = roomsToOrder.filter(r => !sortedCodes.has(r.code.toUpperCase()));
+          return [...sorted, ...missing];
+        };
+
+        let loadedFromLocal = false;
+        const savedCodesStr = localStorage.getItem(`patrol-order-codes-${empId}-${targetFloorCode}`) || localStorage.getItem(`patrol-order-codes-guest-${targetFloorCode}`);
+        if (savedCodesStr) {
           try {
-            const orderIds = JSON.parse(savedOrder) as string[];
-            const sorted = [...defaultRooms].sort((a, b) => {
-              const idxA = orderIds.indexOf(a.id);
-              const idxB = orderIds.indexOf(b.id);
-              if (idxA === -1 && idxB === -1) return 0;
-              if (idxA === -1) return 1;
-              if (idxB === -1) return -1;
-              return idxA - idxB;
-            });
-            const sortedIds = new Set(sorted.map(r => r.id));
-            const missing = defaultRooms.filter(r => !sortedIds.has(r.id));
-            setFloorRooms([...sorted, ...missing]);
-          } catch {
-            setFloorRooms(defaultRooms);
+            const savedCodes = JSON.parse(savedCodesStr) as string[];
+            if (Array.isArray(savedCodes) && savedCodes.length > 0) {
+              setFloorRooms(applyRoomOrdering(defaultRooms, savedCodes));
+              loadedFromLocal = true;
+            }
+          } catch {}
+        }
+
+        if (!loadedFromLocal) {
+          const savedLegacyOrder = localStorage.getItem(`patrol-order-${empId}-${id}`);
+          if (savedLegacyOrder) {
+            try {
+              const orderIds = JSON.parse(savedLegacyOrder) as string[];
+              const sorted = [...defaultRooms].sort((a, b) => {
+                const idxA = orderIds.indexOf(a.id);
+                const idxB = orderIds.indexOf(b.id);
+                if (idxA === -1 && idxB === -1) return 0;
+                if (idxA === -1) return 1;
+                if (idxB === -1) return -1;
+                return idxA - idxB;
+              });
+              const sortedIds = new Set(sorted.map(r => r.id));
+              const missing = defaultRooms.filter(r => !sortedIds.has(r.id));
+              setFloorRooms([...sorted, ...missing]);
+              loadedFromLocal = true;
+            } catch {}
           }
-        } else {
+        }
+
+        if (!loadedFromLocal) {
           setFloorRooms(defaultRooms);
+        }
+
+        // Background server preference fetch for cross-device permanence
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          fetch('/api/users/preferences/route-order')
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data?.preferences && data.preferences[targetFloorCode]) {
+                const serverCodes = data.preferences[targetFloorCode];
+                if (Array.isArray(serverCodes) && serverCodes.length > 0) {
+                  setFloorRooms(applyRoomOrdering(defaultRooms, serverCodes));
+                  localStorage.setItem(`patrol-order-codes-${empId}-${targetFloorCode}`, JSON.stringify(serverCodes));
+                }
+              }
+            })
+            .catch(() => {});
         }
 
         // 3. Get offline checks and QR scans from IndexedDB
         try {
           const { getOfflineChecks, getOfflineQrScans } = await import('@/lib/db');
-          const [offline, offlineQrs] = await Promise.all([
+          const [offline, offlineQrsList] = await Promise.all([
             getOfflineChecks().catch(() => []),
             getOfflineQrScans().catch(() => []),
           ]);
           setOfflineChecks(offline);
-          if (offlineQrs && offlineQrs.length > 0) {
+          setOfflineQrs(offlineQrsList || []);
+          if (offlineQrsList && offlineQrsList.length > 0) {
             setHasSessionQr(true);
           }
         } catch (e) {
@@ -145,6 +199,10 @@ export default function FloorDetailPage({
         if (activeSess?.sessionFloors?.some((sf: any) => sf.qrValidated)) {
           setHasSessionQr(true);
         }
+
+        import('@/lib/settings-client').then(({ fetchAndCacheSettings }) => {
+          fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
+        }).catch(() => {});
 
         // 4. Set loading false immediately (< 25ms render)
         setLoading(false);
@@ -228,22 +286,101 @@ export default function FloorDetailPage({
     }
   });
 
-  const checked = combinedCheckedSet.size;
+  // Also include any checks registered in sessionFloor.patrolChecks for this floor
+  if (Array.isArray(sessionFloor?.patrolChecks)) {
+    sessionFloor.patrolChecks.forEach((c: any) => {
+      const cCode = c.roomCodeSnapshot;
+      if (cCode) combinedCheckedSet.add(cCode);
+    });
+  }
+
+  const isRequireQr = settings.require_qr !== 'false';
+  const qrScanMode = settings.qr_scan_mode || 'session';
+  const thisFloorCode = String(floor?.code || sessionFloor?.floorCodeSnapshot || id).replace(/^floor-/, '').replace(/^sf-/, '').toUpperCase().trim();
+
+  const hasThisFloorQr = Boolean(
+    sessionFloor?.qrValidated ||
+    offlineQrs.some((q: any) => {
+      const qFloorCode = String(q.floorCode || '').toUpperCase().trim();
+      return (thisFloorCode && qFloorCode === thisFloorCode) ||
+        q.sessionFloorId === sessionFloor?.id ||
+        (sessionFloor?.floorCodeSnapshot && q.sessionFloorId === `sf-${String(sessionFloor.floorCodeSnapshot).toLowerCase()}`);
+    })
+  );
+
+  const isFloorQrSatisfied = !isRequireQr || (
+    qrScanMode === 'per_floor' ? hasThisFloorQr : (hasThisFloorQr || hasSessionQr)
+  );
+
+  const isFloorCompleted = sessionFloor?.status === 'completed';
   const total = floorRooms.length;
-  const percent = total > 0 ? Math.round((checked / total) * 100) : 0;
+  const checked = isFloorCompleted ? Math.max(combinedCheckedSet.size, total) : combinedCheckedSet.size;
+  const boundedChecked = Math.min(checked, total);
+  const percent = total > 0 ? (isFloorCompleted ? 100 : Math.min(100, Math.round((boundedChecked / total) * 100))) : 0;
 
   // Find next unchecked room by code snapshot
-  const nextRoom = floorRooms.find(r => !combinedCheckedSet.has(r.code));
+  const nextRoom = isFloorCompleted ? null : floorRooms.find(r => !combinedCheckedSet.has(r.code));
 
   const getProgressColor = () => {
     if (percent === 100) return 'progress-fill-success';
     return 'progress-fill-primary';
   };
 
+  const triggerToast = (text: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setSaveToastText(text);
+    toastTimeoutRef.current = setTimeout(() => {
+      setSaveToastText(null);
+    }, 1800);
+  };
+
   const saveCustomOrder = (newList: Room[]) => {
     const empId = currentUser?.employeeId || 'guest';
-    const orderIds = newList.map(r => r.id);
-    localStorage.setItem(`patrol-order-${empId}-${id}`, JSON.stringify(orderIds));
+    const targetFloorCode = String(floor?.code || dbFloor?.code || id).replace(/^floor-/, '').replace(/^sf-/, '').toUpperCase().trim();
+    const roomCodes = newList.map(r => r.code.toUpperCase());
+
+    // 1. Save locally using room codes (permanent across sessions & catalog downloads)
+    localStorage.setItem(`patrol-order-codes-${empId}-${targetFloorCode}`, JSON.stringify(roomCodes));
+    localStorage.setItem(`patrol-order-codes-guest-${targetFloorCode}`, JSON.stringify(roomCodes));
+    localStorage.setItem(`patrol-order-${empId}-${id}`, JSON.stringify(newList.map(r => r.id)));
+
+    // 2. Sync to database server if online for cross-device permanence
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      fetch('/api/users/preferences/route-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ floorCode: targetFloorCode, roomCodes }),
+      }).catch(() => {});
+    }
+
+    // 3. Visual feedback toast (Option A)
+    triggerToast('✓ Urutan tersimpan');
+  };
+
+  const resetToDefaultOrder = () => {
+    if (!confirm('Kembalikan urutan pemeriksaan ruangan lantai ini ke standar rumah sakit?')) return;
+
+    const baseList = defaultFloorRooms.length > 0
+      ? defaultFloorRooms
+      : [...floorRooms].sort((a, b) => (a.patrolOrder ?? 0) - (b.patrolOrder ?? 0));
+    setFloorRooms(baseList);
+
+    const empId = currentUser?.employeeId || 'guest';
+    const targetFloorCode = String(floor?.code || dbFloor?.code || id).replace(/^floor-/, '').replace(/^sf-/, '').toUpperCase().trim();
+
+    localStorage.removeItem(`patrol-order-codes-${empId}-${targetFloorCode}`);
+    localStorage.removeItem(`patrol-order-codes-guest-${targetFloorCode}`);
+    localStorage.removeItem(`patrol-order-${empId}-${id}`);
+
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      fetch('/api/users/preferences/route-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ floorCode: targetFloorCode, reset: true }),
+      }).catch(() => {});
+    }
+
+    triggerToast('↺ Urutan standar dipulihkan');
   };
 
   const reverseOrder = () => {
@@ -360,22 +497,55 @@ export default function FloorDetailPage({
       </div>
 
       {/* Reorder controls header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem' }}>
-            <h3 className="section-title" style={{ margin: 0, fontSize: '15px' }}>Rute Pemeriksaan Ruangan</h3>
-            <button 
-              className="btn btn-ghost btn-sm" 
-              onClick={reverseOrder} 
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '4px 8px', height: 'auto', background: 'var(--color-neutral-100)', color: 'var(--color-primary-600)', fontWeight: 'bold' }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="17 1 21 5 17 9" />
-                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                <polyline points="7 23 3 19 7 15" />
-                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-              </svg>
-              Balik Urutan
-            </button>
-          </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', marginBottom: '1rem', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h3 className="section-title" style={{ margin: 0, fontSize: '15px' }}>Rute Pemeriksaan Ruangan</h3>
+          {saveToastText && (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '11px',
+              fontWeight: 700,
+              color: '#059669',
+              background: '#ecfdf5',
+              border: '1px solid #a7f3d0',
+              padding: '2px 8px',
+              borderRadius: '12px',
+              animation: 'fadeIn 0.2s ease',
+            }}>
+              {saveToastText}
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button 
+            type="button"
+            className="btn btn-ghost btn-sm" 
+            onClick={resetToDefaultOrder} 
+            title="Kembalikan urutan ke standar rumah sakit"
+            id="btn-reset-order"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', padding: '4px 8px', height: 'auto', background: 'var(--color-neutral-100)', color: 'var(--text-secondary)' }}
+          >
+            ↺ Reset Standar
+          </button>
+          <button 
+            type="button"
+            className="btn btn-ghost btn-sm" 
+            onClick={reverseOrder} 
+            id="btn-reverse-order"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '4px 8px', height: 'auto', background: 'var(--color-neutral-100)', color: 'var(--color-primary-600)', fontWeight: 'bold' }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="17 1 21 5 17 9" />
+              <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+              <polyline points="7 23 3 19 7 15" />
+              <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+            </svg>
+            Balik Urutan
+          </button>
+        </div>
+      </div>
 
           {/* Room List */}
           <div className={styles.roomList}>
@@ -518,14 +688,14 @@ export default function FloorDetailPage({
           )}
 
       {/* QR Validated or Scan CTA */}
-      {((sessionFloor?.qrValidated || hasSessionQr) && percent === 100) ? (
+      {(isFloorQrSatisfied && percent === 100) ? (
         <div className="card animate-scale-in" style={{ marginTop: '1.5rem', background: 'var(--color-success-50)', border: '1px solid var(--color-success-200)', textAlign: 'center', padding: '1.5rem 1.25rem', borderRadius: '12px' }}>
           <div style={{ color: 'var(--color-success-700)', fontWeight: 800, fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', borderRadius: '50%', background: 'var(--color-success-600)', color: '#fff', fontSize: '15px' }}>✓</span>
             Lantai Selesai
           </div>
           <p style={{ fontSize: '13px', color: 'var(--color-neutral-600)', margin: '0 0 14px' }}>
-            {sessionFloor?.qrValidated
+            {hasThisFloorQr
               ? `Seluruh titik pemeriksaan di ${floor.name} telah selesai dan barcode fisik lantai ini telah tervalidasi.`
               : `Seluruh titik pemeriksaan di ${floor.name} telah selesai. Kehadiran fisik sesi patroli ini telah tervalidasi.`}
           </p>
@@ -581,7 +751,9 @@ export default function FloorDetailPage({
             </div>
             <h3 className={styles.qrCtaTitle}>Semua Ruangan Selesai!</h3>
             <p className={styles.qrCtaText}>
-              Scan stiker barcode di lantai ini untuk verifikasi kehadiran fisik (cukup 1x scan per sesi patroli).
+              {qrScanMode === 'per_floor'
+                ? 'Scan stiker barcode di lantai ini untuk memverifikasi dan menyelesaikan pemeriksaan lantai ini.'
+                : 'Scan stiker barcode di lantai ini untuk verifikasi kehadiran fisik (cukup 1x scan per sesi patroli).'}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', maxWidth: '300px', margin: '0 auto' }}>
               <Link
@@ -597,22 +769,24 @@ export default function FloorDetailPage({
                   <rect x="14" y="14" width="7" height="7" />
                   <rect x="3" y="14" width="7" height="7" />
                 </svg>
-                Scan Barcode Kehadiran
+                Scan Barcode {qrScanMode === 'per_floor' ? floor.name : 'Kehadiran'}
               </Link>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={handleSkipFloorQr}
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: 'var(--color-primary-700)',
-                  borderColor: 'var(--color-primary-300)',
-                  background: 'var(--color-primary-50)',
-                }}
-              >
-                ⏩ Lewati & Scan di Lantai Lain Nanti
-              </button>
+              {qrScanMode !== 'per_floor' && (
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={handleSkipFloorQr}
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: 'var(--color-primary-700)',
+                    borderColor: 'var(--color-primary-300)',
+                    background: 'var(--color-primary-50)',
+                  }}
+                >
+                  ⏩ Lewati & Scan di Lantai Lain Nanti
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -9,8 +9,10 @@ import {
   getFloorById,
   isRoomChecked,
   rooms,
+  dbRoomCodeMap,
 } from '@/lib/dummy-data';
 import styles from './patrol.module.css';
+import { getCachedSettings } from '@/lib/settings-client';
 
 // Canonical physical floor progression for RS Mata JEC ORBITA
 const CANONICAL_FLOOR_ORDER: Record<string, number> = {
@@ -57,7 +59,11 @@ export default function PatrolPage() {
   const [mounted, setMounted] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
+  const [offlineQrs, setOfflineQrs] = useState<any[]>([]);
   const [offlineQrCount, setOfflineQrCount] = useState(0);
+  const [settings, setSettings] = useState(() => getCachedSettings());
+  const [catalogFloors, setCatalogFloors] = useState<any[]>(floors);
+  const [catalogRoomsMap, setCatalogRoomsMap] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
   const [showEarlyFinishModal, setShowEarlyFinishModal] = useState(false);
   const [showEarlyQrWarning, setShowEarlyQrWarning] = useState(false);
@@ -114,13 +120,30 @@ export default function PatrolPage() {
 
         // 2. Get offline checks and QR scans from IndexedDB
         try {
-          const { getOfflineChecks, getOfflineQrScans } = await import('@/lib/db');
-          const [offline, offlineQrs] = await Promise.all([
+          const { getOfflineChecks, getOfflineQrScans, getCachedFloors, getCachedRoomsByFloor } = await import('@/lib/db');
+          const [offline, offlineQrsList, cFloors] = await Promise.all([
             getOfflineChecks().catch(() => []),
             getOfflineQrScans().catch(() => []),
+            getCachedFloors().catch(() => []),
           ]);
           setOfflineChecks(offline);
-          setOfflineQrCount(offlineQrs.length);
+          setOfflineQrs(offlineQrsList || []);
+          setOfflineQrCount(offlineQrsList ? offlineQrsList.length : 0);
+
+          if (Array.isArray(cFloors) && cFloors.length > 0) {
+            setCatalogFloors(cFloors);
+            const rMap: Record<string, any[]> = {};
+            await Promise.all(
+              cFloors.map(async (cf: any) => {
+                const r = await getCachedRoomsByFloor(cf.code || cf.id).catch(() => []);
+                if (r && r.length > 0) {
+                  rMap[cf.id] = r;
+                  rMap[cf.code.toUpperCase()] = r;
+                }
+              })
+            );
+            setCatalogRoomsMap(rMap);
+          }
         } catch (e) {
           console.error('IndexedDB load error:', e);
         }
@@ -172,6 +195,35 @@ export default function PatrolPage() {
     import('@/lib/offline-cache').then(({ ensureFreshPatrolCatalog }) => {
       ensureFreshPatrolCatalog().catch(() => {});
     }).catch(() => {});
+
+    // Fetch operational system settings in background
+    import('@/lib/settings-client').then(({ fetchAndCacheSettings }) => {
+      fetchAndCacheSettings().then(setSettings).catch(() => {});
+    }).catch(() => {});
+
+    // Background auto-sync if online
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      import('@/lib/sync').then(({ syncOfflineData }) => {
+        syncOfflineData().catch(() => {});
+      }).catch(() => {});
+    }
+
+    const handleSyncDone = () => {
+      import('@/lib/db').then(async ({ getOfflineChecks, getOfflineQrScans }) => {
+        const [off, offQrs] = await Promise.all([
+          getOfflineChecks().catch(() => []),
+          getOfflineQrScans().catch(() => []),
+        ]);
+        setOfflineChecks(off);
+        setOfflineQrs(offQrs);
+        setOfflineQrCount(offQrs.length);
+      }).catch(() => {});
+    };
+
+    window.addEventListener('offline-sync-complete', handleSyncDone);
+    return () => {
+      window.removeEventListener('offline-sync-complete', handleSyncDone);
+    };
   }, []);
 
   const handleSetReversed = (reversed: boolean) => {
@@ -353,31 +405,21 @@ export default function PatrolPage() {
   const currentSession = session;
   const schedule = currentSession.schedule || patrolSchedules.find(s => s.id === currentSession.scheduleId) || patrolSchedules[0];
 
-  const totalRooms = floors.reduce((sum, f) => sum + getRoomsByFloor(f.id).length, 0);
+  const activeFloorsList = catalogFloors.length > 0 ? catalogFloors : floors;
 
-  // Combine online (DB) and offline (IndexedDB) check room codes using isRoomChecked
-  const checkedRoomCodesSet = new Set<string>();
-  floors.forEach(f => {
-    const fRooms = getRoomsByFloor(f.id);
-    const sf = currentSession.sessionFloors?.find((s: any) => 
-      s.floorId === f.id || 
-      String(s.floorCodeSnapshot || '').toUpperCase() === f.code.toUpperCase() ||
-      (s.floor?.code && s.floor.code.toUpperCase() === f.code.toUpperCase())
-    );
-    fRooms.forEach(r => {
-      if (isRoomChecked(r, sf?.patrolChecks, offlineChecks, currentSession.id)) {
-        checkedRoomCodesSet.add(r.code);
-      }
-    });
-  });
-
-  const checkedRooms = checkedRoomCodesSet.size;
-  const overallProgress = totalRooms > 0 ? Math.round((checkedRooms / totalRooms) * 100) : 0;
+  const getFloorRoomsForFloor = (floorObj: any): any[] => {
+    if (!floorObj) return [];
+    const code = String(floorObj.code || floorObj.floorCodeSnapshot || '').toUpperCase().trim();
+    const id = String(floorObj.id || floorObj.floorId || '').trim();
+    if (catalogRoomsMap[code]?.length) return catalogRoomsMap[code];
+    if (catalogRoomsMap[id]?.length) return catalogRoomsMap[id];
+    return getRoomsByFloor(floorObj.id || code);
+  };
 
   const sessionFloorsSource = (currentSession.sessionFloors && currentSession.sessionFloors.length > 0)
     ? currentSession.sessionFloors
-    : floors.map(f => ({
-        id: `sf-${f.code.toLowerCase()}`,
+    : activeFloorsList.map((f: any) => ({
+        id: `sf-${String(f.code || '').toLowerCase()}`,
         floorId: f.id,
         floorNameSnapshot: f.name,
         floorCodeSnapshot: f.code,
@@ -389,32 +431,58 @@ export default function PatrolPage() {
   const sessionHasQr = sessionFloorsSource.some((s: any) => s.qrValidated) || offlineQrCount > 0;
 
   const rawFloorProgress = sessionFloorsSource.map((sf: any) => {
-    const floor = floors.find(f => 
+    const floor = activeFloorsList.find((f: any) => 
       f.id === sf.floorId || 
-      f.code.toUpperCase() === String(sf.floorCodeSnapshot || '').toUpperCase() ||
-      (sf.floor?.code && f.code.toUpperCase() === sf.floor.code.toUpperCase())
+      String(f.code || '').toUpperCase() === String(sf.floorCodeSnapshot || '').toUpperCase() ||
+      (sf.floor?.code && String(f.code || '').toUpperCase() === String(sf.floor.code || '').toUpperCase())
     ) || getFloorById(sf.floorCodeSnapshot) || getFloorById(sf.floorId) || getFloorById(sf.floorNameSnapshot) || floors[0];
 
-    const floorRooms = getRoomsByFloor(floor.id);
+    const floorRooms = getFloorRoomsForFloor(floor);
     
     const combinedFloorChecked = new Set<string>();
-    floorRooms.forEach(r => {
+    floorRooms.forEach((r: any) => {
       if (isRoomChecked(r, sf.patrolChecks, offlineChecks, currentSession.id)) {
         combinedFloorChecked.add(r.code);
       }
     });
-    
-    const checked = combinedFloorChecked.size;
-    const total = floorRooms.length;
-    const percent = total > 0 ? Math.round((checked / total) * 100) : 0;
 
-    // Completed if ALL rooms checked AND session has at least 1 physical QR verified
+    // Also include any checks registered in sf.patrolChecks for this floor
+    if (Array.isArray(sf.patrolChecks)) {
+      sf.patrolChecks.forEach((c: any) => {
+        const cCode = c.roomCodeSnapshot || (c.roomId && dbRoomCodeMap[c.roomId]) || c.roomId;
+        if (cCode) combinedFloorChecked.add(String(cCode));
+      });
+    }
+
+    const total = floorRooms.length > 0 ? floorRooms.length : (sf.patrolChecks?.length || 1);
+    const isExplicitlyCompleted = sf.status === 'completed';
+    // If explicitly completed or checks equal/exceed total, count all as checked
+    const checked = isExplicitlyCompleted ? Math.max(combinedFloorChecked.size, total) : combinedFloorChecked.size;
+    const boundedChecked = Math.min(checked, total);
+    const percent = total > 0 ? Math.min(100, Math.round((boundedChecked / total) * 100)) : 0;
+
+    const isRequireQr = settings.require_qr !== 'false';
+    const qrScanMode = settings.qr_scan_mode || 'session';
+
+    const thisFloorCode = String(floor?.code || sf.floorCodeSnapshot || '').toUpperCase().trim();
+    const hasThisFloorQr = sf.qrValidated || offlineQrs.some((q: any) => {
+      const qFloorCode = String(q.floorCode || '').toUpperCase().trim();
+      return (thisFloorCode && qFloorCode === thisFloorCode) ||
+        q.sessionFloorId === sf.id ||
+        (sf.floorCodeSnapshot && q.sessionFloorId === `sf-${String(sf.floorCodeSnapshot).toLowerCase()}`);
+    });
+
+    const isQrSatisfied = !isRequireQr || (
+      qrScanMode === 'per_floor' ? hasThisFloorQr : (hasThisFloorQr || sessionHasQr)
+    );
+
+    // Completed if ALL rooms checked OR floor marked completed, AND QR verification satisfied according to configured rule
     let computedStatus: 'completed' | 'waiting_qr' | 'in_progress' | 'pending' = 'pending';
-    if (percent === 100 && (sf.qrValidated || sessionHasQr)) {
+    if ((percent === 100 || isExplicitlyCompleted) && isQrSatisfied) {
       computedStatus = 'completed';
-    } else if (percent === 100 && !sf.qrValidated && !sessionHasQr) {
+    } else if ((percent === 100 || isExplicitlyCompleted) && !isQrSatisfied) {
       computedStatus = 'waiting_qr';
-    } else if (checked > 0 || sf.status === 'in_progress') {
+    } else if (boundedChecked > 0 || sf.status === 'in_progress') {
       computedStatus = 'in_progress';
     } else {
       computedStatus = 'pending';
@@ -425,7 +493,7 @@ export default function PatrolPage() {
       floor,
       sortOrder: getFloorSortOrder(floor),
       total,
-      checked,
+      checked: boundedChecked,
       percent,
       computedStatus,
     };
@@ -435,6 +503,40 @@ export default function PatrolPage() {
   const floorProgress = [...rawFloorProgress].sort((a, b) => {
     return isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder;
   });
+
+  const totalRooms = floorProgress.reduce((sum: number, f: any) => sum + f.total, 0) || 133;
+  const checkedRooms = floorProgress.reduce((sum: number, f: any) => sum + f.checked, 0);
+  const overallProgress = totalRooms > 0 ? Math.min(100, Math.round((checkedRooms / totalRooms) * 100)) : 0;
+  const isPatrolFullyCompleted = overallProgress === 100 && floorProgress.length > 0 && floorProgress.every((f: any) => f.computedStatus === 'completed');
+
+  const [completingPatrol, setCompletingPatrol] = useState(false);
+  const handleCompletePatrol = async () => {
+    if (!currentSession?.id) {
+      window.location.href = '/security/patrol/summary';
+      return;
+    }
+    setCompletingPatrol(true);
+    try {
+      if (navigator.onLine) {
+        await fetch('/api/patrol/sessions/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: currentSession.id }),
+        }).catch(() => null);
+      }
+      try {
+        const cached = localStorage.getItem('cached-active-session');
+        if (cached) {
+          const sess = JSON.parse(cached);
+          sess.status = 'completed';
+          sess.completedAt = new Date().toISOString();
+          localStorage.setItem('cached-active-session', JSON.stringify(sess));
+        }
+      } catch {}
+    } finally {
+      window.location.href = '/security/patrol/summary';
+    }
+  };
 
   const activeOrFirstFloor = floorProgress.find(f => f.computedStatus === 'in_progress' || f.computedStatus === 'waiting_qr') || floorProgress[0];
 
@@ -520,7 +622,7 @@ export default function PatrolPage() {
             />
           </div>
           <p className="text-xs text-muted mt-1">
-            {checkedRooms} dari {totalRooms} ruangan • {floorProgress.filter((f: any) => f.computedStatus === 'completed').length} dari {floors.length} lantai
+            {checkedRooms} dari {totalRooms} ruangan • {floorProgress.filter((f: any) => f.computedStatus === 'completed').length} dari {floorProgress.length} lantai
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--border-light)' }}>
@@ -533,35 +635,49 @@ export default function PatrolPage() {
                 Memori HP: 0 KB (Lega)
               </span>
             )}
-            <button
-              type="button"
-              className="btn btn-outline btn-xs"
-              onClick={() => setShowEarlyFinishModal(true)}
-              style={{ color: '#dc2626', borderColor: 'rgba(220, 38, 38, 0.3)', padding: '3px 8px', fontSize: '11px', fontWeight: 600 }}
-              id="btn-early-finish"
-            >
-              ⏹️ Selesaikan Sebagian
-            </button>
+            {isPatrolFullyCompleted ? (
+              <button
+                type="button"
+                className="btn btn-success btn-xs"
+                onClick={handleCompletePatrol}
+                disabled={completingPatrol}
+                style={{ padding: '4px 12px', fontSize: '11px', fontWeight: 700, color: '#fff', background: '#059669', borderColor: '#059669', borderRadius: '6px', cursor: 'pointer' }}
+                id="btn-complete-patrol-header"
+              >
+                {completingPatrol ? 'Menyimpan...' : '✅ Selesaikan Patroli'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-outline btn-xs"
+                onClick={() => setShowEarlyFinishModal(true)}
+                style={{ color: '#dc2626', borderColor: 'rgba(220, 38, 38, 0.3)', padding: '3px 8px', fontSize: '11px', fontWeight: 600 }}
+                id="btn-early-finish"
+              >
+                ⏹️ Selesaikan Sebagian
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Completed Patrol Summary Banner */}
-      {(overallProgress === 100 && floorProgress.every((f: any) => f.computedStatus === 'completed')) && (
+      {isPatrolFullyCompleted && (
         <div className="card animate-scale-in" style={{ marginTop: '1rem', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', padding: '16px', borderRadius: '12px', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
             <div>
               <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.9, fontWeight: 700 }}>🎉 Patroli Lengkap</span>
               <h3 style={{ margin: '2px 0 0 0', fontSize: '15px', color: '#fff', fontWeight: 800 }}>Semua Lantai Berhasil Diperiksa!</h3>
             </div>
-            <Link
-              href="/security/patrol/summary"
+            <button
+              type="button"
+              onClick={handleCompletePatrol}
               className="btn"
-              style={{ background: '#fff', color: '#059669', fontWeight: 700, padding: '8px 16px', borderRadius: '8px', fontSize: '13px', textDecoration: 'none' }}
+              style={{ background: '#fff', color: '#059669', fontWeight: 700, padding: '8px 16px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer', border: 'none' }}
               id="btn-view-summary"
             >
               Lihat Ringkasan →
-            </Link>
+            </button>
           </div>
         </div>
       )}
@@ -690,7 +806,11 @@ export default function PatrolPage() {
                 {fp.computedStatus === 'waiting_qr' && (
                   <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#b45309', background: '#fef3c7', padding: '5px 9px', borderRadius: '6px', fontWeight: 600 }}>
                     <span>📱</span>
-                    <span>Ruangan Selesai — Belum Ada Scan Barcode Sesi</span>
+                    <span>
+                      {settings.qr_scan_mode === 'per_floor'
+                        ? 'Ruangan Selesai — Belum Scan Barcode Lantai Ini'
+                        : 'Ruangan Selesai — Belum Ada Scan Barcode Sesi'}
+                    </span>
                   </div>
                 )}
 
@@ -709,6 +829,26 @@ export default function PatrolPage() {
           </Link>
         ))}
       </div>
+
+      {(overallProgress === 100 || floorProgress.every((f: any) => f.computedStatus === 'completed')) && (
+        <div style={{ marginTop: '20px', padding: '16px', background: '#f0fdf4', borderRadius: '12px', border: '1px solid #bbf7d0', textAlign: 'center' }} className="animate-scale-in">
+          <div style={{ fontSize: '28px', marginBottom: '8px' }}>🎉</div>
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#166534', margin: '0 0 6px 0' }}>Semua Lantai Telah Selesai!</h3>
+          <p style={{ fontSize: '12px', color: '#15803d', margin: '0 0 14px 0' }}>
+            Seluruh {totalRooms} ruangan telah diperiksa. Selesaikan patroli untuk menyimpan laporan lengkap.
+          </p>
+          <button
+            type="button"
+            className="btn btn-success btn-lg"
+            onClick={handleCompletePatrol}
+            disabled={completingPatrol}
+            style={{ width: '100%', fontWeight: 700, padding: '12px', fontSize: '14px', borderRadius: '8px', color: '#fff', background: '#059669', borderColor: '#059669', cursor: 'pointer' }}
+            id="btn-complete-patrol-bottom"
+          >
+            {completingPatrol ? 'Menyimpan Laporan...' : '✅ Selesaikan Patroli'}
+          </button>
+        </div>
+      )}
 
       {/* Modal Akhiri Patroli Lebih Awal */}
       {showEarlyFinishModal && (

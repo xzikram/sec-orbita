@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getRealtimeShift, getOppositeShift } from '@/lib/shifts';
-import { getCurrentSchedule } from '@/lib/dummy-data';
+import { getCurrentSchedule, getRoomsByFloor } from '@/lib/dummy-data';
 import styles from './dashboard.module.css';
 
 interface SessionFloor {
@@ -421,6 +421,67 @@ export default function SecurityDashboard() {
 
 
 
+  const computeDashboardPatrolStats = (
+    activeSession: any,
+    floorsList: any[],
+    offlineChecks: any[] = []
+  ) => {
+    const baseTotalRooms = floorsList.reduce((sum: number, f: any) => sum + (f.rooms?.length || 0), 0) || 133;
+    if (activeSession?.status === 'completed') {
+      return {
+        totalRooms: baseTotalRooms,
+        checkedRooms: baseTotalRooms,
+        floorsCompleted: floorsList.length || 12,
+      };
+    }
+
+    let checkedRooms = 0;
+    let floorsCompleted = 0;
+    let totalRooms = 0;
+
+    if (activeSession && Array.isArray(activeSession.sessionFloors) && activeSession.sessionFloors.length > 0) {
+      for (const sf of activeSession.sessionFloors) {
+        const floorObj = floorsList.find((f: any) =>
+          f.id === sf.floorId ||
+          String(f.code || '').toUpperCase() === String(sf.floorCodeSnapshot || '').toUpperCase()
+        );
+        const floorRoomCount = floorObj?.rooms?.length || getRoomsByFloor(floorObj?.id || sf.floorCodeSnapshot || sf.floorId)?.length || 0;
+        totalRooms += floorRoomCount;
+
+        const dbCheckedRoomCodes = (sf.patrolChecks || []).map((c: any) => c.roomCodeSnapshot || c.roomId).filter(Boolean);
+        const sfCode = String(sf.floorCodeSnapshot || '').toLowerCase();
+        const offCheckedRoomCodes = offlineChecks
+          .filter((c: any) => c.sessionFloorId === sf.id || (sfCode && c.sessionFloorId === `sf-${sfCode}`))
+          .map((c: any) => c.roomCode || c.roomId)
+          .filter(Boolean);
+
+        const combinedFloorChecked = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
+        const isFloorCompleted = sf.status === 'completed' || sf.qrValidated || (floorRoomCount > 0 && combinedFloorChecked.size >= floorRoomCount);
+
+        const count = isFloorCompleted && floorRoomCount > 0
+          ? Math.max(combinedFloorChecked.size, floorRoomCount)
+          : combinedFloorChecked.size;
+
+        const boundedCount = floorRoomCount > 0 ? Math.min(count, floorRoomCount) : count;
+        checkedRooms += boundedCount;
+
+        if (isFloorCompleted) {
+          floorsCompleted++;
+        }
+      }
+    }
+
+    if (totalRooms === 0) {
+      totalRooms = baseTotalRooms;
+    }
+
+    return {
+      totalRooms,
+      checkedRooms: Math.min(checkedRooms, totalRooms),
+      floorsCompleted,
+    };
+  };
+
   useEffect(() => {
     setCurrentTime(new Date());
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -522,30 +583,13 @@ export default function SecurityDashboard() {
           } catch {}
         }
 
-        // Count total rooms from floors
-        const totalRooms = floors.reduce((sum: number, f: any) => sum + (f.rooms?.length || 0), 0) || 133;
+        let offlineChecks: any[] = [];
+        try {
+          const { getOfflineChecks } = await import('@/lib/db');
+          offlineChecks = await getOfflineChecks();
+        } catch {}
 
-        // Count checked rooms from session combining online and offline checks
-        let checkedRooms = 0;
-        let floorsCompleted = 0;
-        if (activeSession && Array.isArray(activeSession.sessionFloors)) {
-          let offlineChecks: any[] = [];
-          try {
-            const { getOfflineChecks } = await import('@/lib/db');
-            offlineChecks = await getOfflineChecks();
-          } catch {}
-
-          for (const sf of activeSession.sessionFloors) {
-            const dbCheckedRoomCodes = sf.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
-            const sfCode = String(sf.floorCodeSnapshot || '').toLowerCase();
-            const offCheckedRoomCodes = offlineChecks
-              .filter((c: any) => c.sessionFloorId === sf.id || (sfCode && c.sessionFloorId === `sf-${sfCode}`))
-              .map((c: any) => c.roomCode || c.roomId);
-            const combinedFloorChecked = new Set([...dbCheckedRoomCodes, ...offCheckedRoomCodes]);
-            checkedRooms += combinedFloorChecked.size;
-            if (sf.status === 'completed' || sf.qrValidated) floorsCompleted++;
-          }
-        }
+        const { totalRooms, checkedRooms, floorsCompleted } = computeDashboardPatrolStats(activeSession, floors, offlineChecks);
 
         const findingsCount = typeof findingsData === 'object' && 'total' in findingsData
           ? findingsData.total
@@ -688,17 +732,14 @@ export default function SecurityDashboard() {
       setOtherOfficers(activeOtherSessions);
 
       let activeSession = myActiveSession;
-      const totalRooms = floors.reduce((sum: number, f: any) => sum + (f.rooms?.length || 0), 0) || 133;
 
-      let checkedRooms = 0;
-      let floorsCompleted = 0;
-      if (activeSession && Array.isArray(activeSession.sessionFloors)) {
-        for (const sf of activeSession.sessionFloors) {
-          const dbCheckedRoomCodes = sf.patrolChecks?.map((c: any) => c.roomCodeSnapshot) || [];
-          checkedRooms += dbCheckedRoomCodes.length;
-          if (sf.status === 'completed' || sf.qrValidated) floorsCompleted++;
-        }
-      }
+      let offlineChecks: any[] = [];
+      try {
+        const { getOfflineChecks } = await import('@/lib/db');
+        offlineChecks = await getOfflineChecks();
+      } catch {}
+
+      const { totalRooms, checkedRooms, floorsCompleted } = computeDashboardPatrolStats(activeSession, floors, offlineChecks);
 
       const findingsCount = typeof findingsData === 'object' && 'total' in findingsData
         ? findingsData.total

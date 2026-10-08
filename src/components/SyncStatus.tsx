@@ -51,21 +51,27 @@ export default function SyncStatus() {
     const probe = async () => {
       const ok = await checkServerReachable(800);
       if (isMounted) setServerReachable(ok);
-      updateCounts();
+      try {
+        const c = await getOfflineCount();
+        if (isMounted) {
+          setCounts(c);
+          const total = c.checks + c.findings + (c.qrScans || 0);
+          if (ok && total > 0 && !syncing) {
+            handleSync();
+          }
+        }
+      } catch {}
     };
 
     probe();
-    const interval = setInterval(probe, 8000);
+    const interval = setInterval(probe, 6000);
 
     const handleOnline = async () => {
       const ok = await checkServerReachable(800);
       if (isMounted) {
         setServerReachable(ok);
         if (ok) {
-          const c = await getOfflineCount();
-          if (c.checks > 0 || c.findings > 0 || c.qrScans > 0) {
-            handleSync();
-          }
+          handleSync();
         }
       }
     };
@@ -74,13 +80,19 @@ export default function SyncStatus() {
       if (isMounted) setServerReachable(false);
     };
 
+    const handleSyncComplete = () => {
+      if (isMounted) updateCounts();
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('offline-sync-complete', handleSyncComplete);
 
     return () => {
       isMounted = false;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('offline-sync-complete', handleSyncComplete);
       clearInterval(interval);
     };
   }, []);

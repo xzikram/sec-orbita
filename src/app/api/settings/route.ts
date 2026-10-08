@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   watermark_timestamp: 'true',
   block_gallery: 'false',
   require_qr: 'true',
+  qr_scan_mode: 'session',
   gps_validation: 'false',
   notif_late: 'true',
   notif_finding: 'true',
