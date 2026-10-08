@@ -482,6 +482,84 @@ export default function SecurityDashboard() {
     };
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+      const [meRes, sessionsRes, findingsRes, floorsRes, staffRes, shiftsRes, lbRes] = await Promise.all([
+        fetch('/api/auth/me').catch(() => null),
+        fetch(`/api/patrol/sessions?date=${today}`).catch(() => null),
+        fetch('/api/findings?status=new&limit=100').catch(() => null),
+        fetch('/api/floors').catch(() => null),
+        fetch('/api/users?role=security').catch(() => null),
+        fetch('/api/shifts').catch(() => null),
+        fetch('/api/leaderboard').catch(() => null),
+      ]);
+
+      let loggedInUser = currentUser;
+      if (meRes && meRes.ok) {
+        const meData = await meRes.json();
+        loggedInUser = meData.user || loggedInUser;
+        setCurrentUser(loggedInUser);
+      }
+
+      if (staffRes && staffRes.ok) {
+        const staff = await staffRes.json();
+        setSecurityStaff(Array.isArray(staff) ? staff : []);
+      }
+
+      if (shiftsRes && shiftsRes.ok) {
+        const shifts = await shiftsRes.json();
+        const activeShifts = Array.isArray(shifts) ? shifts : [];
+        setShiftsList(activeShifts);
+      }
+
+      if (lbRes && lbRes.ok) {
+        const lb = await lbRes.json();
+        if (lb && lb.myRank) {
+          const myUser = lb.leaderboard?.[lb.myRank - 1];
+          setLeaderboardInfo({ myRank: lb.myRank, score: myUser?.score || 0 });
+        }
+      }
+
+      const sessions = sessionsRes && sessionsRes.ok ? await sessionsRes.json() : [];
+      const findingsData = findingsRes && findingsRes.ok ? await findingsRes.json() : { data: [], total: 0 };
+      let floors = floorsRes && floorsRes.ok ? await floorsRes.json() : [];
+
+      if (!Array.isArray(floors) || floors.length === 0) {
+        const { floors: fallbackFloors } = await import('@/lib/dummy-data');
+        floors = fallbackFloors;
+      }
+
+      const currentUid = loggedInUser?.id;
+      const myActiveSession = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === currentUid || !s.userId)) || null;
+      const activeOtherSessions = sessions.filter((s: any) => s.status === 'in_progress' && currentUid && s.userId && s.userId !== currentUid);
+      setOtherOfficers(activeOtherSessions);
+
+      let activeSession = myActiveSession;
+
+      let offlineChecks: any[] = [];
+      try {
+        const { getOfflineChecks } = await import('@/lib/db');
+        offlineChecks = await getOfflineChecks();
+      } catch {}
+
+      const { totalRooms, checkedRooms, floorsCompleted } = computeDashboardPatrolStats(activeSession, floors, offlineChecks);
+
+      const findingsCount = typeof findingsData === 'object' && 'total' in findingsData
+        ? findingsData.total
+        : Array.isArray(findingsData) ? findingsData.length : 0;
+
+      setData({ session: activeSession, totalRooms, checkedRooms, findingsCount, floorsCompleted });
+      setLastRefreshTime(new Date());
+      fetchHandover();
+    } catch (err) {
+      console.error('Refresh error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     setCurrentTime(new Date());
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -676,84 +754,6 @@ export default function SecurityDashboard() {
       </div>
     );
   }
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
-      const [meRes, sessionsRes, findingsRes, floorsRes, staffRes, shiftsRes, lbRes] = await Promise.all([
-        fetch('/api/auth/me').catch(() => null),
-        fetch(`/api/patrol/sessions?date=${today}`).catch(() => null),
-        fetch('/api/findings?status=new&limit=100').catch(() => null),
-        fetch('/api/floors').catch(() => null),
-        fetch('/api/users?role=security').catch(() => null),
-        fetch('/api/shifts').catch(() => null),
-        fetch('/api/leaderboard').catch(() => null),
-      ]);
-
-      let loggedInUser = currentUser;
-      if (meRes && meRes.ok) {
-        const meData = await meRes.json();
-        loggedInUser = meData.user || loggedInUser;
-        setCurrentUser(loggedInUser);
-      }
-
-      if (staffRes && staffRes.ok) {
-        const staff = await staffRes.json();
-        setSecurityStaff(Array.isArray(staff) ? staff : []);
-      }
-
-      if (shiftsRes && shiftsRes.ok) {
-        const shifts = await shiftsRes.json();
-        const activeShifts = Array.isArray(shifts) ? shifts : [];
-        setShiftsList(activeShifts);
-      }
-
-      if (lbRes && lbRes.ok) {
-        const lb = await lbRes.json();
-        if (lb && lb.myRank) {
-          const myUser = lb.leaderboard?.[lb.myRank - 1];
-          setLeaderboardInfo({ myRank: lb.myRank, score: myUser?.score || 0 });
-        }
-      }
-
-      const sessions = sessionsRes && sessionsRes.ok ? await sessionsRes.json() : [];
-      const findingsData = findingsRes && findingsRes.ok ? await findingsRes.json() : { data: [], total: 0 };
-      let floors = floorsRes && floorsRes.ok ? await floorsRes.json() : [];
-
-      if (!Array.isArray(floors) || floors.length === 0) {
-        const { floors: fallbackFloors } = await import('@/lib/dummy-data');
-        floors = fallbackFloors;
-      }
-
-      const currentUid = loggedInUser?.id;
-      const myActiveSession = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === currentUid || !s.userId)) || null;
-      const activeOtherSessions = sessions.filter((s: any) => s.status === 'in_progress' && currentUid && s.userId && s.userId !== currentUid);
-      setOtherOfficers(activeOtherSessions);
-
-      let activeSession = myActiveSession;
-
-      let offlineChecks: any[] = [];
-      try {
-        const { getOfflineChecks } = await import('@/lib/db');
-        offlineChecks = await getOfflineChecks();
-      } catch {}
-
-      const { totalRooms, checkedRooms, floorsCompleted } = computeDashboardPatrolStats(activeSession, floors, offlineChecks);
-
-      const findingsCount = typeof findingsData === 'object' && 'total' in findingsData
-        ? findingsData.total
-        : Array.isArray(findingsData) ? findingsData.length : 0;
-
-      setData({ session: activeSession, totalRooms, checkedRooms, findingsCount, floorsCompleted });
-      setLastRefreshTime(new Date());
-      fetchHandover();
-    } catch (err) {
-      console.error('Refresh error:', err);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   const currentSched = getCurrentSchedule();
   const isOldRound = data?.incompleteSession

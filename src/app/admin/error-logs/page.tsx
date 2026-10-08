@@ -29,6 +29,7 @@ export default function AdminErrorLogsPage() {
   const [selectedLog, setSelectedLog] = useState<ErrorLog | null>(null);
   const [copied, setCopied] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [testingLog, setTestingLog] = useState(false);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -97,8 +98,6 @@ export default function AdminErrorLogsPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const [testingLog, setTestingLog] = useState(false);
 
   const handleTestError = async () => {
     setTestingLog(true);

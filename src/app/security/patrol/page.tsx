@@ -71,6 +71,7 @@ export default function PatrolPage() {
   const [earlyNotes, setEarlyNotes] = useState('');
   const [submittingEarly, setSubmittingEarly] = useState(false);
   const [isStartingDirectly, setIsStartingDirectly] = useState(false);
+  const [completingPatrol, setCompletingPatrol] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -367,6 +368,35 @@ export default function PatrolPage() {
     }
   };
 
+  const handleCompletePatrol = async () => {
+    const sId = session?.id;
+    if (!sId) {
+      window.location.href = '/security/patrol/summary';
+      return;
+    }
+    setCompletingPatrol(true);
+    try {
+      if (navigator.onLine) {
+        await fetch('/api/patrol/sessions/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: sId }),
+        }).catch(() => null);
+      }
+      try {
+        const cached = localStorage.getItem('cached-active-session');
+        if (cached) {
+          const sess = JSON.parse(cached);
+          sess.status = 'completed';
+          sess.completedAt = new Date().toISOString();
+          localStorage.setItem('cached-active-session', JSON.stringify(sess));
+        }
+      } catch {}
+    } finally {
+      window.location.href = '/security/patrol/summary';
+    }
+  };
+
   if (loading) {
     return (
       <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}>
@@ -509,40 +539,7 @@ export default function PatrolPage() {
   const overallProgress = totalRooms > 0 ? Math.min(100, Math.round((checkedRooms / totalRooms) * 100)) : 0;
   const isPatrolFullyCompleted = overallProgress === 100 && floorProgress.length > 0 && floorProgress.every((f: any) => f.computedStatus === 'completed');
 
-  const [completingPatrol, setCompletingPatrol] = useState(false);
-  const handleCompletePatrol = async () => {
-    if (!currentSession?.id) {
-      window.location.href = '/security/patrol/summary';
-      return;
-    }
-    setCompletingPatrol(true);
-    try {
-      if (navigator.onLine) {
-        await fetch('/api/patrol/sessions/complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: currentSession.id }),
-        }).catch(() => null);
-      }
-      try {
-        const cached = localStorage.getItem('cached-active-session');
-        if (cached) {
-          const sess = JSON.parse(cached);
-          sess.status = 'completed';
-          sess.completedAt = new Date().toISOString();
-          localStorage.setItem('cached-active-session', JSON.stringify(sess));
-        }
-      } catch {}
-    } finally {
-      window.location.href = '/security/patrol/summary';
-    }
-  };
-
   const activeOrFirstFloor = floorProgress.find(f => f.computedStatus === 'in_progress' || f.computedStatus === 'waiting_qr') || floorProgress[0];
-
-  if (loading) {
-    return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat progress patroli...</p></div>;
-  }
 
   const getStatusIcon = (computedStatus: string, index: number) => {
     if (computedStatus === 'completed') {

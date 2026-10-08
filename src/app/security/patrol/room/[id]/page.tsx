@@ -55,12 +55,6 @@ export default function RoomCheckPage({
     return paramId;
   });
 
-  useEffect(() => {
-    if (paramId && paramId !== currentRoomId) {
-      setCurrentRoomId(paramId);
-    }
-  }, [paramId]);
-
   const [room, setRoom] = useState<any>(() => getRoomById(currentRoomId));
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
@@ -93,8 +87,15 @@ export default function RoomCheckPage({
   const [isRecordingRemarks, setIsRecordingRemarks] = useState(false);
   const [isRecordingFinding, setIsRecordingFinding] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
+  const [floorRooms, setFloorRooms] = useState<any[]>([]);
 
   const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (paramId && paramId !== currentRoomId) {
+      setCurrentRoomId(paramId);
+    }
+  }, [paramId]);
 
   // Clean up speech recognition on unmount (must be declared before any conditional returns)
   useEffect(() => {
@@ -292,8 +293,6 @@ export default function RoomCheckPage({
     }
     loadData();
   }, [currentRoomId]);
-
-  const [floorRooms, setFloorRooms] = useState<any[]>([]);
 
   if (loading) {
     return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat data pemeriksaan...</p></div>;

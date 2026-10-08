@@ -17,20 +17,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Session ID wajib disertakan' }, { status: 400 });
     }
 
-    const session = await prisma.patrolSession.findUnique({
-      where: { id: sessionId },
-      include: { sessionFloors: true },
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: 'Sesi patroli tidak ditemukan' }, { status: 404 });
+    let session = null;
+    if (sessionId && !String(sessionId).startsWith('offline-')) {
+      session = await prisma.patrolSession.findUnique({
+        where: { id: sessionId },
+        include: { sessionFloors: true },
+      });
     }
 
+    if (!session) {
+      session = await prisma.patrolSession.findFirst({
+        where: {
+          userId: auth.id,
+          status: 'in_progress',
+        },
+        include: { sessionFloors: true },
+        orderBy: { startedAt: 'desc' },
+      });
+    }
+
+    if (!session) {
+      // Pure local offline session with no DB counterpart yet: return success gracefully
+      return NextResponse.json({
+        success: true,
+        message: 'Sesi patroli offline berhasil ditandai selesai',
+      });
+    }
+
+    const targetSessionId = session.id;
     const now = new Date();
 
     // Mark all session floors as completed if not already completed
     await prisma.patrolSessionFloor.updateMany({
-      where: { sessionId },
+      where: { sessionId: targetSessionId },
       data: {
         status: 'completed',
         completedAt: now,
@@ -38,7 +57,7 @@ export async function POST(request: NextRequest) {
     });
 
     const updatedSession = await prisma.patrolSession.update({
-      where: { id: sessionId },
+      where: { id: targetSessionId },
       data: {
         status: 'completed',
         completedAt: now,

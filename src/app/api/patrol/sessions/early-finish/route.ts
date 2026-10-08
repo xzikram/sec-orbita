@@ -17,15 +17,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Session ID wajib disertakan' }, { status: 400 });
     }
 
-    const session = await prisma.patrolSession.findUnique({
-      where: { id: sessionId },
-      include: { sessionFloors: true },
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: 'Sesi patroli tidak ditemukan' }, { status: 404 });
+    let session = null;
+    if (sessionId && !String(sessionId).startsWith('offline-')) {
+      session = await prisma.patrolSession.findUnique({
+        where: { id: sessionId },
+        include: { sessionFloors: true },
+      });
     }
 
+    if (!session) {
+      session = await prisma.patrolSession.findFirst({
+        where: {
+          userId: auth.id,
+          status: 'in_progress',
+        },
+        include: { sessionFloors: true },
+        orderBy: { startedAt: 'desc' },
+      });
+    }
+
+    if (!session) {
+      return NextResponse.json({
+        success: true,
+        message: 'Sesi patroli offline berhasil diselesaikan lebih awal',
+      });
+    }
+
+    const targetSessionId = session.id;
     const isOwner = session.userId === auth.id;
     const actorNote = isOwner
       ? ''
@@ -39,7 +57,7 @@ export async function POST(request: NextRequest) {
     ].filter(Boolean).join('\n');
 
     const updatedSession = await prisma.patrolSession.update({
-      where: { id: sessionId },
+      where: { id: targetSessionId },
       data: {
         status: 'incomplete',
         completedAt: new Date(),

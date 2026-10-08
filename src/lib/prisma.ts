@@ -5,7 +5,7 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 function createPrismaClient() {
   let connectionConfig = {
-    host: 'localhost',
+    host: '127.0.0.1',
     port: 3306,
     user: 'root',
     password: '',
@@ -15,12 +15,12 @@ function createPrismaClient() {
   const dbUrl = process.env.DATABASE_URL;
   if (dbUrl) {
     try {
-      const match = dbUrl.match(/mysql:\/\/([^:@]+)(?::([^@]+))?@([^:/]+)(?::(\d+))?\/(.+)/);
+      const match = dbUrl.match(/mysql:\/\/([^:@]+)(?::([^@]*))?@([^:/]+)(?::(\d+))?\/(.+)/);
       if (match) {
         connectionConfig = {
           user: match[1],
           password: match[2] || '',
-          host: match[3] === 'localhost' ? '127.0.0.1' : match[3],
+          host: (match[3] === 'localhost' || match[3] === '::1') ? '127.0.0.1' : match[3],
           port: match[4] ? parseInt(match[4], 10) : 3306,
           database: match[5].split('?')[0],
         };
