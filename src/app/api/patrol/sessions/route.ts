@@ -15,15 +15,15 @@ export async function GET(request: NextRequest) {
   const todayMakassarStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
   const todayDate = new Date(todayMakassarStr);
 
-  // Auto-close dangling sessions from past dates or inactive > 4 hours
+  // Auto-close dangling sessions from past dates or inactive > 12 hours (1 full shift)
   try {
-    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
     const staleSessions = await prisma.patrolSession.findMany({
       where: {
         status: 'in_progress',
         OR: [
-          { patrolDate: { lt: todayDate }, startedAt: { lt: fourHoursAgo } },
-          { startedAt: { lt: fourHoursAgo } },
+          { patrolDate: { lt: todayDate }, startedAt: { lt: twelveHoursAgo } },
+          { startedAt: { lt: twelveHoursAgo } },
         ],
       },
       select: { id: true },
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
         where: { id: { in: staleIds } },
         data: {
           status: 'incomplete',
-          notes: 'Otomatis ditutup: sesi terhenti di tengah jalan dan telah melewati batas hari/waktu operasional.',
+          notes: '[OTOMATIS DITUTUP SISTEM: Sesi patroli melewati batas waktu operasional (12 jam) tanpa diselesaikan secara manual oleh petugas]',
           completedAt: new Date(),
         },
       });
@@ -133,15 +133,15 @@ export async function POST(request: NextRequest) {
     const todayMakassarStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
     const patrolDate = new Date(todayMakassarStr);
 
-    // 1. Auto-close dangling sessions before starting or checking active round
+    // 1. Auto-close dangling sessions before starting or checking active round (> 12 hours)
     try {
-      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
       const staleSessions = await prisma.patrolSession.findMany({
         where: {
           status: 'in_progress',
           OR: [
-            { patrolDate: { lt: patrolDate }, startedAt: { lt: fourHoursAgo } },
-            { startedAt: { lt: fourHoursAgo } },
+            { patrolDate: { lt: patrolDate }, startedAt: { lt: twelveHoursAgo } },
+            { startedAt: { lt: twelveHoursAgo } },
           ],
         },
         select: { id: true },
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
           where: { id: { in: staleIds } },
           data: {
             status: 'incomplete',
-            notes: 'Otomatis ditutup: sesi terhenti di tengah jalan dan telah melewati batas hari/waktu operasional.',
+            notes: '[OTOMATIS DITUTUP SISTEM: Sesi patroli melewati batas waktu operasional (12 jam) tanpa diselesaikan secara manual oleh petugas]',
             completedAt: new Date(),
           },
         });

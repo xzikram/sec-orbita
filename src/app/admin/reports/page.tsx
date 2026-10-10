@@ -22,6 +22,7 @@ interface SessionItem {
   checkedRoomsCount: number;
   findingCount: number;
   complianceRate?: number;
+  notes?: string | null;
 }
 
 interface FindingItem {
@@ -386,8 +387,22 @@ export default function AdminReportsPage() {
                       </div>
 
                       <div className={styles.sessionHeaderRight} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className={`badge ${sess.status === 'completed' ? 'badge-success' : sess.status === 'in_progress' ? 'badge-info' : 'badge-neutral'}`}>
-                          {sess.status === 'completed' ? '✅ Selesai' : sess.status === 'in_progress' ? '⏳ Sedang Berjalan' : 'Terjadwal'}
+                        <span className={`badge ${
+                          sess.status === 'completed'
+                            ? 'badge-success'
+                            : sess.status === 'in_progress'
+                            ? 'badge-info'
+                            : sess.status === 'incomplete'
+                            ? 'badge-warning'
+                            : 'badge-neutral'
+                        }`}>
+                          {sess.status === 'completed'
+                            ? '✅ Selesai'
+                            : sess.status === 'in_progress'
+                            ? '⏳ Sedang Berjalan'
+                            : sess.status === 'incomplete'
+                            ? '⚠️ Selesai Sebagian (Incomplete)'
+                            : 'Terjadwal'}
                         </span>
                         <span
                           className="badge"
@@ -421,7 +436,13 @@ export default function AdminReportsPage() {
                           {sess.completedAt ? new Date(sess.completedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : (sess.status === 'in_progress' ? 'Sekarang' : '—')}
                         </span>
                         <span className={styles.colSub}>
-                          {sess.status === 'completed' ? 'Tepat Waktu' : sess.status === 'in_progress' ? 'Aktif Berjalan' : 'Menunggu Jadwal'}
+                          {sess.status === 'completed'
+                            ? 'Tepat Waktu'
+                            : sess.status === 'in_progress'
+                            ? 'Aktif Berjalan'
+                            : sess.status === 'incomplete'
+                            ? 'Berakhir Lebih Awal / Tidak Penuh'
+                            : 'Menunggu Jadwal'}
                         </span>
                       </div>
 
@@ -507,6 +528,27 @@ export default function AdminReportsPage() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Catatan / Alasan Incomplete */}
+                    {sess.notes && (
+                      <div
+                        style={{
+                          margin: '0 16px 14px 16px',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          background: sess.status === 'incomplete' ? '#fffbeb' : '#f8fafc',
+                          border: `1px solid ${sess.status === 'incomplete' ? '#fde68a' : '#e2e8f0'}`,
+                          fontSize: '12.5px',
+                          color: sess.status === 'incomplete' ? '#92400e' : '#475569',
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                          📝 {sess.status === 'incomplete' ? 'Alasan Patroli Tidak Selesai Penuh / Status Sesi:' : 'Catatan Petugas:'}
+                        </strong>
+                        <div style={{ whiteSpace: 'pre-line' }}>{sess.notes}</div>
+                      </div>
+                    )}
 
                     {/* Expandable Checklist Details */}
                     {isExpanded && (

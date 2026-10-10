@@ -143,8 +143,22 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
               <h1 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>
                 Patroli #{session.patrolNumber}
               </h1>
-              <span className={`badge ${session.status === 'completed' ? 'badge-success' : session.status === 'in_progress' ? 'badge-info' : 'badge-neutral'}`}>
-                {session.status === 'completed' ? 'Selesai' : session.status === 'in_progress' ? 'Sedang Berjalan' : 'Terjadwal'}
+              <span className={`badge ${
+                session.status === 'completed'
+                  ? 'badge-success'
+                  : session.status === 'in_progress'
+                  ? 'badge-info'
+                  : session.status === 'incomplete'
+                  ? 'badge-warning'
+                  : 'badge-neutral'
+              }`}>
+                {session.status === 'completed'
+                  ? '✅ Selesai'
+                  : session.status === 'in_progress'
+                  ? '⏳ Sedang Berjalan'
+                  : session.status === 'incomplete'
+                  ? '⚠️ Selesai Sebagian (Incomplete)'
+                  : 'Terjadwal'}
               </span>
             </div>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
@@ -210,8 +224,20 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
         </div>
 
         {session.notes && (
-          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #e2e8f0', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            <strong>Catatan Petugas:</strong> {session.notes}
+          <div style={{
+            marginTop: '14px',
+            padding: '12px 14px',
+            borderRadius: '8px',
+            background: session.status === 'incomplete' ? '#fffbeb' : '#f8fafc',
+            border: `1px solid ${session.status === 'incomplete' ? '#fde68a' : '#e2e8f0'}`,
+            fontSize: '13px',
+            color: session.status === 'incomplete' ? '#92400e' : 'var(--text-secondary)',
+            lineHeight: 1.5,
+          }}>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              📝 {session.status === 'incomplete' ? 'Alasan Patroli Berakhir Lebih Awal / Status Sesi:' : 'Catatan Petugas:'}
+            </strong>
+            <div style={{ whiteSpace: 'pre-line' }}>{session.notes}</div>
           </div>
         )}
       </div>

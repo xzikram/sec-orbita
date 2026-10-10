@@ -125,6 +125,48 @@ export default function AdminErrorLogsPage() {
     }
   };
 
+  const handleCleanAborted = async () => {
+    if (!confirm('Hapus semua log error "The operation was aborted" (pembatalan jaringan/navigasi yang bukan error aplikasi)?')) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/system/error-logs?filter=aborted', { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Berhasil membersihkan ${data.count || 0} log false alarm.`);
+        fetchLogs();
+      } else {
+        alert('Gagal membersihkan log.');
+      }
+    } catch {
+      alert('Terjadi kesalahan koneksi saat membersihkan log.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResolveAll = async () => {
+    if (!confirm('Tandai SEMUA log error yang belum ditangani sebagai "Selesai / Ditangani"?')) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/system/error-logs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resolve_all' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Berhasil menandai ${data.count || 0} log sebagai selesai.`);
+        fetchLogs();
+      } else {
+        alert('Gagal memperbarui status log.');
+      }
+    } catch {
+      alert('Terjadi kesalahan koneksi saat memperbarui log.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const unresolvedCount = logs.filter(l => l.status === 'unresolved').length;
   const investigatedCount = logs.filter(l => l.status === 'investigated').length;
   const resolvedCount = logs.filter(l => l.status === 'resolved').length;
@@ -140,7 +182,24 @@ export default function AdminErrorLogsPage() {
             Pencatatan otomatis seluruh error teknis dari aplikasi security agar Tim IT dapat meninjau kode error & stack trace
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            onClick={handleCleanAborted}
+            className="btn btn-outline btn-sm"
+            disabled={actionLoading}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#b91c1c', borderColor: '#fca5a5' }}
+            title="Bersihkan log false alarm pembatalan jaringan/navigasi"
+          >
+            🧹 Bersihkan Log Aborted
+          </button>
+          <button
+            onClick={handleResolveAll}
+            className="btn btn-outline btn-sm"
+            disabled={actionLoading}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#15803d', borderColor: '#86efac' }}
+          >
+            ✓ Tandai Selesai Semua
+          </button>
           <button
             onClick={handleTestError}
             className="btn btn-outline btn-sm"

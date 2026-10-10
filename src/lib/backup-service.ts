@@ -31,11 +31,101 @@ function getFolderSize(dirPath: string): number {
 }
 
 export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (bytes <= 0) return '0 B';
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function countFilesInDir(dir: string): number {
+  if (!fs.existsSync(dir)) return 0;
+  let count = 0;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      count += countFilesInDir(fullPath);
+    } else {
+      count++;
+    }
+  }
+  return count;
+}
+
+export interface ServerStorageStats {
+  diskTotalFormatted: string;
+  diskFreeFormatted: string;
+  diskUsedFormatted: string;
+  diskUsedPercent: number;
+  uploadsSizeBytes: number;
+  uploadsSizeFormatted: string;
+  uploadsCount: number;
+  backupsSizeBytes: number;
+  backupsSizeFormatted: string;
+  backupsCount: number;
+}
+
+export function getServerStorageStats(): ServerStorageStats {
+  const rootDir = process.cwd();
+
+  // 1. Disk usage via statfsSync
+  let diskTotalFormatted = 'N/A';
+  let diskFreeFormatted = 'N/A';
+  let diskUsedFormatted = 'N/A';
+  let diskUsedPercent = 0;
+
+  try {
+    const stat = fs.statfsSync(rootDir);
+    const totalBytes = Number(stat.blocks) * Number(stat.bsize);
+    const freeBytes = Number(stat.bavail) * Number(stat.bsize);
+    const usedBytes = Math.max(0, totalBytes - freeBytes);
+    if (totalBytes > 0) {
+      diskUsedPercent = Math.min(100, Math.round((usedBytes / totalBytes) * 100));
+      diskTotalFormatted = formatBytes(totalBytes);
+      diskFreeFormatted = formatBytes(freeBytes);
+      diskUsedFormatted = formatBytes(usedBytes);
+    }
+  } catch {}
+
+  // 2. Uploads folder size & file count
+  let uploadsSizeBytes = 0;
+  let uploadsCount = 0;
+  const pubUploads = path.join(rootDir, 'public', 'uploads');
+  const rootUploads = path.join(rootDir, 'uploads');
+  const uploadsDir = fs.existsSync(pubUploads) ? pubUploads : (fs.existsSync(rootUploads) ? rootUploads : null);
+
+  if (uploadsDir) {
+    try {
+      uploadsSizeBytes = getFolderSize(uploadsDir);
+      uploadsCount = countFilesInDir(uploadsDir);
+    } catch {}
+  }
+
+  // 3. Backups folder size
+  const backupRootDir = path.join(rootDir, 'backups');
+  let backupsSizeBytes = 0;
+  let backupsCount = 0;
+  if (fs.existsSync(backupRootDir)) {
+    try {
+      backupsSizeBytes = getFolderSize(backupRootDir);
+      const items = listBackups();
+      backupsCount = items.length;
+    } catch {}
+  }
+
+  return {
+    diskTotalFormatted,
+    diskFreeFormatted,
+    diskUsedFormatted,
+    diskUsedPercent,
+    uploadsSizeBytes,
+    uploadsSizeFormatted: formatBytes(uploadsSizeBytes),
+    uploadsCount,
+    backupsSizeBytes,
+    backupsSizeFormatted: formatBytes(backupsSizeBytes),
+    backupsCount,
+  };
 }
 
 function copyFolderSync(from: string, to: string): number {
@@ -148,7 +238,7 @@ export function listBackups(): BackupItem[] {
   return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-export function rotateBackups(maxKeep: number = 7): number {
+export function rotateBackups(maxKeep: number = 2): number {
   const backupRootDir = path.join(process.cwd(), 'backups');
   if (!fs.existsSync(backupRootDir)) return 0;
 
@@ -185,9 +275,9 @@ export function rotateBackups(maxKeep: number = 7): number {
     } catch {}
   }
 
-  // 3. Rotasi di Google Drive jika rclone terkonfigurasi (retensi 7 hari)
+  // 3. Rotasi di Google Drive jika rclone terkonfigurasi (retensi 2 hari / maksimal 2 cadangan)
   try {
-    execSync('rclone delete --min-age 7d gdrive:Backup_Patroli_JEC/ 2>/dev/null || true', { stdio: 'ignore' });
+    execSync('rclone delete --min-age 2d gdrive:Backup_Patroli_JEC/ 2>/dev/null || true', { stdio: 'ignore' });
   } catch {}
 
   return deletedCount;
@@ -294,9 +384,9 @@ export async function createFullBackup(reason: string = 'manual'): Promise<Backu
     }
   } catch {}
 
-  // Lakukan rotasi otomatis: pertahankan maksimal 7 cadangan terbaru
+  // Lakukan rotasi otomatis: pertahankan maksimal 2 cadangan terbaru
   try {
-    rotateBackups(7);
+    rotateBackups(2);
   } catch {}
 
   return {

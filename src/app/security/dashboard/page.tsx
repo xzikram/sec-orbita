@@ -83,16 +83,16 @@ export default function SecurityDashboard() {
           : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date(session.patrolDate));
         if (sessDateStr < todayMakassar) {
           const startedTime = session.startedAt ? new Date(session.startedAt).getTime() : 0;
-          if (Date.now() - startedTime > 4 * 60 * 60 * 1000) {
+          if (Date.now() - startedTime > 12 * 60 * 60 * 1000) {
             return true;
           }
         }
       }
 
-      // Check startedAt > 4 hours ago without activity
+      // Check startedAt > 12 hours ago without activity
       if (session.startedAt) {
         const startedTime = new Date(session.startedAt).getTime();
-        if (Date.now() - startedTime > 4 * 60 * 60 * 1000) {
+        if (Date.now() - startedTime > 12 * 60 * 60 * 1000) {
           return true;
         }
       }

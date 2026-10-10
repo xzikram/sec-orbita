@@ -153,12 +153,12 @@ rm -rf "$TEMP_DIR"
 ARCHIVE_SIZE=$(du -h "$BACKUP_ARCHIVE" | cut -f1)
 echo "   ✓ Arsip backup selesai dibuat: $BACKUP_ARCHIVE ($ARCHIVE_SIZE, $PHOTO_COUNT foto)"
 
-# 6. Rotasi Backup: Hanya simpan maksimal 7 cadangan terbaru (hemat disk)
-echo "🧹 5. Melakukan rotasi berkas cadangan (maksimal 7 cadangan terbaru)..."
+# 6. Rotasi Backup: Hanya simpan maksimal 2 cadangan terbaru (hemat disk)
+echo "🧹 5. Melakukan rotasi berkas cadangan (maksimal 2 cadangan terbaru)..."
 DELETED_COUNT=0
 
 # Urutkan arsip backup .tar.gz dari yang terbaru ke terlama.
-# Lewati 7 baris pertama (cadangan terbaru), dan hapus baris ke-8 ke atas (arsip lama)
+# Lewati 2 baris pertama (cadangan terbaru), dan hapus baris ke-3 ke atas (arsip lama)
 while IFS= read -r old_archive; do
     if [ -n "$old_archive" ] && [ -f "$old_archive" ]; then
         echo "   - Menghapus arsip kedaluwarsa: $(basename "$old_archive")"
@@ -170,7 +170,7 @@ while IFS= read -r old_archive; do
         fi
         DELETED_COUNT=$((DELETED_COUNT + 1))
     fi
-done < <(ls -t "$BACKUP_ROOT"/backup_*.tar.gz 2>/dev/null | tail -n +8)
+done < <(ls -t "$BACKUP_ROOT"/backup_*.tar.gz 2>/dev/null | tail -n +3)
 
 # Bersihkan juga sisa folder uncompressed yang file .tar.gz-nya sudah ada
 while IFS= read -r old_dir; do
@@ -179,7 +179,7 @@ while IFS= read -r old_dir; do
     fi
 done < <(find "$BACKUP_ROOT" -maxdepth 1 -type d -name "backup_*" 2>/dev/null)
 
-echo "   ✓ Rotasi lokal selesai (maksimal 7 cadangan terbaru dipertahankan, $DELETED_COUNT lama dihapus)."
+echo "   ✓ Rotasi lokal selesai (maksimal 2 cadangan terbaru dipertahankan, $DELETED_COUNT lama dihapus)."
 
 # 7. Sinkronisasi Otomatis ke Google Drive via Rclone (Jika Terkonfigurasi)
 RCLONE_REMOTE="${RCLONE_REMOTE:-gdrive}"
@@ -197,9 +197,9 @@ if command -v rclone >/dev/null 2>&1; then
         rclone copy "$BACKUP_ARCHIVE" "${RCLONE_REMOTE}:${RCLONE_FOLDER}/" $RCLONE_OPT
         echo "   ✓ Berkas berhasil disinkronkan ke Google Drive!"
         
-        # Bersihkan cadangan di Google Drive yang lebih lama dari 7 hari (maksimal 7 backup)
-        rclone delete --min-age 7d "${RCLONE_REMOTE}:${RCLONE_FOLDER}/" 2>/dev/null || true
-        echo "   ✓ Rotasi Google Drive selesai (retensi 7 hari)."
+        # Bersihkan cadangan di Google Drive yang lebih lama dari 2 hari (maksimal 2 backup)
+        rclone delete --min-age 2d "${RCLONE_REMOTE}:${RCLONE_FOLDER}/" 2>/dev/null || true
+        echo "   ✓ Rotasi Google Drive selesai (retensi 2 hari)."
     else
         echo "   ℹ️  Remote rclone '${RCLONE_REMOTE}' belum dikonfigurasi. Melewati upload Google Drive."
     fi

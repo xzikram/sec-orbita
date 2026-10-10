@@ -156,8 +156,8 @@ async function runBackup() {
   fs.writeFileSync(path.join(backupFolder, 'metadata.json'), JSON.stringify(metadata, null, 2), 'utf-8');
   console.log('   ✓ Metadata backup tersimpan.');
 
-  // 5. ROTASI BACKUP: Hanya simpan 7 cadangan terbaru (maksimal 7 backup)
-  console.log('🧹 4. Rotasi Backup (Maksimal 7 Cadangan)...');
+  // 5. ROTASI BACKUP: Hanya simpan 2 cadangan terbaru (maksimal 2 backup)
+  console.log('🧹 4. Rotasi Backup (Maksimal 2 Cadangan)...');
   try {
     const items = fs.readdirSync(backupRootDir);
     const backupList = items
@@ -169,18 +169,18 @@ async function runBackup() {
       .sort((a, b) => b.mtime - a.mtime);
 
     let deleted = 0;
-    if (backupList.length > 7) {
-      const toDelete = backupList.slice(7);
+    if (backupList.length > 2) {
+      const toDelete = backupList.slice(2);
       for (const b of toDelete) {
         fs.rmSync(b.path, { recursive: true, force: true });
         if (fs.existsSync(`${b.path}.json`)) {
           try { fs.unlinkSync(`${b.path}.json`); } catch {}
         }
         deleted++;
-        console.log(`   - Menghapus cadangan lama (> 7 item): ${b.name}`);
+        console.log(`   - Menghapus cadangan lama (> 2 item): ${b.name}`);
       }
     }
-    console.log(`   ✓ Rotasi selesai (${deleted} cadangan lama dibersihkan, tersisa ${Math.min(backupList.length, 7)}).`);
+    console.log(`   ✓ Rotasi selesai (${deleted} cadangan lama dibersihkan, tersisa ${Math.min(backupList.length, 2)}).`);
   } catch (rotErr) {
     console.warn('   ⚠️  Gagal membersihkan rotasi:', rotErr);
   }

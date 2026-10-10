@@ -269,7 +269,10 @@ function PrintPatrolBookContent() {
             </div>
             <div className={styles.metaRow}>
               <span className={styles.metaLabel}>Patroli ke :</span>
-              <span className={styles.metaValue}>{session.patrolNumber ?? '—'}</span>
+              <span className={styles.metaValue}>
+                {session.patrolNumber ?? '—'}
+                {session.status === 'incomplete' ? ' (Selesai Sebagian)' : ''}
+              </span>
             </div>
           </div>
         </div>
@@ -354,6 +357,22 @@ function PrintPatrolBookContent() {
             })}
           </tbody>
         </table>
+
+        {session.notes && (
+          <div style={{
+            margin: '12px 0',
+            padding: '8px 12px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '4px',
+            fontSize: '11.5px',
+            fontFamily: 'sans-serif',
+            backgroundColor: '#f8fafc',
+            lineHeight: 1.4,
+          }}>
+            <strong>Keterangan / Catatan Sesi Patroli:</strong>
+            <div style={{ whiteSpace: 'pre-line', marginTop: '2px' }}>{session.notes}</div>
+          </div>
+        )}
 
         {/* Footer sign block */}
         <div className={styles.footerArea}>

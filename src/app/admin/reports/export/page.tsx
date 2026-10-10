@@ -971,6 +971,8 @@ export default function ExportReportPage() {
                           <td style={{ textAlign: 'center' }}>
                             {sess.status === 'completed' ? (
                               <span className={styles.badgeOk}>✓ SELESAI</span>
+                            ) : sess.status === 'incomplete' ? (
+                              <span className={styles.badgeWarn}>⚠️ TIDAK LENGKAP</span>
                             ) : (
                               <span className={styles.badgeWarn}>• {sess.status.toUpperCase()}</span>
                             )}

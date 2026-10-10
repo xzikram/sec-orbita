@@ -12,6 +12,18 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get('user-agent') || body.userAgent || 'unknown';
 
     const message = String(body.message || body.errorMessage || 'Unknown Error').slice(0, 2000);
+    const lowerMsg = message.toLowerCase();
+
+    // Server-side guard: Never record intentional aborts / cancellation false alarms
+    if (
+      lowerMsg.includes('aborted') ||
+      lowerMsg.includes('aborterror') ||
+      lowerMsg.includes('the operation was aborted') ||
+      lowerMsg.includes('resizeobserver')
+    ) {
+      return NextResponse.json({ success: true, ignored: true });
+    }
+
     const stack = body.stack || body.errorStack || null;
     const digest = body.digest || null;
     const url = String(body.url || request.headers.get('referer') || 'unknown').slice(0, 1000);
@@ -70,7 +82,6 @@ export async function GET(request: NextRequest) {
     if (status && status !== 'all') {
       where.status = status;
     }
-
     if (search) {
       where.OR = [
         { message: { contains: search } },
@@ -101,7 +112,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH /api/system/error-logs - Update status of an error log
+// PATCH /api/system/error-logs - Update status of an error log or batch update
 export async function PATCH(request: NextRequest) {
   try {
     const auth = await getAuthUser();
@@ -110,7 +121,36 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, status } = body;
+    const { id, status, action } = body;
+
+    // Batch resolve all unresolved logs
+    if (action === 'resolve_all') {
+      const result = await prisma.systemErrorLog.updateMany({
+        where: { status: { in: ['unresolved', 'investigated'] } },
+        data: {
+          status: 'resolved',
+          resolvedBy: auth.name,
+          resolvedAt: new Date(),
+        },
+      });
+      return NextResponse.json({ success: true, count: result.count });
+    }
+
+    // Batch resolve aborted false alarms
+    if (action === 'resolve_aborted') {
+      const result = await prisma.systemErrorLog.updateMany({
+        where: {
+          status: { in: ['unresolved', 'investigated'] },
+          message: { contains: 'aborted' },
+        },
+        data: {
+          status: 'resolved',
+          resolvedBy: auth.name,
+          resolvedAt: new Date(),
+        },
+      });
+      return NextResponse.json({ success: true, count: result.count });
+    }
 
     if (!id || !status) {
       return NextResponse.json({ error: 'ID and status are required' }, { status: 400 });
@@ -132,7 +172,7 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-// DELETE /api/system/error-logs - Clean resolved logs
+// DELETE /api/system/error-logs - Clean logs (single, aborted false alarm, or resolved)
 export async function DELETE(request: NextRequest) {
   try {
     const auth = await getAuthUser();
@@ -142,13 +182,32 @@ export async function DELETE(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const filter = searchParams.get('filter');
 
     if (id) {
       await prisma.systemErrorLog.delete({ where: { id } });
       return NextResponse.json({ success: true, message: 'Log deleted' });
     }
 
-    // Delete all resolved logs older than 7 days
+    // Clean all aborted false alarm logs
+    if (filter === 'aborted') {
+      const result = await prisma.systemErrorLog.deleteMany({
+        where: {
+          message: { contains: 'aborted' },
+        },
+      });
+      return NextResponse.json({ success: true, count: result.count });
+    }
+
+    // Clean all resolved logs
+    if (filter === 'all_resolved') {
+      const result = await prisma.systemErrorLog.deleteMany({
+        where: { status: 'resolved' },
+      });
+      return NextResponse.json({ success: true, count: result.count });
+    }
+
+    // Default: Delete all resolved logs older than 7 days
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
     const result = await prisma.systemErrorLog.deleteMany({
       where: {

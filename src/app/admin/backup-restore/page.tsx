@@ -14,12 +14,34 @@ interface BackupItem {
   timestamp: string;
 }
 
+interface ServerStorageStats {
+  diskTotalFormatted: string;
+  diskFreeFormatted: string;
+  diskUsedFormatted: string;
+  diskUsedPercent: number;
+  uploadsSizeBytes: number;
+  uploadsSizeFormatted: string;
+  uploadsCount: number;
+  backupsSizeBytes: number;
+  backupsSizeFormatted: string;
+  backupsCount: number;
+}
+
 export default function AdminBackupRestorePage() {
   const [backups, setBackups] = useState<BackupItem[]>([]);
+  const [storageStats, setStorageStats] = useState<ServerStorageStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [backupInProgress, setBackupInProgress] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Storage Guide & Prune Modal State
+  const [showGuideModal, setShowGuideModal] = useState(false);
+  const [showPruneModal, setShowPruneModal] = useState(false);
+  const [prunePassword, setPrunePassword] = useState('');
+  const [pruning, setPruning] = useState(false);
+  const [pruneModalError, setPruneModalError] = useState('');
+  const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
 
   // Backup Modal State
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -52,8 +74,9 @@ export default function AdminBackupRestorePage() {
       const data = await res.json();
       if (res.ok && data.backups) {
         setBackups(data.backups);
+        if (data.storageStats) setStorageStats(data.storageStats);
       } else {
-        setToast({ type: 'error', message: data.error || 'Gagal memuat daftar backup' });
+        setToast({ type: 'error', message: data.error || 'Gagal memuat data backup' });
       }
     } catch (err: any) {
       setToast({ type: 'error', message: 'Terjadi kesalahan jaringan saat memuat data cadangan' });
@@ -237,6 +260,57 @@ export default function AdminBackupRestorePage() {
     }
   }
 
+  // 4. PRUNE OLD BACKUPS HANDLER (> 2 BACKUPS)
+  function handleOpenPruneModal() {
+    setPrunePassword('');
+    setPruneModalError('');
+    setShowPruneModal(true);
+  }
+
+  function handleClosePruneModal() {
+    if (pruning) return;
+    setShowPruneModal(false);
+    setPrunePassword('');
+    setPruneModalError('');
+  }
+
+  async function handleExecutePrune() {
+    if (!prunePassword) {
+      setPruneModalError('Masukkan password otorisasi keamanan.');
+      return;
+    }
+
+    setPruning(true);
+    setPruneModalError('');
+
+    try {
+      const res = await fetch('/api/system/backups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'prune', securityPassword: prunePassword }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        handleClosePruneModal();
+        setToast({ type: 'success', message: `🧹 ${data.message}` });
+        fetchBackups();
+      } else {
+        setPruneModalError(data.error || 'Gagal memangkas cadangan lama');
+      }
+    } catch (err: any) {
+      setPruneModalError('Gagal memangkas cadangan: ' + err.message);
+    } finally {
+      setPruning(false);
+    }
+  }
+
+  function copyToClipboard(cmd: string) {
+    navigator.clipboard.writeText(cmd);
+    setCopiedCmd(cmd);
+    setTimeout(() => setCopiedCmd(null), 2000);
+  }
+
   function getBadge(name: string) {
     if (name.includes('pre_restore')) {
       return <span className={`${styles.badge} ${styles.badgeSafety}`}>🛡️ Pre-Restore Safety</span>;
@@ -285,8 +359,8 @@ export default function AdminBackupRestorePage() {
         <div className={styles.statCard}>
           <div className={`${styles.statIcon} ${styles.iconGreen}`}>🧹</div>
           <div>
-            <h4 className={styles.statValue}>Maksimal 7 Cadangan</h4>
-            <p className={styles.statLabel}>Auto-Rotasi 7 Cadangan (Hemat Disk)</p>
+            <h4 className={styles.statValue}>Maksimal 2 Cadangan</h4>
+            <p className={styles.statLabel}>Auto-Rotasi 2 Cadangan Terbaru (Hemat Disk)</p>
           </div>
         </div>
 
@@ -295,6 +369,83 @@ export default function AdminBackupRestorePage() {
           <div>
             <h4 className={styles.statValue}>Password Protected</h4>
             <p className={styles.statLabel}>Backup, Restore & Hapus Dilindungi Sandi</p>
+          </div>
+        </div>
+      </div>
+
+      {/* LIVE SERVER & PHOTO STORAGE MONITOR */}
+      <div className={styles.storageMonitor}>
+        <div className={styles.storageHeader}>
+          <div>
+            <h3 className={styles.storageTitle}>
+              <span>📊</span> Kapasitas Penyimpanan Server & Foto (Live Storage Monitor)
+            </h3>
+            <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+              Pemantauan langsung sisa ruang disk server hosting dan beban foto inspeksi patroli.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {backups.length > 2 && (
+              <button
+                type="button"
+                className={styles.btnPrune}
+                onClick={handleOpenPruneModal}
+                title="Pangkas cadangan lama agar hanya tersisa 2 cadangan terbaru"
+              >
+                🧹 Pangkas ke 2 Cadangan ({backups.length - 2} Cadangan Lama)
+              </button>
+            )}
+            <button
+              type="button"
+              className={styles.btnGuide}
+              onClick={() => setShowGuideModal(true)}
+            >
+              💻 Panduan Terminal / SSH
+            </button>
+          </div>
+        </div>
+
+        <div className={styles.storageGrid}>
+          {/* Item 1: Server Disk Space */}
+          <div className={styles.storageItem}>
+            <div className={styles.storageItemLabel}>HARDDISK SERVER (HOSTING)</div>
+            <div className={styles.storageItemVal}>
+              {storageStats ? `${storageStats.diskFreeFormatted} Bebas` : 'Memuat...'}
+            </div>
+            <div className={styles.storageItemSub}>
+              {storageStats ? `Terpakai: ${storageStats.diskUsedFormatted} dari ${storageStats.diskTotalFormatted} (${storageStats.diskUsedPercent}%)` : 'Menghitung partisi server...'}
+            </div>
+            <div className={styles.progressBarContainer}>
+              <div
+                className={styles.progressBarFill}
+                style={{
+                  width: `${storageStats ? Math.min(100, storageStats.diskUsedPercent) : 0}%`,
+                  background: (storageStats?.diskUsedPercent || 0) > 85 ? '#ef4444' : (storageStats?.diskUsedPercent || 0) > 70 ? '#f59e0b' : '#10b981',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Item 2: Uploads Photo Storage */}
+          <div className={styles.storageItem}>
+            <div className={styles.storageItemLabel}>FOTO PATROLI (PUBLIC/UPLOADS)</div>
+            <div className={styles.storageItemVal}>
+              {storageStats ? storageStats.uploadsSizeFormatted : 'Memuat...'}
+            </div>
+            <div className={styles.storageItemSub}>
+              {storageStats ? `Total: ${storageStats.uploadsCount.toLocaleString()} Berkas Foto Inspeksi` : 'Menghitung total foto...'}
+            </div>
+          </div>
+
+          {/* Item 3: Backups Folder */}
+          <div className={styles.storageItem}>
+            <div className={styles.storageItemLabel}>FOLDER CADANGAN (BACKUPS)</div>
+            <div className={styles.storageItemVal}>
+              {storageStats ? storageStats.backupsSizeFormatted : 'Memuat...'}
+            </div>
+            <div className={styles.storageItemSub}>
+              {backups.length} Berkas Arsip .tar.gz {backups.length > 2 ? `(⚠️ Melebihi kuota 2)` : '(✓ Sesuai batas 2)'}
+            </div>
           </div>
         </div>
       </div>
@@ -673,6 +824,168 @@ export default function AdminBackupRestorePage() {
                 disabled={!deletePassword || deleting}
               >
                 {deleting ? '⏳ Sedang Menghapus...' : '🗑️ Hapus Permanen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: PRUNE OLD BACKUPS MODAL */}
+      {showPruneModal && (
+        <div className={crudStyles.modalOverlay}>
+          <div className={crudStyles.modal} style={{ maxWidth: '460px' }}>
+            <div className={crudStyles.modalHeader}>
+              <h2 className={crudStyles.modalTitle} style={{ color: '#b91c1c' }}>
+                🧹 Pangkas Cadangan Lama
+              </h2>
+              <button
+                className={crudStyles.modalClose}
+                onClick={handleClosePruneModal}
+                disabled={pruning}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className={crudStyles.modalBody}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 12px 0', lineHeight: 1.5 }}>
+                Sistem akan menghapus <strong>{Math.max(0, backups.length - 2)} berkas cadangan lama</strong> dan hanya mempertahankan <strong>2 cadangan terbaru</strong>. Tindakan ini akan menghemat kapasitas server hingga beberapa gigabyte.
+              </p>
+
+              {pruneModalError && (
+                <div className={styles.toastError} style={{ marginBottom: '16px' }}>
+                  <span>{pruneModalError}</span>
+                </div>
+              )}
+
+              <div className={crudStyles.formGroup}>
+                <label className={crudStyles.formLabel}>
+                  Masukkan Password Otorisasi Keamanan:
+                </label>
+                <input
+                  type="password"
+                  className={crudStyles.formInput}
+                  placeholder="Ketik password otorisasi..."
+                  value={prunePassword}
+                  onChange={(e) => setPrunePassword(e.target.value)}
+                  disabled={pruning}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className={crudStyles.modalFooter}>
+              <button
+                type="button"
+                className={styles.btnCancel}
+                onClick={handleClosePruneModal}
+                disabled={pruning}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className={styles.btnConfirmRestore}
+                onClick={handleExecutePrune}
+                disabled={!prunePassword || pruning}
+              >
+                {pruning ? '⏳ Memangkas...' : '🧹 Pangkas Sekarang (Sisa 2)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: TERMINAL / SSH STORAGE GUIDE */}
+      {showGuideModal && (
+        <div className={crudStyles.modalOverlay}>
+          <div className={crudStyles.modal} style={{ maxWidth: '580px' }}>
+            <div className={crudStyles.modalHeader}>
+              <h2 className={crudStyles.modalTitle}>
+                💻 Panduan Cek Storage Server via Terminal / SSH
+              </h2>
+              <button
+                className={crudStyles.modalClose}
+                onClick={() => setShowGuideModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className={crudStyles.modalBody}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                Jika Anda terhubung via terminal SSH (PuTTY / Linux CLI) ke server RS Mata JEC ORBITA Makassar, gunakan perintah berikut untuk memantau kapasitas penyimpanan secara akurat:
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ background: '#0f172a', padding: '12px 14px', borderRadius: '8px', color: '#f8fafc' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600 }}>1. Cek Sisa Kapasitas Harddisk Seluruh Partisi</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard('df -h')}
+                      style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#38bdf8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      {copiedCmd === 'df -h' ? '✓ Disalin' : 'Salin'}
+                    </button>
+                  </div>
+                  <code style={{ fontFamily: 'monospace', color: '#38bdf8', fontSize: '13px' }}>df -h</code>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>*Periksa kolom <strong>Avail</strong> dan <strong>Use%</strong> pada partisi root (<code>/</code> atau <code>/dev/vda1</code>).</p>
+                </div>
+
+                <div style={{ background: '#0f172a', padding: '12px 14px', borderRadius: '8px', color: '#f8fafc' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600 }}>2. Cek Total Ukuran Folder Foto Uploads</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard('du -sh public/uploads')}
+                      style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#38bdf8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      {copiedCmd === 'du -sh public/uploads' ? '✓ Disalin' : 'Salin'}
+                    </button>
+                  </div>
+                  <code style={{ fontFamily: 'monospace', color: '#38bdf8', fontSize: '13px' }}>du -sh public/uploads</code>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>*Menampilkan total gigabyte/megabyte berkas foto yang tersimpan.</p>
+                </div>
+
+                <div style={{ background: '#0f172a', padding: '12px 14px', borderRadius: '8px', color: '#f8fafc' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600 }}>3. Cek Total Ukuran Folder Berkas Cadangan</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard('du -sh backups')}
+                      style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#38bdf8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      {copiedCmd === 'du -sh backups' ? '✓ Disalin' : 'Salin'}
+                    </button>
+                  </div>
+                  <code style={{ fontFamily: 'monospace', color: '#38bdf8', fontSize: '13px' }}>du -sh backups</code>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#94a3b8' }}>*Menampilkan total gigabyte seluruh file backup .tar.gz.</p>
+                </div>
+
+                <div style={{ background: '#0f172a', padding: '12px 14px', borderRadius: '8px', color: '#f8fafc' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600 }}>4. Lihat Daftar Rinci Ukuran Tiap Berkas Backup</span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard('ls -lh backups/')}
+                      style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#38bdf8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      {copiedCmd === 'ls -lh backups/' ? '✓ Disalin' : 'Salin'}
+                    </button>
+                  </div>
+                  <code style={{ fontFamily: 'monospace', color: '#38bdf8', fontSize: '13px' }}>ls -lh backups/</code>
+                </div>
+              </div>
+            </div>
+
+            <div className={crudStyles.modalFooter}>
+              <button
+                type="button"
+                className={styles.btnCancel}
+                onClick={() => setShowGuideModal(false)}
+              >
+                Tutup Panduan
               </button>
             </div>
           </div>

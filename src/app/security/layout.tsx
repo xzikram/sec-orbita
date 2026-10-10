@@ -184,9 +184,18 @@ export default function SecurityLayout({
     const handleGlobalError = (event: ErrorEvent) => {
       try {
         const errorMsg = event.message || 'Window Error';
-        if (errorMsg.includes('ResizeObserver')) return;
-        if (errorMsg.includes('ServiceWorker') || errorMsg.includes('/sw.js')) return;
-        if (errorMsg.includes('Failed to fetch') && !navigator.onLine) return;
+        const lowerMsg = errorMsg.toLowerCase();
+        if (
+          lowerMsg.includes('aborted') ||
+          lowerMsg.includes('aborterror') ||
+          lowerMsg.includes('the operation was aborted') ||
+          lowerMsg.includes('resizeobserver') ||
+          lowerMsg.includes('serviceworker') ||
+          lowerMsg.includes('/sw.js') ||
+          ((lowerMsg.includes('failed to fetch') || lowerMsg.includes('networkerror')) && !navigator.onLine)
+        ) {
+          return;
+        }
         reportClientError({
           message: errorMsg,
           stack: event.error?.stack || `${event.filename}:${event.lineno}:${event.colno}`,
@@ -199,9 +208,21 @@ export default function SecurityLayout({
       try {
         const reason = event.reason;
         const msg = typeof reason === 'string' ? reason : reason?.message || 'Unhandled Promise Rejection';
-        if (msg.includes('AbortError')) return;
-        if (msg.includes('ServiceWorker') || msg.includes('/sw.js')) return;
-        if (msg.includes('Failed to fetch') && !navigator.onLine) return;
+        const reasonName = reason?.name || '';
+        const lowerMsg = msg.toLowerCase();
+        if (
+          reasonName === 'AbortError' ||
+          lowerMsg.includes('aborted') ||
+          lowerMsg.includes('aborterror') ||
+          lowerMsg.includes('the operation was aborted') ||
+          lowerMsg.includes('signal is aborted') ||
+          lowerMsg.includes('user aborted') ||
+          lowerMsg.includes('serviceworker') ||
+          lowerMsg.includes('/sw.js') ||
+          ((lowerMsg.includes('failed to fetch') || lowerMsg.includes('networkerror')) && !navigator.onLine)
+        ) {
+          return;
+        }
         reportClientError({
           message: msg,
           stack: reason?.stack || null,

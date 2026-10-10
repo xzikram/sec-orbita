@@ -22,13 +22,18 @@ export async function reportClientError(payload: SystemErrorPayload): Promise<vo
   if (typeof window === 'undefined') return;
 
   const msg = String(payload.message || '');
-  // Ignore expected network drop / ServiceWorker update failures (false alarms)
+  const lowerMsg = msg.toLowerCase();
+  // Ignore expected network drop, user aborts, timeout cancellations, or false alarms
   if (
-    msg.includes('ServiceWorker') ||
-    msg.includes('/sw.js') ||
-    msg.includes('ResizeObserver') ||
-    (msg.includes('Failed to fetch') && !navigator.onLine) ||
-    (msg.includes('NetworkError') && !navigator.onLine)
+    lowerMsg.includes('aborted') ||
+    lowerMsg.includes('aborterror') ||
+    lowerMsg.includes('the operation was aborted') ||
+    lowerMsg.includes('signal is aborted') ||
+    lowerMsg.includes('user aborted') ||
+    lowerMsg.includes('serviceworker') ||
+    lowerMsg.includes('/sw.js') ||
+    lowerMsg.includes('resizeobserver') ||
+    ((lowerMsg.includes('failed to fetch') || lowerMsg.includes('networkerror')) && !navigator.onLine)
   ) {
     return;
   }

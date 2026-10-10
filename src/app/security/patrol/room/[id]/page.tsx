@@ -152,7 +152,7 @@ export default function RoomCheckPage({
             const todayMakassar = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
             const sessDate = parsed.patrolDate ? (typeof parsed.patrolDate === 'string' ? parsed.patrolDate.split('T')[0] : '') : '';
             const startedTime = parsed.startedAt ? new Date(parsed.startedAt).getTime() : 0;
-            const isStale = (sessDate && sessDate < todayMakassar && Date.now() - startedTime > 4 * 60 * 60 * 1000) || (startedTime > 0 && Date.now() - startedTime > 4 * 60 * 60 * 1000);
+            const isStale = (sessDate && sessDate < todayMakassar && Date.now() - startedTime > 12 * 60 * 60 * 1000) || (startedTime > 0 && Date.now() - startedTime > 12 * 60 * 60 * 1000);
 
             if (isStale || (currentUserId && parsed.userId && parsed.userId !== currentUserId)) {
               if (isStale) {

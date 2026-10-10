@@ -272,6 +272,7 @@ export async function GET(request: NextRequest) {
           checkedRoomsCount: totalChecks,
           findingCount: findingChecks,
           complianceRate: rate,
+          notes: s.notes || null,
         };
       }),
       checks,

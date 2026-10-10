@@ -1,17 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
-import { listBackups, createFullBackup, deleteBackup, BACKUP_MASTER_PASSWORD } from '@/lib/backup-service';
+import { listBackups, createFullBackup, deleteBackup, rotateBackups, getServerStorageStats, BACKUP_MASTER_PASSWORD } from '@/lib/backup-service';
 import prisma from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await getAuthUser();
   if (!auth || auth.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized: Akses khusus Administrator.' }, { status: 403 });
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    if (searchParams.get('autoPrune') === 'true') {
+      rotateBackups(2);
+    }
     const backups = listBackups();
-    return NextResponse.json({ backups });
+    const storageStats = getServerStorageStats();
+    return NextResponse.json({ backups, storageStats });
   } catch (error: any) {
     console.error('Failed to list backups:', error);
     return NextResponse.json({ error: error.message || 'Gagal memuat daftar backup' }, { status: 500 });
@@ -26,11 +31,25 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { securityPassword } = body;
+    const { securityPassword, action } = body;
 
     // Verifikasi Password Otorisasi Khusus "Ikr300721"
     if (!securityPassword || securityPassword !== BACKUP_MASTER_PASSWORD) {
       return NextResponse.json({ error: 'Password otorisasi backup SALAH! Akses ditolak.' }, { status: 401 });
+    }
+
+    // Aksi pemangkasan cadangan lama (> 2 cadangan)
+    if (action === 'prune') {
+      const deletedCount = rotateBackups(2);
+      const storageStats = getServerStorageStats();
+      return NextResponse.json({
+        success: true,
+        message: deletedCount > 0
+          ? `Berhasil memangkas ${deletedCount} cadangan lama. Kapasitas server berhasil dilegakan!`
+          : 'Semua cadangan sudah dalam batas maksimal (maksimal 2 cadangan).',
+        deletedCount,
+        storageStats,
+      });
     }
 
     const backupItem = await createFullBackup('manual_admin_trigger');

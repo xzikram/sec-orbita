@@ -30,7 +30,36 @@ export default function SecurityErrorPage({
   useEffect(() => {
     console.error('Security Error caught by boundary:', error?.message, error);
 
-    // Otomatis kirim error log ke Tim IT / Admin (resilient & offline queued)
+    const msg = error?.message || '';
+    const lowerMsg = msg.toLowerCase();
+
+    // Ignore aborted or cancelled requests
+    if (lowerMsg.includes('aborted') || lowerMsg.includes('aborterror') || lowerMsg.includes('the operation was aborted')) {
+      return;
+    }
+
+    const isChunkError =
+      lowerMsg.includes('failed to load chunk') ||
+      lowerMsg.includes('loading chunk') ||
+      lowerMsg.includes('chunkloaderror') ||
+      lowerMsg.includes('dynamically imported module') ||
+      lowerMsg.includes('failed to fetch') ||
+      lowerMsg.includes('load failed') ||
+      lowerMsg.includes('error loading dynamically imported module') ||
+      (lowerMsg.includes('chunk') && lowerMsg.includes('failed'));
+
+    if (isChunkError) {
+      const retryKey = 'security_chunk_retry_count';
+      const count = parseInt(sessionStorage.getItem(retryKey) || '0', 10);
+      if (count < 2) {
+        sessionStorage.setItem(retryKey, String(count + 1));
+        window.location.reload();
+        return;
+      }
+      sessionStorage.removeItem(retryKey);
+    }
+
+    // Otomatis kirim error log ke Tim IT / Admin hanya jika bukan chunk error transien
     try {
       import('@/lib/error-reporter').then(({ reportClientError }) => {
         reportClientError({
@@ -42,26 +71,6 @@ export default function SecurityErrorPage({
       }).catch(() => setReported(true));
     } catch {
       setReported(true);
-    }
-
-    const msg = error?.message || '';
-    const isChunkError =
-      msg.includes('Loading chunk') ||
-      msg.includes('ChunkLoadError') ||
-      msg.includes('dynamically imported module') ||
-      msg.includes('Failed to fetch') ||
-      msg.includes('Load failed') ||
-      msg.includes('error loading dynamically imported module');
-
-    if (isChunkError) {
-      const retryKey = 'security_chunk_retry_count';
-      const count = parseInt(sessionStorage.getItem(retryKey) || '0', 10);
-      if (count < 2) {
-        sessionStorage.setItem(retryKey, String(count + 1));
-        window.location.reload();
-        return;
-      }
-      sessionStorage.removeItem(retryKey);
     }
 
     // Auto-retry once for any error

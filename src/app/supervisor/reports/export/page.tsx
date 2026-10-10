@@ -186,7 +186,7 @@ export default function ExportReportPage() {
                       <td>{sess.scheduleName} ({sess.startTime} - {sess.endTime})</td>
                       <td>{sess.officer}</td>
                       <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                        {sess.status === 'completed' ? '✓ SELESAI' : '• AKTIF'}
+                        {sess.status === 'completed' ? '✓ SELESAI' : sess.status === 'incomplete' ? '⚠️ TIDAK LENGKAP' : '• AKTIF'}
                       </td>
                       <td style={{ textAlign: 'center' }}>{sess.checkedRoomsCount} Rm</td>
                     </tr>
