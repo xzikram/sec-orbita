@@ -108,8 +108,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const publicUploadDir = path.join(process.cwd(), 'public', 'uploads', 'patrol');
-    const rootUploadDir = path.join(process.cwd(), 'uploads', 'patrol');
+    const baseDir = process.env.APP_DIR || (process as any)['cwd']();
+    const publicUploadDir = path.join(/*turbopackIgnore: true*/ baseDir, 'public', 'uploads', 'patrol');
+    const rootUploadDir = path.join(/*turbopackIgnore: true*/ baseDir, 'uploads', 'patrol');
     await fs.mkdir(publicUploadDir, { recursive: true }).catch(() => {});
     await fs.mkdir(rootUploadDir, { recursive: true }).catch(() => {});
 
@@ -221,10 +222,10 @@ export async function POST(request: NextRequest) {
             const buffer = Buffer.from(base64Data, 'base64');
             const fileName = `patrol-${checkRecord.id}-${Date.now()}.jpg`;
 
-            const filePath = path.join(publicUploadDir, fileName);
+            const filePath = path.join(/*turbopackIgnore: true*/ publicUploadDir, fileName);
             await fs.writeFile(filePath, buffer);
             try {
-              await fs.writeFile(path.join(rootUploadDir, fileName), buffer);
+              await fs.writeFile(path.join(/*turbopackIgnore: true*/ rootUploadDir, fileName), buffer);
             } catch {}
 
             // Check if photo record already exists

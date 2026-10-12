@@ -66,8 +66,11 @@ export interface ServerStorageStats {
   backupsCount: number;
 }
 
+// Prevent Turbopack AST tracer from scanning whole project root and user files
+const getAppRoot = (): string => process.env.APP_DIR || (process as any)['cwd']();
+
 export function getServerStorageStats(): ServerStorageStats {
-  const rootDir = process.cwd();
+  const rootDir = getAppRoot();
 
   // 1. Disk usage via statfsSync
   let diskTotalFormatted = 'N/A';
@@ -91,8 +94,8 @@ export function getServerStorageStats(): ServerStorageStats {
   // 2. Uploads folder size & file count
   let uploadsSizeBytes = 0;
   let uploadsCount = 0;
-  const pubUploads = path.join(rootDir, 'public', 'uploads');
-  const rootUploads = path.join(rootDir, 'uploads');
+  const pubUploads = path.join(/*turbopackIgnore: true*/ rootDir, 'public', 'uploads');
+  const rootUploads = path.join(/*turbopackIgnore: true*/ rootDir, 'uploads');
   const uploadsDir = fs.existsSync(pubUploads) ? pubUploads : (fs.existsSync(rootUploads) ? rootUploads : null);
 
   if (uploadsDir) {
@@ -103,7 +106,7 @@ export function getServerStorageStats(): ServerStorageStats {
   }
 
   // 3. Backups folder size
-  const backupRootDir = path.join(rootDir, 'backups');
+  const backupRootDir = path.join(/*turbopackIgnore: true*/ rootDir, 'backups');
   let backupsSizeBytes = 0;
   let backupsCount = 0;
   if (fs.existsSync(backupRootDir)) {
@@ -147,7 +150,7 @@ function copyFolderSync(from: string, to: string): number {
 }
 
 export function listBackups(): BackupItem[] {
-  const backupRootDir = path.join(process.cwd(), 'backups');
+  const backupRootDir = path.join(/*turbopackIgnore: true*/ getAppRoot(), 'backups');
   if (!fs.existsSync(backupRootDir)) return [];
 
   const items: BackupItem[] = [];
@@ -239,7 +242,7 @@ export function listBackups(): BackupItem[] {
 }
 
 export function rotateBackups(maxKeep: number = 2): number {
-  const backupRootDir = path.join(process.cwd(), 'backups');
+  const backupRootDir = path.join(/*turbopackIgnore: true*/ getAppRoot(), 'backups');
   if (!fs.existsSync(backupRootDir)) return 0;
 
   // 1. Bersihkan semua folder uncompressed yang berkas .tar.gz-nya sudah ada
@@ -288,15 +291,15 @@ export async function createFullBackup(reason: string = 'manual'): Promise<Backu
   const pad = (n: number) => String(n).padStart(2, '0');
   const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   
-  const rootDir = process.cwd();
-  const backupRootDir = path.join(rootDir, 'backups');
+  const rootDir = getAppRoot();
+  const backupRootDir = path.join(/*turbopackIgnore: true*/ rootDir, 'backups');
   const folderName = reason === 'pre_restore' ? `backup_pre_restore_${timestamp}` : `backup_${timestamp}`;
-  const targetFolder = path.join(backupRootDir, folderName);
+  const targetFolder = path.join(/*turbopackIgnore: true*/ backupRootDir, folderName);
 
   fs.mkdirSync(targetFolder, { recursive: true });
 
   // 1. DUMP DATABASE
-  const jsonBackupDir = path.join(targetFolder, 'database_json');
+  const jsonBackupDir = path.join(/*turbopackIgnore: true*/ targetFolder, 'database_json');
   fs.mkdirSync(jsonBackupDir, { recursive: true });
 
   const models = [
@@ -313,25 +316,25 @@ export async function createFullBackup(reason: string = 'manual'): Promise<Backu
       const delegate = (prisma as any)[model];
       if (delegate && typeof delegate.findMany === 'function') {
         const rows = await delegate.findMany();
-        fs.writeFileSync(path.join(jsonBackupDir, `${model}.json`), JSON.stringify(rows, null, 2), 'utf-8');
+        fs.writeFileSync(path.join(/*turbopackIgnore: true*/ jsonBackupDir, `${model}.json`), JSON.stringify(rows, null, 2), 'utf-8');
         totalRecords += rows.length;
       }
     } catch {}
   }
 
   // 2. BACKUP FOTO
-  const pubUploadsSrc = path.join(rootDir, 'public', 'uploads');
-  const pubUploadsDest = path.join(targetFolder, 'public_uploads');
+  const pubUploadsSrc = path.join(/*turbopackIgnore: true*/ rootDir, 'public', 'uploads');
+  const pubUploadsDest = path.join(/*turbopackIgnore: true*/ targetFolder, 'public_uploads');
   const pubCount = copyFolderSync(pubUploadsSrc, pubUploadsDest);
 
-  const rootUploadsSrc = path.join(rootDir, 'uploads');
-  const rootUploadsDest = path.join(targetFolder, 'root_uploads');
+  const rootUploadsSrc = path.join(/*turbopackIgnore: true*/ rootDir, 'uploads');
+  const rootUploadsDest = path.join(/*turbopackIgnore: true*/ targetFolder, 'root_uploads');
   const rootCount = copyFolderSync(rootUploadsSrc, rootUploadsDest);
 
   // 3. BACKUP .ENV
-  const envSrc = path.join(rootDir, '.env');
+  const envSrc = path.join(/*turbopackIgnore: true*/ rootDir, '.env');
   if (fs.existsSync(envSrc)) {
-    fs.copyFileSync(envSrc, path.join(targetFolder, 'env_backup'));
+    fs.copyFileSync(envSrc, path.join(/*turbopackIgnore: true*/ targetFolder, 'env_backup'));
   }
 
   // 4. METADATA
@@ -401,9 +404,9 @@ export async function createFullBackup(reason: string = 'manual'): Promise<Backu
 }
 
 export async function restoreFullBackup(backupName: string): Promise<{ success: boolean; message: string }> {
-  const rootDir = process.cwd();
-  const backupRootDir = path.join(rootDir, 'backups');
-  let selectedBackupPath = path.join(backupRootDir, backupName);
+  const rootDir = getAppRoot();
+  const backupRootDir = path.join(/*turbopackIgnore: true*/ rootDir, 'backups');
+  let selectedBackupPath = path.join(/*turbopackIgnore: true*/ backupRootDir, backupName);
 
   if (!fs.existsSync(selectedBackupPath)) {
     throw new Error(`Berkas cadangan ${backupName} tidak ditemukan di server!`);
@@ -411,19 +414,19 @@ export async function restoreFullBackup(backupName: string): Promise<{ success: 
 
   // If it's a tar.gz file, extract it to a temporary directory
   let extractedPath = selectedBackupPath;
-  let isTemp = false;
+  let tempDirToClean: string | null = null;
   if (backupName.endsWith('.tar.gz')) {
-    const tempExtract = path.join(backupRootDir, `temp_restore_${Date.now()}`);
+    const tempExtract = path.join(/*turbopackIgnore: true*/ backupRootDir, `temp_restore_${Date.now()}`);
     fs.mkdirSync(tempExtract, { recursive: true });
     execSync(`tar -xzf "${selectedBackupPath}" -C "${tempExtract}"`);
     const children = fs.readdirSync(tempExtract);
-    extractedPath = children.length > 0 ? path.join(tempExtract, children[0]) : tempExtract;
-    isTemp = true;
+    extractedPath = children.length > 0 ? path.join(/*turbopackIgnore: true*/ tempExtract, children[0]) : tempExtract;
+    tempDirToClean = tempExtract;
   }
 
   try {
     // 1. RESTORE DATABASE FROM JSON SNAPSHOT
-    const jsonDir = path.join(extractedPath, 'database_json');
+    const jsonDir = path.join(/*turbopackIgnore: true*/ extractedPath, 'database_json');
     if (fs.existsSync(jsonDir)) {
       const orderedModels = [
         'shift', 'building', 'floor', 'floorQrCode', 'patrolSchedule',
@@ -434,7 +437,7 @@ export async function restoreFullBackup(backupName: string): Promise<{ success: 
       ];
 
       for (const model of orderedModels) {
-        const filePath = path.join(jsonDir, `${model}.json`);
+        const filePath = path.join(/*turbopackIgnore: true*/ jsonDir, `${model}.json`);
         if (fs.existsSync(filePath)) {
           const content = fs.readFileSync(filePath, 'utf-8');
           const records = JSON.parse(content);
@@ -452,14 +455,14 @@ export async function restoreFullBackup(backupName: string): Promise<{ success: 
     }
 
     // 2. RESTORE PHOTOS
-    const pubSrc = path.join(extractedPath, 'public_uploads');
-    const pubDest = path.join(rootDir, 'public', 'uploads');
+    const pubSrc = path.join(/*turbopackIgnore: true*/ extractedPath, 'public_uploads');
+    const pubDest = path.join(/*turbopackIgnore: true*/ rootDir, 'public', 'uploads');
     if (fs.existsSync(pubSrc)) {
       copyFolderSync(pubSrc, pubDest);
     }
 
-    const rootSrc = path.join(extractedPath, 'root_uploads');
-    const rootDest = path.join(rootDir, 'uploads');
+    const rootSrc = path.join(/*turbopackIgnore: true*/ extractedPath, 'root_uploads');
+    const rootDest = path.join(/*turbopackIgnore: true*/ rootDir, 'uploads');
     if (fs.existsSync(rootSrc)) {
       copyFolderSync(rootSrc, rootDest);
     }
@@ -469,9 +472,9 @@ export async function restoreFullBackup(backupName: string): Promise<{ success: 
       message: `Cadangan ${backupName} berhasil dipulihkan secara menyeluruh.`,
     };
   } finally {
-    if (isTemp && fs.existsSync(extractedPath)) {
+    if (tempDirToClean && fs.existsSync(tempDirToClean)) {
       try {
-        fs.rmSync(path.dirname(extractedPath), { recursive: true, force: true });
+        fs.rmSync(tempDirToClean, { recursive: true, force: true });
       } catch {}
     }
   }
@@ -480,9 +483,9 @@ export async function restoreFullBackup(backupName: string): Promise<{ success: 
 export const BACKUP_MASTER_PASSWORD = process.env.BACKUP_MASTER_KEY || 'Ikr300721';
 
 export async function deleteBackup(backupName: string): Promise<{ success: boolean; message: string }> {
-  const rootDir = process.cwd();
-  const backupRootDir = path.join(rootDir, 'backups');
-  const targetPath = path.join(backupRootDir, backupName);
+  const rootDir = getAppRoot();
+  const backupRootDir = path.join(/*turbopackIgnore: true*/ rootDir, 'backups');
+  const targetPath = path.join(/*turbopackIgnore: true*/ backupRootDir, backupName);
   const sidecarPath = `${targetPath}.json`;
 
   if (!fs.existsSync(targetPath)) {

@@ -19,12 +19,13 @@ export async function GET(
       segment.replace(/(\.\.[\/\\])+/g, '').replace(/[^a-zA-Z0-9_\-\.]/g, '')
     );
 
-    // Check multiple candidate locations
+    // Check multiple candidate locations without triggering Turbopack NFT whole-project tracing
+    const baseDir = process.env.APP_DIR || (process as any)['cwd']();
     const candidatePaths = [
-      path.join(process.cwd(), 'public', 'uploads', ...safeSegments),
-      path.join(process.cwd(), 'uploads', ...safeSegments),
-      path.join('/var/www/sec-orbita', 'public', 'uploads', ...safeSegments),
-      path.join('/var/www/sec-orbita', 'uploads', ...safeSegments),
+      path.join(/*turbopackIgnore: true*/ baseDir, 'public', 'uploads', ...safeSegments),
+      path.join(/*turbopackIgnore: true*/ baseDir, 'uploads', ...safeSegments),
+      path.join(/*turbopackIgnore: true*/ '/var/www/sec-orbita', 'public', 'uploads', ...safeSegments),
+      path.join(/*turbopackIgnore: true*/ '/var/www/sec-orbita', 'uploads', ...safeSegments),
     ];
 
     let fileBuffer: Buffer | null = null;

@@ -293,20 +293,21 @@ export async function POST(request: NextRequest) {
         const base64Data = photoBase64.replace(/^data:image\/\w+;base64,/, '');
         const buffer = Buffer.from(base64Data, 'base64');
         const fileName = `patrol-${check.id}-${Date.now()}.jpg`;
-        const publicUploadDir = path.join(process.cwd(), 'public', 'uploads', 'patrol');
-        const rootUploadDir = path.join(process.cwd(), 'uploads', 'patrol');
+        const baseDir = process.env.APP_DIR || (process as any)['cwd']();
+        const publicUploadDir = path.join(/*turbopackIgnore: true*/ baseDir, 'public', 'uploads', 'patrol');
+        const rootUploadDir = path.join(/*turbopackIgnore: true*/ baseDir, 'uploads', 'patrol');
 
         // Create directories if they do not exist
         await fs.mkdir(publicUploadDir, { recursive: true }).catch(() => {});
         await fs.mkdir(rootUploadDir, { recursive: true }).catch(() => {});
 
         // Save to public upload dir
-        const filePath = path.join(publicUploadDir, fileName);
+        const filePath = path.join(/*turbopackIgnore: true*/ publicUploadDir, fileName);
         await fs.writeFile(filePath, buffer);
 
         // Also save a copy to root uploads dir for nginx direct mapping fallback
         try {
-          await fs.writeFile(path.join(rootUploadDir, fileName), buffer);
+          await fs.writeFile(path.join(/*turbopackIgnore: true*/ rootUploadDir, fileName), buffer);
         } catch {}
 
         // Create PatrolPhoto record
