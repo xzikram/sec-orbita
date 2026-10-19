@@ -567,6 +567,12 @@ export default function SecurityDashboard() {
       let floors = floorsRes && floorsRes.ok ? await floorsRes.json() : [];
 
       if (!Array.isArray(floors) || floors.length === 0) {
+        try {
+          const { getCachedFloors } = await import('@/lib/db');
+          floors = await getCachedFloors();
+        } catch {}
+      }
+      if (!Array.isArray(floors) || floors.length === 0) {
         const { floors: fallbackFloors } = await import('@/lib/dummy-data');
         floors = fallbackFloors;
       }
@@ -582,7 +588,20 @@ export default function SecurityDashboard() {
         (s.userId === currentUid || !s.userId) &&
         (sched?.patrolNumber ? s.patrolNumber === sched.patrolNumber : true)
       ) || sessions.find((s: any) => s.status === 'completed' && (s.userId === currentUid || !s.userId));
-      setCompletedSessionToday(myCompletedToday || null);
+
+      let completedFound = myCompletedToday || null;
+      if (!completedFound) {
+        try {
+          const cachedRaw = localStorage.getItem('cached-active-session');
+          if (cachedRaw) {
+            const parsed = JSON.parse(cachedRaw);
+            if (parsed.status === 'completed' && (!currentUid || !parsed.userId || parsed.userId === currentUid)) {
+              completedFound = parsed;
+            }
+          }
+        } catch {}
+      }
+      setCompletedSessionToday(completedFound);
 
       let activeSession = myActiveSession;
 

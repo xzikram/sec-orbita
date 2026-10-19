@@ -114,7 +114,7 @@ export default function PatrolSummaryPage() {
             try {
               s.status = 'completed';
               s.completedAt = s.completedAt || new Date().toISOString();
-              localStorage.removeItem('cached-active-session');
+              localStorage.setItem('cached-active-session', JSON.stringify(s));
               localStorage.removeItem('lastPatrolState');
             } catch {}
             if (navigator.onLine && s.id && !s.id.startsWith('offline-')) {

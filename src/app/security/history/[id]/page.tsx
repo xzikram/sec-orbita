@@ -19,9 +19,26 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
           if (data && data.length > 0) {
             setSession(data[0]);
           }
+        } else {
+          const cachedRaw = localStorage.getItem('cached-active-session');
+          if (cachedRaw) {
+            const parsed = JSON.parse(cachedRaw);
+            if (parsed.id === id || id.startsWith('offline-')) {
+              setSession(parsed);
+            }
+          }
         }
       } catch (err) {
-        console.error('History detail load error:', err);
+        console.warn('Network error loading history detail, checking cache:', err);
+        try {
+          const cachedRaw = localStorage.getItem('cached-active-session');
+          if (cachedRaw) {
+            const parsed = JSON.parse(cachedRaw);
+            if (parsed.id === id || id.startsWith('offline-')) {
+              setSession(parsed);
+            }
+          }
+        } catch {}
       } finally {
         setLoading(false);
       }
@@ -77,7 +94,7 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
       <div className={`card ${styles.infoCard}`}>
         <h2 className={styles.patrolNum}>Patroli #{session.patrolNumber}</h2>
         <p className={styles.dateLine}>
-          {new Date(session.patrolDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          {new Date(session.patrolDate || session.startedAt || Date.now()).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
         <div className={styles.timeRow}>
           <div className={styles.timeItem}><span className={styles.timeLabel}>Mulai</span><span className={styles.timeValue}>{startTime}</span></div>
