@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    // Generate finding number
-    const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    // Generate finding number (using Asia/Makassar WITA date to prevent morning shift date rollbacks)
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date()).replace(/-/g, '');
     const count = await prisma.finding.count({ where: { findingNumber: { startsWith: `FND-${today}` } } });
     const findingNumber = `FND-${today}-${String(count + 1).padStart(3, '0')}`;
 

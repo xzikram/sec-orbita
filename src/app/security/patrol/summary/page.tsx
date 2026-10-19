@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { floors } from '@/lib/dummy-data';
 import { syncOfflineData } from '@/lib/sync';
-import { getOfflineCount } from '@/lib/db';
+import { getOfflineCount, getCachedFloors } from '@/lib/db';
 import styles from './summary.module.css';
 
 export default function PatrolSummaryPage() {
@@ -16,9 +15,10 @@ export default function PatrolSummaryPage() {
   const [scheduleName, setScheduleName] = useState('Patroli Rutin');
   const [findingsCount, setFindingsCount] = useState(0);
   const [roomsCheckedCount, setRoomsCheckedCount] = useState(0);
-  const [floorsCompletedCount, setFloorsCompletedCount] = useState(floors.length);
+  const [floorsCompletedCount, setFloorsCompletedCount] = useState(0);
   const [sessionFindings, setSessionFindings] = useState<any[]>([]);
   const [qrVerifiedInfo, setQrVerifiedInfo] = useState<{ floorName: string; time: string; floorCode: string } | null>(null);
+  const [cachedFloorList, setCachedFloorList] = useState<any[]>([]);
 
   // Sync state
   const [offlinePendingCount, setOfflinePendingCount] = useState(0);
@@ -88,11 +88,13 @@ export default function PatrolSummaryPage() {
         }
 
         const { getOfflineChecks, getOfflineFindings, getOfflineQrScans } = await import('@/lib/db');
-        const [offChecks, offFindings, offQr] = await Promise.all([
+        const [offChecks, offFindings, offQr, cFloors] = await Promise.all([
           getOfflineChecks().catch(() => []),
           getOfflineFindings().catch(() => []),
           getOfflineQrScans().catch(() => []),
+          getCachedFloors().catch(() => []),
         ]);
+        setCachedFloorList(cFloors);
 
         const totalPending = offChecks.length + offFindings.length + offQr.length;
         setOfflinePendingCount(totalPending);
@@ -179,7 +181,7 @@ export default function PatrolSummaryPage() {
           setSessionFindings(extractedFindings);
 
           const compFloors = s.sessionFloors?.filter((sf: any) => sf.status === 'completed' || sf.qrValidated).length;
-          setFloorsCompletedCount(compFloors !== undefined && compFloors > 0 ? compFloors : (offQr.length > 0 ? offQr.length : floors.length));
+          setFloorsCompletedCount(compFloors !== undefined && compFloors > 0 ? compFloors : (offQr.length > 0 ? offQr.length : cFloors.length));
 
           // Resolve which floor has the physical QR presence scan
           let verifiedQrData: { floorName: string; time: string; floorCode: string } | null = null;
@@ -194,8 +196,10 @@ export default function PatrolSummaryPage() {
           } else if (offQr && offQr.length > 0) {
             const lastOff = offQr[offQr.length - 1];
             const scanTime = lastOff.scannedAt ? new Date(lastOff.scannedAt) : new Date();
-            const { getFloorById } = await import('@/lib/dummy-data');
-            const fl = getFloorById(lastOff.floorCode);
+            const fl = cFloors.find((f: any) =>
+              String(f.code || '').toUpperCase() === String(lastOff.floorCode || '').toUpperCase() ||
+              f.id === lastOff.floorCode
+            );
             verifiedQrData = {
               floorName: fl?.name || `Lantai ${lastOff.floorCode}`,
               floorCode: lastOff.floorCode,
@@ -210,8 +214,10 @@ export default function PatrolSummaryPage() {
           if (offQr && offQr.length > 0) {
             const lastOff = offQr[offQr.length - 1];
             const scanTime = lastOff.scannedAt ? new Date(lastOff.scannedAt) : new Date();
-            const { getFloorById } = await import('@/lib/dummy-data');
-            const fl = getFloorById(lastOff.floorCode);
+            const fl = cFloors.find((f: any) =>
+              String(f.code || '').toUpperCase() === String(lastOff.floorCode || '').toUpperCase() ||
+              f.id === lastOff.floorCode
+            );
             setQrVerifiedInfo({
               floorName: fl?.name || `Lantai ${lastOff.floorCode}`,
               floorCode: lastOff.floorCode,
@@ -373,7 +379,7 @@ export default function PatrolSummaryPage() {
               };
               return getOrder(a) - getOrder(b);
             })
-          : floors.map(f => ({ floorNameSnapshot: f.name, floorCodeSnapshot: f.code, status: 'pending', qrValidated: false, patrolChecks: [] }))
+          : cachedFloorList.map((f: any) => ({ floorNameSnapshot: f.name, floorCodeSnapshot: f.code, status: 'pending', qrValidated: false, patrolChecks: [] }))
         ).map((sf: any, idx: number) => {
           const checkedCount = sf.patrolChecks?.length || 0;
           const isCompleted = sf.status === 'completed' || sf.qrValidated;

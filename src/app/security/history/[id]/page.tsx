@@ -2,7 +2,6 @@
 
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { floors, getRoomsByFloor } from '@/lib/dummy-data';
 import styles from './history-detail.module.css';
 
 export default function HistoryDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -38,7 +37,6 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
     return <div className="page-container" style={{ textAlign: 'center', padding: 48 }}>Riwayat tidak ditemukan</div>;
   }
 
-  const totalRooms = floors.reduce((s, f) => s + getRoomsByFloor(f.id).length, 0);
   const startTime = session.startedAt ? new Date(session.startedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }) : '-';
   const endTime = session.completedAt ? new Date(session.completedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }) : '-';
 
@@ -96,8 +94,8 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Stats */}
       <div className={styles.statsRow}>
-        <div className={styles.stat}><span className={styles.statNum}>{totalRooms}</span><span className={styles.statLabel}>Ruangan</span></div>
-        <div className={styles.stat}><span className={styles.statNum}>{session.sessionFloors?.length || floors.length}</span><span className={styles.statLabel}>Lantai</span></div>
+        <div className={styles.stat}><span className={styles.statNum}>{totalChecked}</span><span className={styles.statLabel}>Diperiksa</span></div>
+        <div className={styles.stat}><span className={styles.statNum}>{session.sessionFloors?.length || 0}</span><span className={styles.statLabel}>Lantai</span></div>
         <div className={styles.stat}><span className={styles.statNum}>{qrValidCount}</span><span className={styles.statLabel}>QR Valid</span></div>
         <div className={styles.stat}><span className={styles.statNum}>{totalFindings}</span><span className={styles.statLabel}>Temuan</span></div>
       </div>
@@ -105,19 +103,17 @@ export default function HistoryDetailPage({ params }: { params: Promise<{ id: st
       {/* Floor breakdown */}
       <div className={`card ${styles.breakdownCard}`}>
         <h3 className={styles.sectionTitle}>Detail Per Lantai</h3>
-        {floors.map(floor => {
-          const roomCount = getRoomsByFloor(floor.id).length;
-          const sf = session.sessionFloors?.find((s: any) => s.floorCodeSnapshot === floor.code);
-          const checkedCount = sf?.patrolChecks?.length || 0;
-          const percent = roomCount > 0 ? Math.round((checkedCount / roomCount) * 100) : 0;
-          const isCompleted = sf?.status === 'completed' || percent === 100;
-          const isQrScanned = sf?.qrValidated;
+        {(session.sessionFloors || []).map((sf: any) => {
+          const floorName = sf.floorNameSnapshot || sf.floor?.name || `Lantai ${sf.floorCodeSnapshot || ''}`;
+          const checkedCount = sf.patrolChecks?.length || 0;
+          const isCompleted = sf.status === 'completed';
+          const isQrScanned = sf.qrValidated;
 
           return (
-            <div key={floor.id} className={styles.floorRow}>
+            <div key={sf.id} className={styles.floorRow}>
               <div className={styles.floorLeft}>
-                <span className={styles.floorName}>{floor.name}</span>
-                <span className={styles.floorMeta}>{checkedCount} dari {roomCount} ruangan • {percent}%</span>
+                <span className={styles.floorName}>{floorName}</span>
+                <span className={styles.floorMeta}>{checkedCount} ruangan diperiksa</span>
               </div>
               <div className={styles.floorRight}>
                 {isCompleted ? (

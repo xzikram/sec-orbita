@@ -12,9 +12,19 @@ export default function GlobalErrorPage({
   useEffect(() => {
     console.error('Application Error caught by root boundary:', error);
     const msg = error?.message || '';
-    if (msg.includes('Loading chunk') || msg.includes('ChunkLoadError') || msg.includes('dynamically imported module')) {
+    if (
+      msg.includes('Loading chunk') ||
+      msg.includes('ChunkLoadError') ||
+      msg.includes('dynamically imported module') ||
+      msg.includes('instantiated') ||
+      msg.includes('module factory') ||
+      msg.includes('was required from module')
+    ) {
       if (!sessionStorage.getItem('chunk_reload_global')) {
         sessionStorage.setItem('chunk_reload_global', 'true');
+        if ('caches' in window) {
+          caches.keys().then(names => Promise.all(names.map(n => caches.delete(n)))).catch(() => {});
+        }
         window.location.reload();
       }
     }

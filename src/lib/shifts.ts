@@ -91,3 +91,18 @@ export function resolveShiftForSchedule<T extends ShiftInfo>(
   return getRealtimeShift();
 }
 
+/**
+ * Returns today's date formatted as YYYY-MM-DD in Asia/Makassar (WITA) timezone.
+ * Solves midnight/early-morning (00:00 - 08:00) UTC date shift discrepancies.
+ */
+export function getTodayMakassar(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
+}
+
+/**
+ * Formats any Date object to YYYY-MM-DD in Asia/Makassar (WITA) timezone.
+ */
+export function formatDateMakassar(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(date);
+}
+

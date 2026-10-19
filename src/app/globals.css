@@ -159,8 +159,9 @@
   --color-neutral-300: #3f3f46;
   --color-neutral-200: #27272a;
   --color-neutral-100: #1e1e22;
-  --color-neutral-50: #161922;
-  --color-white: #1a1d27;
+  --color-white: #FFFFFF;
+  --text-on-primary: #FFFFFF;
+  --text-on-dark: #FFFFFF;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser, verifyPassword } from '@/lib/auth';
-import { createFullBackup, restoreFullBackup } from '@/lib/backup-service';
+import { createFullBackup, restoreFullBackup, verifyBackupAuthorization } from '@/lib/backup-service';
 import prisma from '@/lib/prisma';
 
 export async function POST(request: Request) {
@@ -26,21 +26,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Password Admin wajib diisi untuk verifikasi otorisasi keamanan!' }, { status: 400 });
     }
 
-    // 2. Verifikasi Password Admin yang sedang login
-    const adminUser = await prisma.user.findUnique({
-      where: { id: auth.id },
-      select: { password: true, name: true, employeeId: true },
-    });
+    // 2. Verifikasi Password Otorisasi (password akun Admin yang login atau BACKUP_MASTER_KEY)
+    const isAuthorized = await verifyBackupAuthorization(adminPassword, auth.id);
 
-    if (!adminUser) {
-      return NextResponse.json({ error: 'Akun Administrator tidak valid.' }, { status: 401 });
-    }
-
-    // 2. Verifikasi Password Otorisasi (Ikr300721 atau password akun Admin)
-    const isMasterPassword = adminPassword === 'Ikr300721';
-    const isUserPassword = await verifyPassword(adminPassword, adminUser.password);
-
-    if (!isMasterPassword && !isUserPassword) {
+    if (!isAuthorized) {
       // Catat percobaan pemulihan gagal ke Audit Log untuk investigasi keamanan
       await prisma.activityLog.create({
         data: {
@@ -52,7 +41,7 @@ export async function POST(request: Request) {
         },
       }).catch(() => {});
 
-      return NextResponse.json({ error: 'Password Otorisasi SALAH! Tindakan pemulihan ditolak demi keamanan sistem.' }, { status: 401 });
+      return NextResponse.json({ error: 'Password Otorisasi SALAH! Masukkan password akun Administrator Anda demi keamanan sistem.' }, { status: 401 });
     }
 
     console.log(`🛡️ [RESTORE AUDIT] Admin ${auth.name} (${auth.employeeId}) memulai pemulihan sistem dari cadangan: ${backupName}`);

@@ -43,6 +43,11 @@ const CANONICAL_FLOOR_ORDER: Record<string, number> = {
 
 function getFloorSortOrder(floorObj: any): number {
   if (!floorObj) return 999;
+  // 1. Strictly prioritize database sortOrder set by Admin in Web Admin
+  if (typeof floorObj.sortOrder === 'number' && !isNaN(floorObj.sortOrder)) {
+    return floorObj.sortOrder;
+  }
+  // 2. Fallbacks only if database sortOrder is undefined or null
   const code = String(floorObj.code || floorObj.floorCodeSnapshot || '').toUpperCase().trim();
   if (CANONICAL_FLOOR_ORDER[code] !== undefined) {
     return CANONICAL_FLOOR_ORDER[code];
@@ -51,7 +56,7 @@ function getFloorSortOrder(floorObj: any): number {
   if (name.includes('BASEMENT') || name.includes('SEMI')) return 0;
   const match = code.match(/\d+/) || name.match(/\d+/);
   if (match) return parseInt(match[0], 10);
-  return floorObj.sortOrder ?? 999;
+  return 999;
 }
 
 export default function PatrolPage() {
@@ -62,7 +67,7 @@ export default function PatrolPage() {
   const [offlineQrs, setOfflineQrs] = useState<any[]>([]);
   const [offlineQrCount, setOfflineQrCount] = useState(0);
   const [settings, setSettings] = useState(() => getCachedSettings());
-  const [catalogFloors, setCatalogFloors] = useState<any[]>(floors);
+  const [catalogFloors, setCatalogFloors] = useState<any[]>([]);
   const [catalogRoomsMap, setCatalogRoomsMap] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
   const [showEarlyFinishModal, setShowEarlyFinishModal] = useState(false);
@@ -319,8 +324,17 @@ export default function PatrolPage() {
         if (cu) currentUserId = JSON.parse(cu).id;
       } catch {}
 
-      const { floors: fallbackFloors, getCurrentSchedule } = await import('@/lib/dummy-data');
-      const sched = getCurrentSchedule();
+      const { resolveCurrentSchedule } = await import('@/lib/offline-cache');
+      const { getCachedFloors } = await import('@/lib/db');
+      const cachedFloors = await getCachedFloors().catch(() => []);
+      const fallbackFloors = cachedFloors.length > 0 ? cachedFloors : (await import('@/lib/dummy-data')).floors;
+      const sched = resolveCurrentSchedule() || {
+        id: 'default-sched',
+        name: 'Ronda Patroli',
+        patrolNumber: 1,
+        startTime: '07:00',
+        endTime: '10:00',
+      };
       const offlineSession = {
         id: `offline-sess-${Date.now()}`,
         userId: currentUserId,
@@ -342,8 +356,17 @@ export default function PatrolPage() {
       setSession(offlineSession);
     } catch {
       try {
-        const { floors: fallbackFloors, getCurrentSchedule } = await import('@/lib/dummy-data');
-        const sched = getCurrentSchedule();
+        const { resolveCurrentSchedule } = await import('@/lib/offline-cache');
+        const { getCachedFloors } = await import('@/lib/db');
+        const cachedFloors = await getCachedFloors().catch(() => []);
+        const fallbackFloors = cachedFloors.length > 0 ? cachedFloors : (await import('@/lib/dummy-data')).floors;
+        const sched = resolveCurrentSchedule() || {
+          id: 'default-sched',
+          name: 'Ronda Patroli',
+          patrolNumber: 1,
+          startTime: '07:00',
+          endTime: '10:00',
+        };
         const offlineSession = {
           id: `offline-sess-${Date.now()}`,
           patrolNumber: sched.patrolNumber || 1,

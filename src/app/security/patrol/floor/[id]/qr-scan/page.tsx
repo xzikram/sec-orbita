@@ -18,6 +18,8 @@ export default function QRScanPage({
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
   const [dbFloor, setDbFloor] = useState<any>(null);
+  const [cachedFloorsList, setCachedFloorsList] = useState<any[]>([]);
+  const [cachedRooms, setCachedRooms] = useState<any[]>([]);
 
   const fallbackFloor = getFloorById(id) || 
     (() => {
@@ -94,9 +96,13 @@ export default function QRScanPage({
             } catch {}
           }
 
+          let targetFloorIdentifier: string = id;
           if (dbMod.getCachedFloors) {
             try {
               const cachedFloors = await dbMod.getCachedFloors();
+              if (Array.isArray(cachedFloors) && cachedFloors.length > 0) {
+                setCachedFloorsList(cachedFloors);
+              }
               const matchedFloor = cachedFloors.find((f: any) =>
                 dbMod.matchFloor ? dbMod.matchFloor(f, id) : (
                   String(f.id).toLowerCase() === String(id).toLowerCase() ||
@@ -105,9 +111,18 @@ export default function QRScanPage({
               );
               if (matchedFloor) {
                 setDbFloor(matchedFloor);
+                targetFloorIdentifier = matchedFloor.code || matchedFloor.id;
               }
             } catch {}
           }
+
+          try {
+            const { getResilientRoomsForFloor } = await import('@/lib/offline-cache');
+            const rooms = await getResilientRoomsForFloor(targetFloorIdentifier);
+            if (Array.isArray(rooms) && rooms.length > 0) {
+              setCachedRooms(rooms);
+            }
+          } catch {}
         }
 
         // 3. Render immediately (< 25ms)
@@ -158,7 +173,7 @@ export default function QRScanPage({
   );
 
   // Check if all rooms on this floor are checked before scanning QR
-  const floorRooms = floor ? getRoomsByFloor(floor.id) : [];
+  const floorRooms = cachedRooms.length > 0 ? cachedRooms : (floor ? getRoomsByFloor(floor.id) : []);
   const uniqueChecked = new Set<string>();
   floorRooms.forEach(r => {
     if (isRoomChecked(r, sessionFloor?.patrolChecks, offlineChecks, currentSession?.id)) {
@@ -179,7 +194,8 @@ export default function QRScanPage({
 
   // Calculate next floor based on user route direction
   const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
-  const sortedFloors = [...floors].sort((a, b) => isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder);
+  const availableFloors = cachedFloorsList.length > 0 ? cachedFloorsList : floors;
+  const sortedFloors = [...availableFloors].sort((a, b) => isReversed ? (b.sortOrder ?? 0) - (a.sortOrder ?? 0) : (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const currentIdx = sortedFloors.findIndex(f => f.id === floor?.id || f.code === floor?.code);
   const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
 

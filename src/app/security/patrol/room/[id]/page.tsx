@@ -559,19 +559,39 @@ export default function RoomCheckPage({
         navigator.vibrate([60, 40, 100]);
       }
 
-      // Refresh cached session data in background during success animation
-      fetch('/api/patrol/sessions')
-        .then(res => (res && res.ok ? res.json() : null))
-        .then(sessions => {
-          if (Array.isArray(sessions)) {
-            const myId = currentUser?.id;
-            const active = sessions.find((s: any) => s.status === 'in_progress' && (s.userId === myId || !s.userId)) || null;
-            if (active) {
-              localStorage.setItem('cached-active-session', JSON.stringify(active));
+      // Update local cached active session instantly without heavy network overfetching
+      try {
+        const cachedRaw = localStorage.getItem('cached-active-session');
+        if (cachedRaw) {
+          const sess = JSON.parse(cachedRaw);
+          if (Array.isArray(sess.sessionFloors)) {
+            const sf = sess.sessionFloors.find((f: any) =>
+              f.id === sessionFloorId || f.floorId === room.floorId || (floor && f.floorCodeSnapshot === floor.code)
+            );
+            if (sf) {
+              if (!Array.isArray(sf.patrolChecks)) sf.patrolChecks = [];
+              const existingIdx = sf.patrolChecks.findIndex((c: any) => c.roomId === room.id || c.roomCodeSnapshot === room.code);
+              const checkData = {
+                id: result.checkId || `check-${room.id}-${Date.now()}`,
+                roomId: room.id,
+                roomCodeSnapshot: room.code,
+                acStatus: acStatus || 'not_available',
+                lightStatus: lightStatus === 'not_available' ? 'off' : (lightStatus || 'off'),
+                condition: condition || 'normal',
+                checkedAt: new Date().toISOString(),
+              };
+              if (existingIdx !== -1) {
+                sf.patrolChecks[existingIdx] = { ...sf.patrolChecks[existingIdx], ...checkData };
+              } else {
+                sf.patrolChecks.push(checkData);
+              }
+              localStorage.setItem('cached-active-session', JSON.stringify(sess));
             }
           }
-        })
-        .catch(() => {});
+        }
+      } catch (cacheErr) {
+        console.warn('Local session state update notice:', cacheErr);
+      }
 
       // Build an up-to-date checked set that includes the current room
       const updatedCheckedSet = new Set(combinedCheckedSet);

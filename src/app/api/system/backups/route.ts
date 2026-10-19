@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
-import { listBackups, createFullBackup, deleteBackup, rotateBackups, getServerStorageStats, BACKUP_MASTER_PASSWORD } from '@/lib/backup-service';
+import { listBackups, createFullBackup, deleteBackup, rotateBackups, getServerStorageStats, verifyBackupAuthorization } from '@/lib/backup-service';
 import prisma from '@/lib/prisma';
 
 export async function GET(request: Request) {
@@ -33,9 +33,10 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const { securityPassword, action } = body;
 
-    // Verifikasi Password Otorisasi Khusus "Ikr300721"
-    if (!securityPassword || securityPassword !== BACKUP_MASTER_PASSWORD) {
-      return NextResponse.json({ error: 'Password otorisasi backup SALAH! Akses ditolak.' }, { status: 401 });
+    // Verifikasi Password Otorisasi (password login Admin atau BACKUP_MASTER_KEY)
+    const isAuthorized = await verifyBackupAuthorization(securityPassword, auth.id);
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'Password otorisasi backup SALAH! Masukkan password akun Administrator Anda.' }, { status: 401 });
     }
 
     // Aksi pemangkasan cadangan lama (> 2 cadangan)
@@ -95,9 +96,10 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Nama berkas cadangan wajib ditentukan!' }, { status: 400 });
     }
 
-    // Verifikasi Password Otorisasi Khusus "Ikr300721"
-    if (!securityPassword || securityPassword !== BACKUP_MASTER_PASSWORD) {
-      return NextResponse.json({ error: 'Password otorisasi penghapusan SALAH! Akses ditolak.' }, { status: 401 });
+    // Verifikasi Password Otorisasi (password login Admin atau BACKUP_MASTER_KEY)
+    const isAuthorized = await verifyBackupAuthorization(securityPassword, auth.id);
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'Password otorisasi penghapusan SALAH! Masukkan password akun Administrator Anda.' }, { status: 401 });
     }
 
     const result = await deleteBackup(backupName);

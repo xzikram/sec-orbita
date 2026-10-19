@@ -566,21 +566,35 @@ export default function FloorDetailPage({
                   className={`${styles.roomItem} ${isChecked ? styles.roomChecked : ''} ${isNext ? styles.roomNext : ''} animate-slide-up stagger-${Math.min(index + 1, 6)}`}
                   id={`room-${room.code}`}
                 >
-                  <div className={styles.roomOrder} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1px', minWidth: '36px' }}>
+                  <div className={styles.roomOrder} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', minWidth: '44px', flexShrink: 0 }}>
                     {isChecked ? (
                       <div className={styles.checkIcon}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       </div>
                     ) : (
                       <>
-                        <span className={styles.orderNumber} style={{ fontWeight: 'bold' }}>{index + 1}</span>
+                        <span className={styles.orderNumber} style={{ fontWeight: 'bold', fontSize: '13px' }}>{index + 1}</span>
                         <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
                           {index > 0 && (
                             <button 
                               onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveRoom(index, 'up'); }} 
-                              style={{ background: 'var(--color-neutral-100)', border: 'none', borderRadius: '3px', color: 'var(--color-neutral-600)', padding: '1px 4px', fontSize: '8px', cursor: 'pointer' }} 
+                              style={{
+                                background: 'var(--color-neutral-100)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                color: 'var(--color-neutral-700)',
+                                width: '28px',
+                                height: '28px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                touchAction: 'manipulation',
+                              }} 
+                              aria-label="Pindah urutan ke atas"
                               title="Naik"
                             >
                               ▲
@@ -589,7 +603,21 @@ export default function FloorDetailPage({
                           {index < floorRooms.length - 1 && (
                             <button 
                               onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveRoom(index, 'down'); }} 
-                              style={{ background: 'var(--color-neutral-100)', border: 'none', borderRadius: '3px', color: 'var(--color-neutral-600)', padding: '1px 4px', fontSize: '8px', cursor: 'pointer' }} 
+                              style={{
+                                background: 'var(--color-neutral-100)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px',
+                                color: 'var(--color-neutral-700)',
+                                width: '28px',
+                                height: '28px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                touchAction: 'manipulation',
+                              }} 
+                              aria-label="Pindah urutan ke bawah"
                               title="Turun"
                             >
                               ▼

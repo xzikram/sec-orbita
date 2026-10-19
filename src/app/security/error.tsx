@@ -46,6 +46,9 @@ export default function SecurityErrorPage({
       lowerMsg.includes('failed to fetch') ||
       lowerMsg.includes('load failed') ||
       lowerMsg.includes('error loading dynamically imported module') ||
+      lowerMsg.includes('instantiated') ||
+      lowerMsg.includes('module factory') ||
+      lowerMsg.includes('was required from module') ||
       (lowerMsg.includes('chunk') && lowerMsg.includes('failed'));
 
     if (isChunkError) {
@@ -53,6 +56,9 @@ export default function SecurityErrorPage({
       const count = parseInt(sessionStorage.getItem(retryKey) || '0', 10);
       if (count < 2) {
         sessionStorage.setItem(retryKey, String(count + 1));
+        if ('caches' in window) {
+          caches.keys().then(names => Promise.all(names.map(n => caches.delete(n)))).catch(() => {});
+        }
         window.location.reload();
         return;
       }

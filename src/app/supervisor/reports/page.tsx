@@ -94,10 +94,18 @@ export default function ReportsPage() {
     time: string;
   } | null>(null);
 
-  // Set default date to today
+// Timezone helper for Asia/Makassar (WITA)
+function getMakassarDateString(offsetDays = 0): string {
+  const d = new Date();
+  if (offsetDays !== 0) {
+    d.setDate(d.getDate() + offsetDays);
+  }
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(d);
+}
+
+  // Set default date to today in Asia/Makassar
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    setSelectedDate(today);
+    setSelectedDate(getMakassarDateString());
   }, []);
 
   // Fetch report data whenever selectedDate changes
@@ -126,11 +134,7 @@ export default function ReportsPage() {
 
   // Quick date selector
   const handleQuickDate = (type: 'today' | 'yesterday') => {
-    const d = new Date();
-    if (type === 'yesterday') {
-      d.setDate(d.getDate() - 1);
-    }
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(getMakassarDateString(type === 'yesterday' ? -1 : 0));
   };
 
   // Toggle detail accordion
@@ -174,12 +178,8 @@ export default function ReportsPage() {
   });
 
   const totalCheckedRooms = sessions.reduce((sum, s) => sum + s.checkedRoomsCount, 0);
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
-  const isYesterday = (() => {
-    const y = new Date();
-    y.setDate(y.getDate() - 1);
-    return selectedDate === y.toISOString().split('T')[0];
-  })();
+  const isToday = selectedDate === getMakassarDateString();
+  const isYesterday = selectedDate === getMakassarDateString(-1);
 
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return '';

@@ -149,7 +149,7 @@ export default function UsersPage() {
       alert('Anda tidak dapat menghapus akun Anda sendiri');
       return;
     }
-    if (!confirm(`Hapus user "${userName}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+    if (!confirm(`Nonaktifkan / hapus user "${userName}"? Data riwayat patroli dan temuan akan tetap tersimpan aman untuk audit.`)) return;
 
     try {
       const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });

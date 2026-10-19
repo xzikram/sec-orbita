@@ -22,111 +22,28 @@ export async function DELETE(
       return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 });
     }
 
-    // 1. Gather all related session IDs for this user
-    const userSessions = await prisma.patrolSession.findMany({
-      where: { userId: id },
-      select: { id: true },
-    });
-    const sessionIds = userSessions.map(s => s.id);
+    // Check if user has historical audit or patrol data
+    const hasHistory = (await prisma.patrolSession.count({ where: { userId: id } })) > 0 ||
+                       (await prisma.finding.count({ where: { userId: id } })) > 0 ||
+                       (await prisma.patrolCheck.count({ where: { userId: id } })) > 0;
 
-    // 2. Gather session floor IDs for these sessions
-    const sessionFloors = await prisma.patrolSessionFloor.findMany({
-      where: { sessionId: { in: sessionIds } },
-      select: { id: true },
-    });
-    const sessionFloorIds = sessionFloors.map(sf => sf.id);
-
-    // 3. Gather patrol check IDs belonging to this user OR these session floors
-    const userChecks = await prisma.patrolCheck.findMany({
-      where: {
-        OR: [
-          { userId: id },
-          { sessionFloorId: { in: sessionFloorIds } },
-        ],
-      },
-      select: { id: true },
-    });
-    const checkIds = userChecks.map(c => c.id);
-
-    // 4. Gather finding IDs belonging to this user, these checks, or these sessions
-    const userFindings = await prisma.finding.findMany({
-      where: {
-        OR: [
-          { userId: id },
-          { checkId: { in: checkIds } },
-          { sessionId: { in: sessionIds } },
-        ],
-      },
-      select: { id: true },
-    });
-    const findingIds = userFindings.map(f => f.id);
-
-    // Execute comprehensive cascading delete in correct dependency order
-    await prisma.$transaction([
-      // a. Finding updates (by this user or for these findings)
-      prisma.findingUpdate.deleteMany({
-        where: {
-          OR: [
-            { userId: id },
-            { findingId: { in: findingIds } },
-          ],
-        },
-      }),
-
-      // b. Findings
-      prisma.finding.deleteMany({
-        where: { id: { in: findingIds } },
-      }),
-
-      // c. Patrol photos (by this user or for these checks)
-      prisma.patrolPhoto.deleteMany({
-        where: {
-          OR: [
-            { userId: id },
-            { checkId: { in: checkIds } },
-          ],
-        },
-      }),
-
-      // d. Patrol checks
-      prisma.patrolCheck.deleteMany({
-        where: { id: { in: checkIds } },
-      }),
-
-      // e. Patrol session floors
-      prisma.patrolSessionFloor.deleteMany({
-        where: { id: { in: sessionFloorIds } },
-      }),
-
-      // f. Patrol sessions
-      prisma.patrolSession.deleteMany({
-        where: { id: { in: sessionIds } },
-      }),
-
-      // g. Support feedbacks submitted by this user
-      prisma.supportFeedback.deleteMany({
-        where: { userId: id },
-      }),
-
-      // h. Shift handovers (sent from or sent to this user)
-      prisma.shiftHandover.deleteMany({
-        where: { OR: [{ fromUserId: id }, { toUserId: id }] },
-      }),
-
-      // i. User achievements
-      prisma.userAchievement.deleteMany({
-        where: { userId: id },
-      }),
-
-      // j. Activity logs
-      prisma.activityLog.deleteMany({
-        where: { userId: id },
-      }),
-
-      // k. Finally delete the user
-      prisma.user.delete({
+    if (hasHistory) {
+      // Soft delete to protect compliance and audit records
+      await prisma.user.update({
         where: { id },
-      }),
+        data: { isActive: false },
+      });
+      return NextResponse.json({
+        message: 'User memiliki riwayat patroli/temuan. Akun telah dinonaktifkan untuk menjaga arsip kepatuhan rumah sakit.',
+      });
+    }
+
+    // If user has no historical records, safe to hard delete
+    await prisma.$transaction([
+      prisma.userAchievement.deleteMany({ where: { userId: id } }),
+      prisma.activityLog.deleteMany({ where: { userId: id } }),
+      prisma.supportFeedback.deleteMany({ where: { userId: id } }),
+      prisma.user.delete({ where: { id } }),
     ]);
 
     return NextResponse.json({ message: 'User berhasil dihapus' });

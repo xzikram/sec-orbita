@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getRealtimeShift, getOppositeShift } from '@/lib/shifts';
-import { getCurrentSchedule, getRoomsByFloor } from '@/lib/dummy-data';
+import { getRoomsByFloor } from '@/lib/dummy-data';
+import { resolveCurrentSchedule, getCachedSchedules } from '@/lib/offline-cache';
 import styles from './dashboard.module.css';
 
 interface SessionFloor {
@@ -56,6 +57,7 @@ export default function SecurityDashboard() {
   const [handoverTargetShiftId, setHandoverTargetShiftId] = useState('');
   const [securityStaff, setSecurityStaff] = useState<any[]>([]);
   const [shiftsList, setShiftsList] = useState<any[]>([]);
+  const [schedulesList, setSchedulesList] = useState<any[]>(() => getCachedSchedules());
   const [submittingHandover, setSubmittingHandover] = useState(false);
 
   // Active user & multi-officer state
@@ -104,6 +106,23 @@ export default function SecurityDashboard() {
 
   const handleNavigateToPatrolWithPreDownload = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
+
+    // Fast path: jika sesi aktif sudah ada & valid di HP, langsung buka rute tanpa jeda!
+    try {
+      const existingRaw = localStorage.getItem('cached-active-session');
+      if (existingRaw) {
+        const parsed = JSON.parse(existingRaw);
+        if (
+          !isSessionStaleOrPastDay(parsed) &&
+          parsed.status === 'in_progress' &&
+          (!currentUser?.id || !parsed.userId || parsed.userId === currentUser.id)
+        ) {
+          router.push('/security/patrol');
+          return;
+        }
+      }
+    } catch {}
+
     setIsPreparingOffline(true);
     setPrepareProgress(20);
     setPrepareStatusText('Menyiapkan koneksi data...');
@@ -152,8 +171,14 @@ export default function SecurityDashboard() {
       }
 
       if (!cached) {
-        const { floors: fallbackFloors, getCurrentSchedule } = await import('@/lib/dummy-data');
-        const sched = getCurrentSchedule();
+        const { floors: fallbackFloors } = await import('@/lib/dummy-data');
+        const sched = resolveCurrentSchedule(schedulesList) || {
+          id: 'default-sched',
+          name: 'Ronda Patroli',
+          patrolNumber: 1,
+          startTime: '07:00',
+          endTime: '10:00',
+        };
         const offlineSession = {
           id: `offline-sess-${Date.now()}`,
           userId: currentUser?.id || undefined,
@@ -175,13 +200,8 @@ export default function SecurityDashboard() {
         localStorage.setItem('cached-active-session', JSON.stringify(offlineSession));
       }
 
-      setPrepareProgress(85);
-      setPrepareStatusText(`Menyimpan ${res.roomsCount || 133} ruangan & token QR fisik di HP...`);
-      await new Promise(r => setTimeout(r, 200));
-
       setPrepareProgress(100);
-      setPrepareStatusText('Data offline siap! Masuk ke rute patroli...');
-      await new Promise(r => setTimeout(r, 150));
+      setPrepareStatusText('Rute patroli siap!');
 
       if (typeof window !== 'undefined' && !navigator.onLine) {
         window.location.href = '/security/patrol';
@@ -255,8 +275,14 @@ export default function SecurityDashboard() {
       }
 
       if (!cached) {
-        const { floors: fallbackFloors, getCurrentSchedule } = await import('@/lib/dummy-data');
-        const sched = getCurrentSchedule();
+        const { floors: fallbackFloors } = await import('@/lib/dummy-data');
+        const sched = resolveCurrentSchedule(schedulesList) || {
+          id: 'default-sched',
+          name: 'Ronda Patroli',
+          patrolNumber: 1,
+          startTime: '07:00',
+          endTime: '10:00',
+        };
         const offlineSession = {
           id: `offline-sess-${Date.now()}`,
           userId: currentUser?.id || undefined,
@@ -486,7 +512,7 @@ export default function SecurityDashboard() {
     setIsRefreshing(true);
     try {
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
-      const [meRes, sessionsRes, findingsRes, floorsRes, staffRes, shiftsRes, lbRes] = await Promise.all([
+      const [meRes, sessionsRes, findingsRes, floorsRes, staffRes, shiftsRes, lbRes, schedRes] = await Promise.all([
         fetch('/api/auth/me').catch(() => null),
         fetch(`/api/patrol/sessions?date=${today}`).catch(() => null),
         fetch('/api/findings?status=new&limit=100').catch(() => null),
@@ -494,6 +520,7 @@ export default function SecurityDashboard() {
         fetch('/api/users?role=security').catch(() => null),
         fetch('/api/shifts').catch(() => null),
         fetch('/api/leaderboard').catch(() => null),
+        fetch('/api/schedules').catch(() => null),
       ]);
 
       let loggedInUser = currentUser;
@@ -512,6 +539,14 @@ export default function SecurityDashboard() {
         const shifts = await shiftsRes.json();
         const activeShifts = Array.isArray(shifts) ? shifts : [];
         setShiftsList(activeShifts);
+      }
+
+      if (schedRes && schedRes.ok) {
+        const dynamicSchedules = await schedRes.json();
+        if (Array.isArray(dynamicSchedules) && dynamicSchedules.length > 0) {
+          setSchedulesList(dynamicSchedules);
+          try { localStorage.setItem('cached-schedules', JSON.stringify(dynamicSchedules)); } catch {}
+        }
       }
 
       if (lbRes && lbRes.ok) {
@@ -755,7 +790,13 @@ export default function SecurityDashboard() {
     );
   }
 
-  const currentSched = getCurrentSchedule();
+  const currentSched = resolveCurrentSchedule(schedulesList) || {
+    id: 'default-sched',
+    name: 'Ronda Patroli',
+    patrolNumber: 1,
+    startTime: '07:00',
+    endTime: '10:00',
+  };
   const isOldRound = data?.incompleteSession
     ? (data.incompleteSession.patrolNumber !== currentSched.patrolNumber)
     : false;

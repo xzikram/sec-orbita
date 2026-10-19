@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getOfflineCount } from '@/lib/db';
 import { syncOfflineData } from '@/lib/sync';
 import { checkServerReachable } from '@/lib/data-client';
@@ -10,6 +10,7 @@ export default function SyncStatus() {
   const [counts, setCounts] = useState({ checks: 0, findings: 0, qrScans: 0 });
   const [serverReachable, setServerReachable] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const syncingRef = useRef(false);
   const [syncPercent, setSyncPercent] = useState(0);
   const [message, setMessage] = useState('');
 
@@ -21,6 +22,8 @@ export default function SyncStatus() {
   };
 
   const handleSync = async () => {
+    if (syncingRef.current) return;
+    syncingRef.current = true;
     setSyncing(true);
     setSyncPercent(10);
     setMessage('Menghubungkan ke server...');
@@ -30,6 +33,7 @@ export default function SyncStatus() {
       setMessage(p.statusText);
     });
 
+    syncingRef.current = false;
     setSyncing(false);
 
     if (result.success) {
@@ -56,7 +60,7 @@ export default function SyncStatus() {
         if (isMounted) {
           setCounts(c);
           const total = c.checks + c.findings + (c.qrScans || 0);
-          if (ok && total > 0 && !syncing) {
+          if (ok && total > 0 && !syncingRef.current) {
             handleSync();
           }
         }
@@ -64,13 +68,14 @@ export default function SyncStatus() {
     };
 
     probe();
-    const interval = setInterval(probe, 6000);
+    // Relaxed polling interval: 30 seconds to save battery and network bandwidth
+    const interval = setInterval(probe, 30000);
 
     const handleOnline = async () => {
       const ok = await checkServerReachable(800);
       if (isMounted) {
         setServerReachable(ok);
-        if (ok) {
+        if (ok && !syncingRef.current) {
           handleSync();
         }
       }

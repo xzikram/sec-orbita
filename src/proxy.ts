@@ -1,12 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Lightweight JWT decode (header.payload.signature) — we only read the payload
-function decodeTokenPayload(token: string): { role?: string; exp?: number } | null {
+// Cryptographic JWT HMAC-SHA256 verification using standard Web Crypto API
+async function verifyTokenPayload(token: string): Promise<{ role?: string; exp?: number; id?: string } | null> {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'));
-    // If token has an expiry and is expired, treat as invalid
+    const [headerB64, payloadB64, signatureB64] = parts;
+
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      console.error('[PROXY SECURITY] JWT_SECRET environment variable is missing!');
+      return null;
+    }
+
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+
+    // Convert signature from base64url to Uint8Array
+    const sigBase64 = signatureB64.replace(/-/g, '+').replace(/_/g, '/');
+    const sigPad = sigBase64.padEnd(sigBase64.length + (4 - (sigBase64.length % 4)) % 4, '=');
+    const sigBinary = atob(sigPad);
+    const sigBytes = new Uint8Array(sigBinary.length);
+    for (let i = 0; i < sigBinary.length; i++) {
+      sigBytes[i] = sigBinary.charCodeAt(i);
+    }
+
+    const dataBytes = enc.encode(`${headerB64}.${payloadB64}`);
+    const isValid = await crypto.subtle.verify('HMAC', key, sigBytes, dataBytes);
+    if (!isValid) {
+      console.warn('[PROXY SECURITY] Invalid or forged token signature rejected');
+      return null;
+    }
+
+    const payloadJson = Buffer.from(payloadB64, 'base64url').toString('utf-8');
+    const payload = JSON.parse(payloadJson);
     if (payload.exp && payload.exp * 1000 < Date.now()) {
       return null;
     }
@@ -16,10 +49,10 @@ function decodeTokenPayload(token: string): { role?: string; exp?: number } | nu
   }
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('patrol-auth-token')?.value;
-  const payload = token ? decodeTokenPayload(token) : null;
+  const payload = token ? await verifyTokenPayload(token) : null;
 
   // Static files and Next.js internals — bypass
   if (

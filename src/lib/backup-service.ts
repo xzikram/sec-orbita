@@ -480,7 +480,31 @@ export async function restoreFullBackup(backupName: string): Promise<{ success: 
   }
 }
 
-export const BACKUP_MASTER_PASSWORD = process.env.BACKUP_MASTER_KEY || 'Ikr300721';
+export async function verifyBackupAuthorization(password: string, adminUserId?: string): Promise<boolean> {
+  if (!password) return false;
+  // 1. Check server environment master key if explicitly configured
+  const envMaster = process.env.BACKUP_MASTER_KEY;
+  if (envMaster && password === envMaster) {
+    return true;
+  }
+  // 2. Check logged-in admin's own password
+  if (adminUserId) {
+    try {
+      const { default: prisma } = await import('@/lib/prisma');
+      const { verifyPassword } = await import('@/lib/auth');
+      const user = await prisma.user.findUnique({
+        where: { id: adminUserId },
+        select: { password: true, role: true },
+      });
+      if (user && user.role === 'admin') {
+        return await verifyPassword(password, user.password);
+      }
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
 
 export async function deleteBackup(backupName: string): Promise<{ success: boolean; message: string }> {
   const rootDir = getAppRoot();

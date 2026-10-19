@@ -172,24 +172,41 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
     addWatermark(ctx, canvas.width, canvas.height);
 
     // Compress using dynamic quality from system settings
-    const blob = await new Promise<Blob>((resolve) => {
-      canvas.toBlob(b => resolve(b!), 'image/jpeg', quality);
+    const blob = await new Promise<Blob | null>((resolve) => {
+      try {
+        canvas.toBlob(b => resolve(b), 'image/jpeg', quality);
+      } catch {
+        resolve(null);
+      }
     });
 
-    // Further compress if too large (> 700KB)
-    let finalBlob = blob;
-    if (blob.size > 700 * 1024) {
-      const { default: imageCompression } = await import('browser-image-compression');
-      const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1280,
-        useWebWorker: true,
-      });
-      finalBlob = compressed;
+    const preview = canvas.toDataURL('image/jpeg', quality);
+    let finalBlob: Blob;
+
+    if (blob) {
+      finalBlob = blob;
+      if (blob.size > 700 * 1024) {
+        try {
+          const { default: imageCompression } = await import('browser-image-compression');
+          const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+          const compressed = await imageCompression(file, {
+            maxSizeMB: 0.5,
+            maxWidthOrHeight: 1280,
+            useWebWorker: true,
+          });
+          finalBlob = compressed;
+        } catch (compErr) {
+          console.warn('Image compression warning:', compErr);
+        }
+      }
+    } else {
+      // Safe fallback if toBlob is null (memory constraint or orientation change)
+      const bin = atob(preview.split(',')[1]);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      finalBlob = new Blob([arr], { type: 'image/jpeg' });
     }
 
-    const preview = canvas.toDataURL('image/jpeg', 0.8);
     setCaptured(preview);
 
     const file = new File([finalBlob], `patrol-${Date.now()}.jpg`, { type: 'image/jpeg' });
@@ -216,26 +233,39 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
         // Add the exact same watermark
         addWatermark(ctx, canvas.width, canvas.height);
 
-        const blob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.80);
+        const blob = await new Promise<Blob | null>((resolve) => {
+          try {
+            canvas.toBlob(b => resolve(b), 'image/jpeg', 0.80);
+          } catch {
+            resolve(null);
+          }
         });
 
-        let finalBlob = blob;
-        if (blob.size > 700 * 1024) {
-          try {
-            const { default: imageCompression } = await import('browser-image-compression');
-            const compressFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
-            finalBlob = await imageCompression(compressFile, {
-              maxSizeMB: 0.5,
-              maxWidthOrHeight: 1280,
-              useWebWorker: true,
-            });
-          } catch (compErr) {
-            console.warn('Compression fallback warning:', compErr);
+        const preview = canvas.toDataURL('image/jpeg', 0.8);
+        let finalBlob: Blob;
+
+        if (blob) {
+          finalBlob = blob;
+          if (blob.size > 700 * 1024) {
+            try {
+              const { default: imageCompression } = await import('browser-image-compression');
+              const compressFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+              finalBlob = await imageCompression(compressFile, {
+                maxSizeMB: 0.5,
+                maxWidthOrHeight: 1280,
+                useWebWorker: true,
+              });
+            } catch (compErr) {
+              console.warn('Compression fallback warning:', compErr);
+            }
           }
+        } else {
+          const bin = atob(preview.split(',')[1]);
+          const arr = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          finalBlob = new Blob([arr], { type: 'image/jpeg' });
         }
 
-        const preview = canvas.toDataURL('image/jpeg', 0.8);
         setCaptured(preview);
         const resultFile = new File([finalBlob], `patrol-${Date.now()}.jpg`, { type: 'image/jpeg' });
         onCapture(resultFile, preview);
@@ -330,17 +360,19 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
               <button className={styles.ctrlBtn} onClick={switchCamera} title="Ganti Kamera Depan/Belakang">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
               </button>
-              <label className={styles.ctrlBtn} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Ambil via Kamera HP Bawaan">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleFileFallback}
-                  style={{ display: 'none' }}
-                />
-              </label>
+              {getCachedSettings().block_gallery !== 'true' && (
+                <label className={styles.ctrlBtn} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Ambil via Kamera HP Bawaan">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileFallback}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              )}
             </div>
           </div>
         </div>

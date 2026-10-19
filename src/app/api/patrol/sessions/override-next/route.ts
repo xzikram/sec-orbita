@@ -50,19 +50,24 @@ export async function POST(request: NextRequest) {
       minute: '2-digit',
     });
 
-    // 1. Close the previous session if provided, or any currently dangling in_progress session today
+    // 1. Close the previous session if provided, or any currently dangling in_progress session belonging to this officer today
     let prevSessionToClose = null;
     if (previousSessionId) {
       prevSessionToClose = await prisma.patrolSession.findUnique({
         where: { id: previousSessionId },
         include: { user: true, schedule: true, sessionFloors: true },
       });
+      // Non-admin security officer can only override their own session
+      if (prevSessionToClose && auth.role !== 'admin' && prevSessionToClose.userId !== auth.id) {
+        prevSessionToClose = null;
+      }
     }
 
     if (!prevSessionToClose) {
-      // Find any active in_progress session today
+      // Find any active in_progress session belonging to this officer today
       prevSessionToClose = await prisma.patrolSession.findFirst({
         where: {
+          userId: auth.id,
           patrolDate,
           status: 'in_progress',
         },

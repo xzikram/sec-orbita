@@ -17,7 +17,7 @@ export interface PreDownloadResult {
   error?: string;
 }
 
-export const CATALOG_CACHE_VERSION = 'sec-patrol-v19';
+export const CATALOG_CACHE_VERSION = 'sec-patrol-v20';
 
 /**
  * Downloads and caches all active floors, 133 rooms, and official QR tokens to IndexedDB.
@@ -52,18 +52,26 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
     // 2. Cache floors and all rooms in IndexedDB
     const { floorsCount, roomsCount } = await cacheMasterPatrolData(floorsWithRooms);
 
-    // 3. Pre-cache active patrol session & auth user for offline resilience
+    // 3. Pre-cache active patrol session, schedules, checklists & auth user for offline resilience
     try {
-      const [sessionsRes, meRes, checklistsRes] = await Promise.all([
+      const [sessionsRes, meRes, checklistsRes, schedulesRes] = await Promise.all([
         fetch('/api/patrol/sessions?personal=true').catch(() => null),
         fetch('/api/auth/me').catch(() => null),
         fetch('/api/checklists').catch(() => null),
+        fetch('/api/schedules').catch(() => null),
       ]);
 
       if (checklistsRes && checklistsRes.ok) {
         const checklistsData = await checklistsRes.json();
         if (Array.isArray(checklistsData)) {
           localStorage.setItem('cached-checklist-templates', JSON.stringify(checklistsData));
+        }
+      }
+
+      if (schedulesRes && schedulesRes.ok) {
+        const schedulesData = await schedulesRes.json();
+        if (Array.isArray(schedulesData)) {
+          localStorage.setItem('cached-schedules', JSON.stringify(schedulesData));
         }
       }
 
@@ -295,5 +303,36 @@ export function getDefaultChecklistItems(): string[] {
     return def.items;
   }
   return ['AC', 'Lampu', 'Music', 'Kondisi Ruangan'];
+}
+
+export function getCachedSchedules(): any[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('cached-schedules');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function resolveCurrentSchedule(schedules?: any[]): any {
+  const scheds = (schedules && schedules.length > 0) ? schedules : getCachedSchedules();
+  if (!scheds || scheds.length === 0) return null;
+
+  const nowTime = new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Makassar',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date()).replace('.', ':');
+
+  const matched = scheds.find((s: any) => {
+    if (s.startTime < s.endTime) {
+      return nowTime >= s.startTime && nowTime < s.endTime;
+    }
+    return nowTime >= s.startTime || nowTime < s.endTime;
+  });
+
+  return matched || scheds[0];
 }
 

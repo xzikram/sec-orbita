@@ -104,6 +104,17 @@ export async function POST(request: NextRequest) {
     const verifiedFloorName = anyOfficialMatch ? anyOfficialMatch.floorName : sessionFloor.floor.name;
     const tokenToSave = anyOfficialMatch ? anyOfficialMatch.token : (OFFICIAL_QR_MAP[floorCode.toUpperCase()] || dbToken || rawToken);
 
+    // Reject scan if QR belongs to another floor
+    if (verifiedFloorCode.toUpperCase() !== floorCode.toUpperCase()) {
+      return NextResponse.json({
+        error: `Stiker QR yang dipindai adalah milik ${verifiedFloorName} (${verifiedFloorCode}), bukan untuk ${sessionFloor.floor.name}. Silakan pindai stiker QR fisik yang terpasang di ${sessionFloor.floor.name}.`,
+        valid: false,
+        wrongFloor: true,
+        scannedFloorCode: verifiedFloorCode,
+        expectedFloorCode: floorCode,
+      }, { status: 400 });
+    }
+
     // Verify that all active rooms on this floor have been inspected before allowing QR seal completion
     const totalFloorRooms = await prisma.room.count({
       where: { floorId: sessionFloor.floorId, isActive: true },
@@ -127,42 +138,17 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
 
-    // 1. Mark current floor completed
+    // Mark current floor completed with QR seal
     await prisma.patrolSessionFloor.update({
       where: { id: sessionFloor.id },
       data: {
         status: 'completed',
         completedAt: now,
-        ...(verifiedFloorCode === floorCode ? {
-          qrValidated: true,
-          qrScannedAt: now,
-          qrTokenUsed: tokenToSave,
-        } : {}),
+        qrValidated: true,
+        qrScannedAt: now,
+        qrTokenUsed: tokenToSave,
       },
     });
-
-    // 2. If the scanned barcode belongs to another floor in this session, also mark that floor as qrValidated
-    if (verifiedFloorCode !== floorCode && sessionFloor.sessionId) {
-      const scannedSf = await prisma.patrolSessionFloor.findFirst({
-        where: {
-          sessionId: sessionFloor.sessionId,
-          OR: [
-            { floorCodeSnapshot: verifiedFloorCode },
-            { floor: { code: verifiedFloorCode } },
-          ],
-        },
-      });
-      if (scannedSf) {
-        await prisma.patrolSessionFloor.update({
-          where: { id: scannedSf.id },
-          data: {
-            qrValidated: true,
-            qrScannedAt: now,
-            qrTokenUsed: tokenToSave,
-          },
-        });
-      }
-    }
 
     // Log activity
     await prisma.activityLog.create({
