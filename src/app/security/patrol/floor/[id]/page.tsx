@@ -23,6 +23,7 @@ export default function FloorDetailPage({
 
   const [session, setSession] = useState<any>(null);
   const [dbFloor, setDbFloor] = useState<any>(null);
+  const [cachedFloorsList, setCachedFloorsList] = useState<any[]>([]);
   const [floorRooms, setFloorRooms] = useState<Room[]>([]);
   const [defaultFloorRooms, setDefaultFloorRooms] = useState<Room[]>([]);
   const [saveToastText, setSaveToastText] = useState<string | null>(null);
@@ -93,6 +94,7 @@ export default function FloorDetailPage({
         if (dbMod && dbMod.getCachedFloors) {
           try {
             const cachedFloors = await dbMod.getCachedFloors();
+            setCachedFloorsList(cachedFloors);
             matchedFloor = cachedFloors.find((f: any) =>
               dbMod.matchFloor ? dbMod.matchFloor(f, id) : (
                 String(f.id).toLowerCase() === String(id).toLowerCase() ||
@@ -353,7 +355,25 @@ export default function FloorDetailPage({
       }).catch(() => {});
     }
 
-    // 3. Visual feedback toast (Option A)
+    // 3. Immediately update IndexedDB master_rooms locally for 100% offline consistency
+    import('@/lib/db').then(async ({ openDB, STORE_MASTER_ROOMS }) => {
+      try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_MASTER_ROOMS, 'readwrite');
+        const store = tx.objectStore(STORE_MASTER_ROOMS);
+        newList.forEach((r, idx) => {
+          const req = store.get(r.id);
+          req.onsuccess = () => {
+            if (req.result) {
+              const updated = { ...req.result, patrolOrder: idx + 1 };
+              store.put(updated);
+            }
+          };
+        });
+      } catch {}
+    }).catch(() => {});
+
+    // 4. Visual feedback toast (Option A)
     triggerToast('✓ Urutan tersimpan');
   };
 
@@ -371,6 +391,24 @@ export default function FloorDetailPage({
     localStorage.removeItem(`patrol-order-codes-${empId}-${targetFloorCode}`);
     localStorage.removeItem(`patrol-order-codes-guest-${targetFloorCode}`);
     localStorage.removeItem(`patrol-order-${empId}-${id}`);
+
+    // Update IndexedDB master_rooms locally
+    import('@/lib/db').then(async ({ openDB, STORE_MASTER_ROOMS }) => {
+      try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_MASTER_ROOMS, 'readwrite');
+        const store = tx.objectStore(STORE_MASTER_ROOMS);
+        baseList.forEach((r, idx) => {
+          const req = store.get(r.id);
+          req.onsuccess = () => {
+            if (req.result) {
+              const updated = { ...req.result, patrolOrder: idx + 1 };
+              store.put(updated);
+            }
+          };
+        });
+      } catch {}
+    }).catch(() => {});
 
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       fetch('/api/users/preferences/route-order', {
@@ -416,12 +454,29 @@ export default function FloorDetailPage({
     }
   };
 
+  const floorsSource = cachedFloorsList.length > 0 ? cachedFloorsList : (
+    session?.sessionFloors && session.sessionFloors.length > 0
+      ? session.sessionFloors.map((sf: any) => ({
+          id: sf.floorId || sf.id,
+          code: sf.floorCodeSnapshot || sf.floor?.code || '',
+          name: sf.floorNameSnapshot || sf.floor?.name || '',
+          sortOrder: typeof sf.floor?.sortOrder === 'number' ? sf.floor.sortOrder : (typeof sf.sortOrder === 'number' ? sf.sortOrder : 999),
+        }))
+      : floors
+  );
+  const getSortVal = (fl: any) => {
+    if (typeof fl.sortOrder === 'number' && !isNaN(fl.sortOrder)) return fl.sortOrder;
+    const c = String(fl.code || '').toUpperCase();
+    if (c.includes('SB') || c.includes('SEMI')) return 0;
+    const m = c.match(/\d+/);
+    return m ? parseInt(m[0], 10) : 999;
+  };
   const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
-  const sortedFloors = [...floors].sort((a, b) => isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder);
-  const currentIdx = sortedFloors.findIndex(f => f.id === floor?.id || f.code === floor?.code);
+  const sortedFloors = [...floorsSource].sort((a, b) => isReversed ? getSortVal(b) - getSortVal(a) : getSortVal(a) - getSortVal(b));
+  const currentIdx = sortedFloors.findIndex(f => f.id === floor?.id || (floor?.code && f.code === floor?.code));
   const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
 
-  const handleSkipFloorQr = () => {
+  const markCurrentFloorCompletedInCache = () => {
     try {
       const cached = localStorage.getItem('cached-active-session');
       if (cached) {
@@ -432,12 +487,16 @@ export default function FloorDetailPage({
           );
           if (sf) {
             sf.status = 'completed';
-            sf.completedAt = new Date().toISOString();
+            sf.completedAt = sf.completedAt || new Date().toISOString();
             localStorage.setItem('cached-active-session', JSON.stringify(sess));
           }
         }
       }
     } catch {}
+  };
+
+  const handleSkipFloorQr = () => {
+    markCurrentFloorCompletedInCache();
 
     const targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
     if (typeof window !== 'undefined' && !navigator.onLine) {
@@ -734,6 +793,7 @@ export default function FloorDetailPage({
                 className="btn btn-primary btn-lg"
                 style={{ fontWeight: 700 }}
                 onClick={() => {
+                  markCurrentFloorCompletedInCache();
                   const target = `/security/patrol/floor/${nextFloor.id}`;
                   if (typeof window !== 'undefined' && !navigator.onLine) {
                     window.location.href = target;
@@ -750,6 +810,7 @@ export default function FloorDetailPage({
                 className="btn btn-primary btn-lg"
                 style={{ fontWeight: 700 }}
                 onClick={() => {
+                  markCurrentFloorCompletedInCache();
                   const target = `/security/patrol/summary`;
                   if (typeof window !== 'undefined' && !navigator.onLine) {
                     window.location.href = target;

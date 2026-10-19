@@ -104,10 +104,14 @@ export async function POST(request: NextRequest) {
     const verifiedFloorName = anyOfficialMatch ? anyOfficialMatch.floorName : sessionFloor.floor.name;
     const tokenToSave = anyOfficialMatch ? anyOfficialMatch.token : (OFFICIAL_QR_MAP[floorCode.toUpperCase()] || dbToken || rawToken);
 
-    // Reject scan if QR belongs to another floor
-    if (verifiedFloorCode.toUpperCase() !== floorCode.toUpperCase()) {
+    // Check system setting for qr_scan_mode
+    const scanModeSetting = await prisma.systemSetting.findUnique({ where: { key: 'qr_scan_mode' } });
+    const qrScanMode = scanModeSetting?.value || 'session';
+
+    // In per_floor mode, reject scan if QR belongs to another floor
+    if (qrScanMode === 'per_floor' && verifiedFloorCode.toUpperCase() !== floorCode.toUpperCase()) {
       return NextResponse.json({
-        error: `Stiker QR yang dipindai adalah milik ${verifiedFloorName} (${verifiedFloorCode}), bukan untuk ${sessionFloor.floor.name}. Silakan pindai stiker QR fisik yang terpasang di ${sessionFloor.floor.name}.`,
+        error: `Mode verifikasi tiap lantai aktif. Stiker QR yang dipindai adalah milik ${verifiedFloorName} (${verifiedFloorCode}), bukan untuk ${sessionFloor.floor.name}. Silakan pindai stiker QR fisik yang terpasang di ${sessionFloor.floor.name}.`,
         valid: false,
         wrongFloor: true,
         scannedFloorCode: verifiedFloorCode,

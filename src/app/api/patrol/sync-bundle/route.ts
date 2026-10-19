@@ -253,11 +253,13 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Mark session floor in_progress
-        await prisma.patrolSessionFloor.update({
-          where: { id: targetSf.id },
-          data: { status: 'in_progress', startedAt: targetSf.startedAt || checkedTimestamp },
-        });
+        // Mark session floor in_progress only if not already completed
+        if (targetSf.status !== 'completed') {
+          await prisma.patrolSessionFloor.update({
+            where: { id: targetSf.id },
+            data: { status: 'in_progress', startedAt: targetSf.startedAt || checkedTimestamp },
+          });
+        }
 
         syncedCheckIds.push(c.id);
       } catch (checkErr) {
@@ -271,23 +273,38 @@ export async function POST(request: NextRequest) {
         const realCheckId = f.checkId ? (checkIdMap[f.checkId] || f.checkId) : undefined;
         let dbCheck = null;
         if (realCheckId) {
-          dbCheck = await prisma.patrolCheck.findUnique({ where: { id: realCheckId } });
+          dbCheck = await prisma.patrolCheck.findUnique({
+            where: { id: realCheckId },
+            include: { sessionFloor: true },
+          });
         }
 
         const todayNumberStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date()).replace(/-/g, '');
         const count = await prisma.finding.count({ where: { findingNumber: { startsWith: `FND-${todayNumberStr}` } } });
         const findingNumber = `FND-${todayNumberStr}-${String(count + 1 + syncedFindingIds.length).padStart(3, '0')}`;
 
+        const resolvedFloorId = f.floorId || dbCheck?.sessionFloor?.floorId || undefined;
+        let resolvedFloorSnapshot = f.floorNameSnapshot || dbCheck?.floorNameSnapshot || '';
+        let resolvedRoomSnapshot = f.roomNameSnapshot || dbCheck?.roomNameSnapshot || '';
+        if (!resolvedFloorSnapshot && resolvedFloorId) {
+          const fl = await prisma.floor.findUnique({ where: { id: resolvedFloorId } });
+          if (fl) resolvedFloorSnapshot = fl.name;
+        }
+        if (!resolvedRoomSnapshot && (f.roomId || dbCheck?.roomId)) {
+          const rm = await prisma.room.findUnique({ where: { id: f.roomId || dbCheck?.roomId } });
+          if (rm) resolvedRoomSnapshot = rm.name;
+        }
+
         await prisma.finding.create({
           data: {
             findingNumber,
             checkId: dbCheck?.id || undefined,
             sessionId: activeSession?.id || undefined,
-            floorId: f.floorId || dbCheck?.sessionFloorId,
+            floorId: resolvedFloorId,
             roomId: f.roomId || dbCheck?.roomId,
             userId: auth.id,
-            floorNameSnapshot: f.floorNameSnapshot || '',
-            roomNameSnapshot: f.roomNameSnapshot || '',
+            floorNameSnapshot: resolvedFloorSnapshot,
+            roomNameSnapshot: resolvedRoomSnapshot,
             category: (f.category as any) || 'lainnya',
             description: f.description || '-',
             status: 'new',
@@ -316,6 +333,9 @@ export async function POST(request: NextRequest) {
           sf.floorCodeSnapshot?.toUpperCase() === String(q.floorCode || '').toUpperCase()
         );
 
+        const scanModeSetting = await prisma.systemSetting.findUnique({ where: { key: 'qr_scan_mode' } });
+        const qrScanMode = scanModeSetting?.value || 'session';
+
         const anyOfficial = validateAnyOfficialFloorQr(rawToken);
         const floorCode = targetSf?.floor.code || q.floorCode || '';
         const isOfficial = isOfficialQrValidForFloor(floorCode, rawToken);
@@ -323,14 +343,26 @@ export async function POST(request: NextRequest) {
         const isDbMatch = dbToken ? dbToken.toUpperCase() === rawToken.toUpperCase() : false;
         const isOfficialTargetMatch = anyOfficial ? anyOfficial.floorCode.toUpperCase() === floorCode.toUpperCase() : false;
 
-        if (isOfficial || isDbMatch || isOfficialTargetMatch) {
+        const isAccepted = qrScanMode === 'per_floor'
+          ? (isOfficial || isDbMatch || isOfficialTargetMatch)
+          : Boolean(anyOfficial || isOfficial || isDbMatch);
+
+        if (isAccepted) {
           const tokenToSave = anyOfficial ? anyOfficial.token : (OFFICIAL_QR_MAP[floorCode.toUpperCase()] || dbToken || rawToken);
           const scanTimestamp = q.scannedAt ? new Date(q.scannedAt) : new Date();
 
-          // Mark target floor completed with validated QR seal
-          if (targetSf) {
+          let sfToUpdate = targetSf;
+          if (anyOfficial && (!sfToUpdate || sfToUpdate.floor.code.toUpperCase() !== anyOfficial.floorCode.toUpperCase())) {
+            const matchedSf = activeSession?.sessionFloors?.find(sf =>
+              sf.floor.code.toUpperCase() === anyOfficial.floorCode.toUpperCase() ||
+              sf.floorCodeSnapshot?.toUpperCase() === anyOfficial.floorCode.toUpperCase()
+            );
+            if (matchedSf) sfToUpdate = matchedSf;
+          }
+
+          if (sfToUpdate) {
             await prisma.patrolSessionFloor.update({
-              where: { id: targetSf.id },
+              where: { id: sfToUpdate.id },
               data: {
                 status: 'completed',
                 completedAt: scanTimestamp,
@@ -348,13 +380,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Check if all floors completed to finalize session
+    // 5. Check if all floors completed or if client marked patrol completed offline
     if (activeSession) {
       const refreshedFloors = await prisma.patrolSessionFloor.findMany({
         where: { sessionId: activeSession.id },
       });
       const allCompleted = refreshedFloors.length > 0 && refreshedFloors.every(sf => sf.status === 'completed' || sf.qrValidated);
-      if (allCompleted) {
+      const isClientCompleted = body.status === 'completed' || body.isCompleted === true;
+
+      if (allCompleted || isClientCompleted) {
         await prisma.patrolSession.update({
           where: { id: activeSession.id },
           data: { status: 'completed', completedAt: new Date() },

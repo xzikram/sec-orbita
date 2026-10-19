@@ -121,6 +121,17 @@ export async function POST(request: NextRequest) {
       realSessionId = recentSession ? recentSession.id : null;
     }
 
+    let floorSnapshot = body.floorNameSnapshot || '';
+    if (!floorSnapshot && realFloorId) {
+      const fl = await prisma.floor.findUnique({ where: { id: realFloorId } });
+      if (fl) floorSnapshot = fl.name;
+    }
+    let roomSnapshot = body.roomNameSnapshot || '';
+    if (!roomSnapshot && realRoomId) {
+      const rm = await prisma.room.findUnique({ where: { id: realRoomId } });
+      if (rm) roomSnapshot = rm.name;
+    }
+
     const finding = await prisma.finding.create({
       data: {
         findingNumber,
@@ -129,8 +140,8 @@ export async function POST(request: NextRequest) {
         userId: auth.id,
         floorId: realFloorId,
         roomId: realRoomId,
-        floorNameSnapshot: body.floorNameSnapshot || '',
-        roomNameSnapshot: body.roomNameSnapshot || '',
+        floorNameSnapshot: floorSnapshot,
+        roomNameSnapshot: roomSnapshot,
         category: body.category || 'lainnya',
         description: body.description,
       },

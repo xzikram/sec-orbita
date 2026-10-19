@@ -4,13 +4,13 @@
 const DB_NAME = 'jec_patrol_offline_db';
 const DB_VERSION = 2;
 
-const STORE_CHECKS = 'offline_checks';
-const STORE_FINDINGS = 'offline_findings';
-const STORE_MASTER_FLOORS = 'master_floors';
-const STORE_MASTER_ROOMS = 'master_rooms';
-const STORE_OFFLINE_QR_SCANS = 'offline_qr_scans';
+export const STORE_CHECKS = 'offline_checks';
+export const STORE_FINDINGS = 'offline_findings';
+export const STORE_MASTER_FLOORS = 'master_floors';
+export const STORE_MASTER_ROOMS = 'master_rooms';
+export const STORE_OFFLINE_QR_SCANS = 'offline_qr_scans';
 
-function openDB(): Promise<IDBDatabase> {
+export function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined') {
       reject(new Error('IndexedDB is only available in browser'));

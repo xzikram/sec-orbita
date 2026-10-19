@@ -330,11 +330,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update session floor status to in_progress
-    await prisma.patrolSessionFloor.update({
-      where: { id: realSessionFloorId },
-      data: { status: 'in_progress', startedAt: new Date() },
-    });
+    // Update session floor status to in_progress if not already completed
+    try {
+      const currentSf = await prisma.patrolSessionFloor.findUnique({
+        where: { id: realSessionFloorId },
+        select: { status: true, startedAt: true },
+      });
+      if (currentSf && currentSf.status !== 'completed') {
+        await prisma.patrolSessionFloor.update({
+          where: { id: realSessionFloorId },
+          data: {
+            status: 'in_progress',
+            startedAt: currentSf.startedAt || new Date(),
+          },
+        });
+      }
+    } catch (sfUpdateErr) {
+      console.warn('Session floor status update notice:', sfUpdateErr);
+    }
 
     // Log activity
     await prisma.activityLog.create({

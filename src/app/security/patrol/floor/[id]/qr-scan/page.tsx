@@ -195,8 +195,15 @@ export default function QRScanPage({
   // Calculate next floor based on user route direction
   const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
   const availableFloors = cachedFloorsList.length > 0 ? cachedFloorsList : floors;
-  const sortedFloors = [...availableFloors].sort((a, b) => isReversed ? (b.sortOrder ?? 0) - (a.sortOrder ?? 0) : (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  const currentIdx = sortedFloors.findIndex(f => f.id === floor?.id || f.code === floor?.code);
+  const getSortVal = (fl: any) => {
+    if (typeof fl.sortOrder === 'number' && !isNaN(fl.sortOrder)) return fl.sortOrder;
+    const c = String(fl.code || '').toUpperCase();
+    if (c.includes('SB') || c.includes('SEMI')) return 0;
+    const m = c.match(/\d+/);
+    return m ? parseInt(m[0], 10) : 999;
+  };
+  const sortedFloors = [...availableFloors].sort((a, b) => isReversed ? getSortVal(b) - getSortVal(a) : getSortVal(a) - getSortVal(b));
+  const currentIdx = sortedFloors.findIndex(f => f.id === floor?.id || (floor?.code && f.code === floor?.code));
   const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
 
   if (loading) {
@@ -566,16 +573,27 @@ export default function QRScanPage({
         </div>
       )}
 
-      {/* Manual Input Fallback (for damaged/unreadable printed stickers) */}
-      <div style={{ marginTop: '10px', textAlign: 'center' }}>
+      {/* Manual Input Fallback (for damaged/unreadable printed stickers or dark areas) */}
+      <div style={{ marginTop: '12px', textAlign: 'center' }}>
         {!showManualInput ? (
           <button
             type="button"
-            className="btn btn-ghost btn-sm"
+            className="btn btn-outline btn-sm"
             onClick={() => setShowManualInput(true)}
-            style={{ color: 'var(--text-muted)', fontSize: '11px', padding: '4px 8px', height: 'auto' }}
+            style={{
+              fontSize: '11.5px',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              color: 'var(--text-secondary)',
+              borderColor: 'var(--border-light, #e2e8f0)',
+              background: '#fff',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontWeight: 600,
+            }}
           >
-            Stiker QR rusak/sulit terbaca? Ketik kode manual
+            <span>⌨️ Stiker QR gelap/rusak? Ketik kode manual</span>
           </button>
         ) : (
           <form onSubmit={handleManualSubmit} className="card" style={{ padding: '12px', textAlign: 'left', maxWidth: '320px', margin: '0 auto' }}>

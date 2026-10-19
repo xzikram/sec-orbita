@@ -63,6 +63,7 @@ export default function SecurityDashboard() {
   // Active user & multi-officer state
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [otherOfficers, setOtherOfficers] = useState<any[]>([]);
+  const [completedSessionToday, setCompletedSessionToday] = useState<any>(null);
 
   // Router & Offline pre-caching state (Option A)
   const router = useRouter();
@@ -171,7 +172,9 @@ export default function SecurityDashboard() {
       }
 
       if (!cached) {
-        const { floors: fallbackFloors } = await import('@/lib/dummy-data');
+        const { getCachedFloors } = await import('@/lib/db');
+        const dbFloors = await getCachedFloors().catch(() => []);
+        const chosenFloors = dbFloors.length > 0 ? dbFloors : (await import('@/lib/dummy-data')).floors;
         const sched = resolveCurrentSchedule(schedulesList) || {
           id: 'default-sched',
           name: 'Ronda Patroli',
@@ -187,8 +190,8 @@ export default function SecurityDashboard() {
           scheduleId: sched.id,
           schedule: sched,
           startedAt: new Date().toISOString(),
-          sessionFloors: (fallbackFloors || []).map(f => ({
-            id: `sf-${f.code.toLowerCase()}`,
+          sessionFloors: (chosenFloors || []).map((f: any) => ({
+            id: `sf-${String(f.code || '').toLowerCase()}`,
             floorId: f.id,
             floorNameSnapshot: f.name,
             floorCodeSnapshot: f.code,
@@ -275,7 +278,9 @@ export default function SecurityDashboard() {
       }
 
       if (!cached) {
-        const { floors: fallbackFloors } = await import('@/lib/dummy-data');
+        const { getCachedFloors } = await import('@/lib/db');
+        const dbFloors = await getCachedFloors().catch(() => []);
+        const chosenFloors = dbFloors.length > 0 ? dbFloors : (await import('@/lib/dummy-data')).floors;
         const sched = resolveCurrentSchedule(schedulesList) || {
           id: 'default-sched',
           name: 'Ronda Patroli',
@@ -291,8 +296,8 @@ export default function SecurityDashboard() {
           scheduleId: sched.id,
           schedule: sched,
           startedAt: new Date().toISOString(),
-          sessionFloors: (fallbackFloors || []).map(f => ({
-            id: `sf-${f.code.toLowerCase()}`,
+          sessionFloors: (chosenFloors || []).map((f: any) => ({
+            id: `sf-${String(f.code || '').toLowerCase()}`,
             floorId: f.id,
             floorNameSnapshot: f.name,
             floorCodeSnapshot: f.code,
@@ -571,6 +576,14 @@ export default function SecurityDashboard() {
       const activeOtherSessions = sessions.filter((s: any) => s.status === 'in_progress' && currentUid && s.userId && s.userId !== currentUid);
       setOtherOfficers(activeOtherSessions);
 
+      const sched = resolveCurrentSchedule(schedulesList);
+      const myCompletedToday = sessions.find((s: any) =>
+        s.status === 'completed' &&
+        (s.userId === currentUid || !s.userId) &&
+        (sched?.patrolNumber ? s.patrolNumber === sched.patrolNumber : true)
+      ) || sessions.find((s: any) => s.status === 'completed' && (s.userId === currentUid || !s.userId));
+      setCompletedSessionToday(myCompletedToday || null);
+
       let activeSession = myActiveSession;
 
       let offlineChecks: any[] = [];
@@ -677,6 +690,27 @@ export default function SecurityDashboard() {
         const myActiveSession = sessions.find(s => s.status === 'in_progress' && (s.userId === currentUid || !s.userId)) || null;
         const activeOtherSessions = sessions.filter(s => s.status === 'in_progress' && currentUid && s.userId && s.userId !== currentUid);
         setOtherOfficers(activeOtherSessions);
+
+        const sched = resolveCurrentSchedule(schedulesList);
+        const myCompletedToday = sessions.find((s: any) =>
+          s.status === 'completed' &&
+          (s.userId === currentUid || !s.userId) &&
+          (sched?.patrolNumber ? s.patrolNumber === sched.patrolNumber : true)
+        ) || sessions.find((s: any) => s.status === 'completed' && (s.userId === currentUid || !s.userId));
+        
+        let completedFound = myCompletedToday || null;
+        if (!completedFound) {
+          try {
+            const cachedRaw = localStorage.getItem('cached-active-session');
+            if (cachedRaw) {
+              const parsed = JSON.parse(cachedRaw);
+              if (parsed.status === 'completed' && (!currentUid || !parsed.userId || parsed.userId === currentUid)) {
+                completedFound = parsed;
+              }
+            }
+          } catch {}
+        }
+        setCompletedSessionToday(completedFound);
 
         let activeSession = myActiveSession;
         if (!activeSession) {
@@ -1019,6 +1053,42 @@ export default function SecurityDashboard() {
             </div>
           </div>
         )
+      ) : completedSessionToday ? (
+        <div
+          className="card animate-slide-up"
+          style={{
+            background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
+            color: '#fff',
+            padding: '16px 18px',
+            borderRadius: '14px',
+            boxShadow: '0 4px 14px rgba(5, 150, 105, 0.25)',
+            marginBottom: '10px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '6px' }}>
+              ✓ Ronda #{completedSessionToday.patrolNumber || currentSched.patrolNumber} Tuntas
+            </span>
+            <span style={{ fontSize: '11px', opacity: 0.9 }}>
+              {completedSessionToday.completedAt ? new Date(completedSessionToday.completedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' }) : ''} WITA
+            </span>
+          </div>
+          <h3 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 4px 0', color: '#fff' }}>
+            Patroli Berhasil Diselesaikan
+          </h3>
+          <p style={{ fontSize: '12px', opacity: 0.92, margin: '0 0 12px 0', lineHeight: 1.4 }}>
+            Semua titik pemeriksaan ruangan & verifikasi barcode telah dicatat. Petugas dapat standby untuk jadwal ronda berikutnya.
+          </p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <Link
+              href="/security/patrol/summary"
+              className="btn btn-sm"
+              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)', fontWeight: 600, fontSize: '11.5px', borderRadius: '8px', textDecoration: 'none' }}
+            >
+              📋 Lihat Ringkasan Ronda
+            </Link>
+          </div>
+        </div>
       ) : (
         <div className={`card animate-slide-up ${styles.emptyPatrolCard}`}>
           <div className={`card-body ${styles.emptyPatrolBody}`}>
@@ -1287,14 +1357,30 @@ export default function SecurityDashboard() {
             type="button"
             onClick={() => handleStartNewPatrolRound()}
             disabled={isPreparingOffline}
-            className="btn btn-primary"
-            style={{ width: '100%', padding: '12px 16px', fontSize: '14px', fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 3px 12px rgba(37, 99, 235, 0.25)' }}
+            className={`btn ${completedSessionToday ? 'btn-outline' : 'btn-primary'}`}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              fontSize: '14px',
+              fontWeight: 700,
+              borderRadius: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: completedSessionToday ? 'none' : '0 3px 12px rgba(37, 99, 235, 0.25)',
+              color: completedSessionToday ? 'var(--color-primary-700)' : '#ffffff',
+              borderColor: completedSessionToday ? 'var(--color-primary-300)' : 'transparent',
+              background: completedSessionToday ? 'var(--color-primary-50)' : undefined,
+            }}
             id="btn-start-patrol"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            Mulai Patroli Baru (Ronda #{currentSched.patrolNumber})
+            {completedSessionToday
+              ? `Mulai Ronda Tambahan (Ronda #${currentSched.patrolNumber})`
+              : `Mulai Patroli Baru (Ronda #${currentSched.patrolNumber})`}
           </button>
         )}
       </div>

@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     // Mark all session floors as completed if not already completed
     await prisma.patrolSessionFloor.updateMany({
-      where: { sessionId: targetSessionId },
+      where: { sessionId: targetSessionId, status: { not: 'completed' } },
       data: {
         status: 'completed',
         completedAt: now,

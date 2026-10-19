@@ -190,7 +190,10 @@ export default function RoomCheckPage({
           // 3. Resilient floor rooms list for progression (sorted by custom order if set)
           const fRooms = await getResilientRoomsForFloor(resolvedRoom.floorId);
           if (fRooms && fRooms.length > 0) {
-            const targetFloorCode = String(resolvedRoom.code || '').split('-')[0].toUpperCase();
+            const { getCachedFloors } = await import('@/lib/db');
+            const cFloors = await getCachedFloors().catch(() => []);
+            const mFloor = cFloors.find((f: any) => f.id === resolvedRoom.floorId || String(f.code || '').toUpperCase() === String(resolvedRoom.code || '').split('-')[0].toUpperCase());
+            const targetFloorCode = String(mFloor?.code || (resolvedRoom as any).floorCodeSnapshot || (resolvedRoom as any).floor?.code || (resolvedRoom.code ? resolvedRoom.code.split('-')[0] : '')).toUpperCase().trim();
             const empId = currentUserId || 'guest';
             const savedCodesStr = localStorage.getItem(`patrol-order-codes-${empId}-${targetFloorCode}`) || localStorage.getItem(`patrol-order-codes-guest-${targetFloorCode}`);
             if (savedCodesStr) {
@@ -598,7 +601,7 @@ export default function RoomCheckPage({
       updatedCheckedSet.add(room.code);
 
       // Find next unchecked room
-      setTimeout(() => {
+      setTimeout(async () => {
         try {
           const currentIndex = activeFloorRooms.findIndex(r => r.id === room.id || r.code === room.code);
           const nextRoom = 
@@ -623,11 +626,45 @@ export default function RoomCheckPage({
               window.history.replaceState(null, '', `/security/patrol/room/${nextRoom.id}`);
             }
           } else {
-            // Determine if QR is needed or already verified
+            // Determine dynamic floor order respecting database sortOrder
+            let floorsToOrder: any[] = [];
+            try {
+              const cachedRaw = localStorage.getItem('cached-active-session');
+              if (cachedRaw) {
+                const parsedSess = JSON.parse(cachedRaw);
+                if (Array.isArray(parsedSess.sessionFloors) && parsedSess.sessionFloors.length > 0) {
+                  floorsToOrder = parsedSess.sessionFloors.map((sf: any) => ({
+                    id: sf.floorId || sf.id,
+                    code: sf.floorCodeSnapshot || sf.floor?.code || '',
+                    name: sf.floorNameSnapshot || sf.floor?.name || '',
+                    sortOrder: typeof sf.floor?.sortOrder === 'number' ? sf.floor.sortOrder : (typeof sf.sortOrder === 'number' ? sf.sortOrder : 999),
+                  }));
+                }
+              }
+            } catch {}
+
+            if (floorsToOrder.length === 0) {
+              const { getCachedFloors } = await import('@/lib/db');
+              const cFloors = await getCachedFloors().catch(() => []);
+              if (cFloors.length > 0) {
+                floorsToOrder = cFloors;
+              } else {
+                floorsToOrder = floors;
+              }
+            }
+
+            const getSortVal = (fl: any) => {
+              if (typeof fl.sortOrder === 'number' && !isNaN(fl.sortOrder)) return fl.sortOrder;
+              const c = String(fl.code || '').toUpperCase();
+              if (c.includes('SB') || c.includes('SEMI')) return 0;
+              const m = c.match(/\d+/);
+              return m ? parseInt(m[0], 10) : 999;
+            };
+
             const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
-            const sortedFloors = [...floors].sort((a, b) => isReversed ? b.sortOrder - a.sortOrder : a.sortOrder - b.sortOrder);
+            const sortedFloors = [...floorsToOrder].sort((a, b) => isReversed ? getSortVal(b) - getSortVal(a) : getSortVal(a) - getSortVal(b));
             const currentFloorCode = (floor?.code || '').toUpperCase();
-            const currentIdx = sortedFloors.findIndex(f => f.id === room.floorId || f.code.toUpperCase() === currentFloorCode);
+            const currentIdx = sortedFloors.findIndex(f => f.id === room.floorId || (currentFloorCode && String(f.code || '').toUpperCase() === currentFloorCode));
             const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
 
             const isRequireQr = settings.require_qr !== 'false';

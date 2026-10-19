@@ -37,7 +37,29 @@ export default function HistoryPage() {
       const responses = await Promise.all(
         dates.map(date => fetch(`/api/patrol/sessions?date=${date}&personal=true`).then(r => r.ok ? r.json() : []).catch(() => []))
       );
-      const allSessions: PatrolSession[] = responses.flat();
+      let allSessions: PatrolSession[] = responses.flat();
+
+      // Offline fallback: display cached local session if offline or no network records
+      if (allSessions.length === 0) {
+        try {
+          const cachedRaw = localStorage.getItem('cached-active-session');
+          if (cachedRaw) {
+            const cached = JSON.parse(cachedRaw);
+            if (cached && cached.id) {
+              allSessions.push({
+                id: cached.id,
+                patrolNumber: cached.patrolNumber || 1,
+                status: cached.status || 'completed',
+                patrolDate: cached.patrolDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date()),
+                startedAt: cached.startedAt || new Date().toISOString(),
+                completedAt: cached.completedAt || null,
+                schedule: cached.schedule || { name: 'Patroli Rutin', startTime: '07:00', endTime: '10:00' },
+              });
+            }
+          }
+        } catch {}
+      }
+
       setSessions(allSessions);
     } catch (err) {
       console.error('History load error:', err);
@@ -166,6 +188,11 @@ export default function HistoryPage() {
                           </p>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {session.id?.startsWith('offline-') && (
+                            <span className="badge badge-warning" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                              📱 Offline
+                            </span>
+                          )}
                           {getStatusBadge(session.status)}
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" style={{ opacity: 0.5 }}>
                             <polyline points="9 18 15 12 9 6" />
