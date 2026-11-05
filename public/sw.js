@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v22';
+const CACHE_NAME = 'sec-patrol-v23';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -7,7 +7,10 @@ const STATIC_ASSETS = [
   '/Logo%20RS%20JEC%20ORBITA.png',
   '/apple-touch-icon.png',
   '/icons/icon-192.png',
-  '/icons/icon-512.png',
+  '/icons/icon-512.png'
+];
+
+const PRECACHE_SHELLS = [
   '/security/patrol',
   '/security/patrol/summary',
   '/security/dashboard'
@@ -17,7 +20,7 @@ self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      // Pre-cache only pure static assets (logos, manifest, icons, offline shell)
+      // 1. Pre-cache pure static assets (logos, manifest, icons, offline shell)
       await Promise.allSettled(
         STATIC_ASSETS.map(async (asset) => {
           try {
@@ -27,6 +30,19 @@ self.addEventListener('install', (e) => {
             }
           } catch (err) {
             console.warn('Pre-cache asset warning:', asset, err);
+          }
+        })
+      );
+      // 2. Pre-cache HTML app shells for offline fallback (NOT served cache-first when online)
+      await Promise.allSettled(
+        PRECACHE_SHELLS.map(async (shell) => {
+          try {
+            const res = await fetch(shell, { cache: 'no-cache' });
+            if (res && res.status === 200) {
+              await cache.put(shell, res);
+            }
+          } catch (err) {
+            console.warn('Pre-cache shell warning:', shell, err);
           }
         })
       );
@@ -88,6 +104,11 @@ self.addEventListener('fetch', (e) => {
             caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
           }
           return response;
+        }).catch(() => {
+          return new Response('', {
+            status: 200,
+            headers: { 'Content-Type': 'application/javascript; charset=utf-8' }
+          });
         });
       })
     );
@@ -105,6 +126,11 @@ self.addEventListener('fetch', (e) => {
             caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
           }
           return response;
+        }).catch(() => {
+          return new Response('', {
+            status: 200,
+            headers: { 'Content-Type': 'application/javascript; charset=utf-8' }
+          });
         });
       })
     );
