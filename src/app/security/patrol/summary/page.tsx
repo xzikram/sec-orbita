@@ -72,15 +72,19 @@ export default function PatrolSummaryPage() {
         const cached = localStorage.getItem('cached-active-session');
         if (cached) try { s = JSON.parse(cached); } catch {}
 
-        if (navigator.onLine) {
-          const res = await fetch('/api/patrol/sessions?personal=true').catch(() => null);
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 1500);
+          const res = await fetch('/api/patrol/sessions?personal=true', { signal: controller.signal }).catch(() => null);
+          clearTimeout(timer);
+
           if (res && res.ok) {
             const sessions = await res.json();
             if (Array.isArray(sessions)) {
               const mySessions = currentUserId ? sessions.filter((item: any) => item.userId === currentUserId) : sessions;
-              const found = mySessions.find((item: any) => item.status === 'completed') 
+              const found = mySessions.find((item: any) => item.status === 'completed' || item.status === 'incomplete') 
                 || mySessions[mySessions.length - 1] 
-                || sessions.find((item: any) => item.status === 'completed') 
+                || sessions.find((item: any) => item.status === 'completed' || item.status === 'incomplete') 
                 || sessions[sessions.length - 1];
               if (found) s = found;
             }

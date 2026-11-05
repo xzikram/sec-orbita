@@ -66,7 +66,10 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { patrolNumber: 'asc' },
+      orderBy: [
+        { patrolDate: 'asc' },
+        { startedAt: 'asc' },
+      ],
     });
 
     // Timezone adjusted range for timestamp fields (createdAt) in Makassar (UTC+8)
@@ -261,8 +264,8 @@ export async function GET(request: NextRequest) {
           rawDate: s.patrolDate.toISOString().split('T')[0],
           scheduleName: s.schedule?.name || `Patroli #${s.patrolNumber}`,
           shiftName: s.shift?.name || 'Shift Pagi',
-          startTime: s.schedule?.startTime || '',
-          endTime: s.schedule?.endTime || '',
+          startTime: s.startedAt ? new Date(s.startedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' }) : (s.schedule?.startTime || '—'),
+          endTime: s.completedAt ? new Date(s.completedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' }) : (s.status === 'in_progress' ? 'Berjalan' : (s.schedule?.endTime || '—')),
           startedAt: s.startedAt,
           completedAt: s.completedAt,
           officer: s.user?.name || 'Petugas',

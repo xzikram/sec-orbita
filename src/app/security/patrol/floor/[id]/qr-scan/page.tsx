@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import QRScanner from '@/components/QRScanner';
 import { getFloorById, getRoomsByFloor, floors, isRoomChecked } from '@/lib/dummy-data';
 import { getCachedSettings } from '@/lib/settings-client';
+import WhatsAppFloorShareModal from '@/components/WhatsAppFloorShareModal';
 import styles from './qrscan.module.css';
 
 export default function QRScanPage({
@@ -46,6 +47,8 @@ export default function QRScanPage({
   const [syncedCount, setSyncedCount] = useState<number | null>(null);
   const [verifiedFloorInfo, setVerifiedFloorInfo] = useState<{ name: string; code: string } | null>(null);
   const [settings, setSettings] = useState(() => getCachedSettings());
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showWaModal, setShowWaModal] = useState(false);
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
@@ -63,6 +66,7 @@ export default function QRScanPage({
           try {
             const u = JSON.parse(cachedUser);
             currentUserId = u.id || null;
+            setCurrentUser(u);
           } catch {}
         }
 
@@ -431,6 +435,31 @@ export default function QRScanPage({
           </div>
 
           <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', maxWidth: '300px', margin: '24px auto 0' }}>
+            <button
+              type="button"
+              onClick={() => setShowWaModal(true)}
+              style={{
+                width: '100%',
+                padding: '11px 16px',
+                backgroundColor: '#25D366',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '10px',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(37, 211, 102, 0.3)',
+                marginBottom: '2px',
+              }}
+              id="btn-qr-share-wa"
+            >
+              <span>📲</span>
+              <span>Bagikan Laporan ke WhatsApp</span>
+            </button>
             {nextFloor ? (
               <>
                 <button
@@ -482,6 +511,25 @@ export default function QRScanPage({
             )}
           </div>
         </div>
+
+        {/* WhatsApp Floor Report & Collage Share Modal */}
+        {floor && (
+          <WhatsAppFloorShareModal
+            isOpen={showWaModal}
+            onClose={() => setShowWaModal(false)}
+            floor={floor}
+            rooms={cachedRooms.length > 0 ? cachedRooms : (floor ? getRoomsByFloor(floor.id) : [])}
+            checks={[
+              ...(sessionFloor?.patrolChecks || []),
+              ...offlineChecks.filter((c: any) =>
+                c.sessionFloorId === sessionFloor?.id ||
+                c.floorId === floor?.id ||
+                c.floorCode === floor?.code
+              ),
+            ]}
+            officerName={currentUser?.name}
+          />
+        )}
       </div>
     );
   }

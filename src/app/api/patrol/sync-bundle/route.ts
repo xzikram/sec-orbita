@@ -62,50 +62,43 @@ export async function POST(request: NextRequest) {
     }
 
     if (!activeSession) {
-      // Auto-resolve schedule based on current Makassar time
+      // Calculate next sequential patrol number for today (24-hour chronological sequence)
+      const todaySessions = await prisma.patrolSession.findMany({
+        where: { patrolDate },
+        select: { patrolNumber: true },
+      });
+      const maxNumber = todaySessions.reduce((max, s) => Math.max(max, s.patrolNumber || 0), 0);
+      const nextPatrolNumber = maxNumber + 1;
+
       const allSchedules = await prisma.patrolSchedule.findMany({ orderBy: { patrolNumber: 'asc' } });
-      const nowTime = new Intl.DateTimeFormat('id-ID', {
-        timeZone: 'Asia/Makassar',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(new Date()).replace('.', ':');
+      const matchingSchedule = allSchedules.find(s => s.patrolNumber === nextPatrolNumber) || allSchedules[0] || null;
 
-      const defaultSchedule = allSchedules.find(s => {
-        if (s.startTime < s.endTime) {
-          return nowTime >= s.startTime && nowTime < s.endTime;
-        }
-        return nowTime >= s.startTime || nowTime < s.endTime;
-      }) || allSchedules[0];
+      const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });
+      const allFloors = await prisma.floor.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
 
-      if (defaultSchedule) {
-        const defaultShift = await prisma.shift.findFirst({ where: { isActive: true } });
-        const allFloors = await prisma.floor.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
-
-        activeSession = await prisma.patrolSession.create({
-          data: {
-            userId: auth.id,
-            scheduleId: defaultSchedule.id,
-            shiftId: defaultShift?.id || '',
-            patrolDate,
-            patrolNumber: defaultSchedule.patrolNumber,
-            status: 'in_progress',
-            startedAt: new Date(),
-            sessionFloors: {
-              create: allFloors.map(f => ({
-                floorId: f.id,
-                floorNameSnapshot: f.name,
-                floorCodeSnapshot: f.code,
-              })),
-            },
+      activeSession = await prisma.patrolSession.create({
+        data: {
+          userId: auth.id,
+          scheduleId: matchingSchedule?.id || null,
+          shiftId: defaultShift?.id || '',
+          patrolDate,
+          patrolNumber: nextPatrolNumber,
+          status: 'in_progress',
+          startedAt: new Date(),
+          sessionFloors: {
+            create: allFloors.map(f => ({
+              floorId: f.id,
+              floorNameSnapshot: f.name,
+              floorCodeSnapshot: f.code,
+            })),
           },
-          include: {
-            sessionFloors: {
-              include: { floor: { include: { qrCode: true } } },
-            },
+        },
+        include: {
+          sessionFloors: {
+            include: { floor: { include: { qrCode: true } } },
           },
-        });
-      }
+        },
+      });
     }
 
     const baseDir = process.env.APP_DIR || (process as any)['cwd']();
@@ -380,19 +373,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Check if all floors completed or if client marked patrol completed offline
+    // 5. Check if all floors completed or if client marked patrol completed/incomplete offline
     if (activeSession) {
       const refreshedFloors = await prisma.patrolSessionFloor.findMany({
         where: { sessionId: activeSession.id },
       });
       const allCompleted = refreshedFloors.length > 0 && refreshedFloors.every(sf => sf.status === 'completed' || sf.qrValidated);
       const isClientCompleted = body.status === 'completed' || body.isCompleted === true;
+      const isClientIncomplete = body.status === 'incomplete';
 
-      if (allCompleted || isClientCompleted) {
-        await prisma.patrolSession.update({
+      if (isClientIncomplete) {
+        const updated = await prisma.patrolSession.update({
           where: { id: activeSession.id },
-          data: { status: 'completed', completedAt: new Date() },
+          data: {
+            status: 'incomplete',
+            notes: body.notes || body.reason || activeSession.notes,
+            completedAt: body.completedAt ? new Date(body.completedAt) : new Date(),
+          },
         });
+        activeSession = { ...activeSession, ...updated };
+        await prisma.activityLog.create({
+          data: { userId: auth.id, action: 'early_finish_patrol', entityType: 'patrol_session', entityId: activeSession.id },
+        }).catch(() => {});
+      } else if (allCompleted || isClientCompleted) {
+        const updated = await prisma.patrolSession.update({
+          where: { id: activeSession.id },
+          data: {
+            status: 'completed',
+            completedAt: body.completedAt ? new Date(body.completedAt) : new Date(),
+          },
+        });
+        activeSession = { ...activeSession, ...updated };
         await prisma.activityLog.create({
           data: { userId: auth.id, action: 'complete_patrol', entityType: 'patrol_session', entityId: activeSession.id },
         }).catch(() => {});
@@ -401,6 +412,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      session: activeSession ? {
+        id: activeSession.id,
+        patrolNumber: activeSession.patrolNumber,
+        status: activeSession.status,
+        startedAt: activeSession.startedAt,
+        completedAt: activeSession.completedAt,
+      } : null,
       syncedCheckIds,
       syncedFindingIds,
       syncedQrScanIds,

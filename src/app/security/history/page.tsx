@@ -184,7 +184,7 @@ export default function HistoryPage() {
                             Patroli #{session.patrolNumber}
                           </h4>
                           <p className={styles.sessionPeriod}>
-                            {session.schedule?.startTime} - {session.schedule?.endTime}
+                            {session.startedAt ? `Mulai ${formatTime(session.startedAt)} WITA` : (session.schedule ? `${session.schedule.startTime} - ${session.schedule.endTime}` : 'Patroli')}
                           </p>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

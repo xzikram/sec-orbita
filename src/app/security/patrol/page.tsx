@@ -13,6 +13,7 @@ import {
 } from '@/lib/dummy-data';
 import styles from './patrol.module.css';
 import { getCachedSettings } from '@/lib/settings-client';
+import WhatsAppFloorShareModal from '@/components/WhatsAppFloorShareModal';
 
 // Canonical physical floor progression for RS Mata JEC ORBITA
 const CANONICAL_FLOOR_ORDER: Record<string, number> = {
@@ -77,6 +78,9 @@ export default function PatrolPage() {
   const [submittingEarly, setSubmittingEarly] = useState(false);
   const [isStartingDirectly, setIsStartingDirectly] = useState(false);
   const [completingPatrol, setCompletingPatrol] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [selectedShareFloor, setSelectedShareFloor] = useState<any>(null);
+  const [showWaModal, setShowWaModal] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -96,6 +100,7 @@ export default function PatrolPage() {
           try {
             const u = JSON.parse(cachedUser);
             currentUserId = u.id || null;
+            setCurrentUser(u);
             const empId = u.employeeId || 'guest';
             const saved = localStorage.getItem(`patrol-reversed-${empId}`) || localStorage.getItem('patrol-reversed');
             if (saved === 'true') {
@@ -173,6 +178,7 @@ export default function PatrolPage() {
               if (saved === 'true') {
                 setIsReversed(true);
               }
+              setCurrentUser(meData.user);
               try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
             }
             if (Array.isArray(sessions)) {
@@ -182,8 +188,24 @@ export default function PatrolPage() {
                 setSession(active);
                 try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
               } else {
-                setSession(null);
-                try { localStorage.removeItem('cached-active-session'); } catch {}
+                // Shield local session: Do NOT delete if it is an offline session or still within 12h in-progress shift
+                try {
+                  const rawCurrent = localStorage.getItem('cached-active-session');
+                  let preserveLocal = false;
+                  if (rawCurrent) {
+                    const parsedCurrent = JSON.parse(rawCurrent);
+                    const startedTime = parsedCurrent.startedAt ? new Date(parsedCurrent.startedAt).getTime() : 0;
+                    const isRecent = startedTime > 0 && (Date.now() - startedTime < 12 * 60 * 60 * 1000);
+                    const isOfflineSess = String(parsedCurrent.id || '').startsWith('offline-') || parsedCurrent.id === 'session-active';
+                    if (parsedCurrent.status === 'in_progress' && (isOfflineSess || isRecent)) {
+                      preserveLocal = true;
+                    }
+                  }
+                  if (!preserveLocal) {
+                    setSession(null);
+                    localStorage.removeItem('cached-active-session');
+                  }
+                } catch {}
               }
             }
           }).catch(() => {
@@ -262,34 +284,46 @@ export default function PatrolPage() {
 
     setSubmittingEarly(true);
     try {
-      const res = await fetch('/api/patrol/sessions/early-finish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: currentSession.id,
-          reason: earlyReason,
-          notes: earlyNotes,
-        }),
-      });
-      if (res.ok) {
-        try {
-          const { clearTemporaryOfflineMedia } = await import('@/lib/db');
-          await clearTemporaryOfflineMedia();
-        } catch {}
-        try {
-          localStorage.removeItem('cached-active-session');
-          localStorage.removeItem('lastPatrolState');
-        } catch {}
-        window.location.href = '/security/patrol/summary';
-      } else {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Gagal mengakhiri patroli');
+      // 1. Fast attempt with 1500ms timeout if online
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 1500);
+
+        await fetch('/api/patrol/sessions/early-finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: currentSession.id,
+            reason: earlyReason,
+            notes: earlyNotes,
+          }),
+          signal: controller.signal,
+        }).catch(() => null);
+        clearTimeout(timer);
       }
-    } catch {
-      alert('Terjadi kesalahan jaringan saat mengakhiri patroli.');
-    } finally {
-      setSubmittingEarly(false);
+    } catch {}
+
+    // 2. Offline-First Resilience: Mark local session incomplete with notes & reason
+    try {
+      const cached = localStorage.getItem('cached-active-session');
+      if (cached) {
+        const sess = JSON.parse(cached);
+        sess.status = 'incomplete';
+        sess.earlyReason = earlyReason;
+        sess.earlyNotes = earlyNotes;
+        sess.completedAt = new Date().toISOString();
+        localStorage.setItem('cached-active-session', JSON.stringify(sess));
+      }
+      localStorage.removeItem('lastPatrolState');
+    } catch {}
+
+    // 3. Trigger background sync if online
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      import('@/lib/sync').then(({ syncOfflineData }) => syncOfflineData().catch(() => {})).catch(() => {});
     }
+
+    // 4. Navigate immediately to summary page without hanging or alert blocker
+    window.location.href = '/security/patrol/summary';
   };
 
   const handleEmergencyBypass = () => {
@@ -614,7 +648,7 @@ export default function PatrolPage() {
           <div>
             <h1 className={styles.patrolTitle}>Patroli #{currentSession.patrolNumber || 1}</h1>
             <p className={styles.patrolPeriod}>
-              {schedule?.startTime} - {schedule?.endTime}
+              {currentSession.startedAt ? `Mulai ${new Date(currentSession.startedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' })} WITA` : (schedule ? `${schedule.startTime} - ${schedule.endTime}` : 'Patroli Aktif')}
             </p>
             {currentSession.user?.name && (
               <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '3px 0 0' }}>
@@ -801,36 +835,95 @@ export default function PatrolPage() {
                 </div>
 
                 {fp.computedStatus === 'completed' && fp.completedAt && (
-                  <p className={styles.completedTime} suppressHydrationWarning>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    Selesai {mounted && fp.completedAt ? (() => {
-                      try {
-                        const d = new Date(fp.completedAt);
-                        return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-                      } catch { return ''; }
-                    })() : ''}
-                    {fp.qrValidated && (
-                      <span className={styles.qrBadge}>
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        QR
-                      </span>
-                    )}
-                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                    <p className={styles.completedTime} style={{ margin: 0 }} suppressHydrationWarning>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                      Selesai {mounted && fp.completedAt ? (() => {
+                        try {
+                          const d = new Date(fp.completedAt);
+                          return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                        } catch { return ''; }
+                      })() : ''}
+                      {fp.qrValidated && (
+                        <span className={styles.qrBadge}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          QR
+                        </span>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedShareFloor(fp.floor);
+                        setShowWaModal(true);
+                      }}
+                      style={{
+                        padding: '3px 9px',
+                        backgroundColor: '#25D366',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(37, 211, 102, 0.25)',
+                      }}
+                      title={`Bagikan Laporan ${fp.floor.name} ke WhatsApp`}
+                      id={`btn-share-wa-${fp.floor.code}`}
+                    >
+                      <span>📲</span>
+                      <span>Share WA</span>
+                    </button>
+                  </div>
                 )}
 
                 {fp.computedStatus === 'waiting_qr' && (
-                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#b45309', background: '#fef3c7', padding: '5px 9px', borderRadius: '6px', fontWeight: 600 }}>
-                    <span>📱</span>
-                    <span>
-                      {settings.qr_scan_mode === 'per_floor'
-                        ? 'Ruangan Selesai — Belum Scan Barcode Lantai Ini'
-                        : 'Ruangan Selesai — Belum Ada Scan Barcode Sesi'}
-                    </span>
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', fontSize: '11px', color: '#b45309', background: '#fef3c7', padding: '5px 9px', borderRadius: '6px', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>📱</span>
+                      <span>
+                        {settings.qr_scan_mode === 'per_floor'
+                          ? 'Ruangan Selesai — Belum Scan Barcode Lantai Ini'
+                          : 'Ruangan Selesai — Belum Ada Scan Barcode Sesi'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedShareFloor(fp.floor);
+                        setShowWaModal(true);
+                      }}
+                      style={{
+                        padding: '3px 8px',
+                        backgroundColor: '#25D366',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={`Bagikan Laporan ${fp.floor.name} ke WhatsApp`}
+                    >
+                      <span>📲</span>
+                      <span>Share WA</span>
+                    </button>
                   </div>
                 )}
 
@@ -1015,6 +1108,32 @@ export default function PatrolPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* WhatsApp Floor Report & Collage Share Modal */}
+      {selectedShareFloor && (
+        <WhatsAppFloorShareModal
+          isOpen={showWaModal}
+          onClose={() => {
+            setShowWaModal(false);
+            setSelectedShareFloor(null);
+          }}
+          floor={selectedShareFloor}
+          rooms={catalogRoomsMap[selectedShareFloor.id] || catalogRoomsMap[selectedShareFloor.code] || getRoomsByFloor(selectedShareFloor.id)}
+          checks={[
+            ...(session?.sessionFloors?.find((sf: any) =>
+              sf.floorId === selectedShareFloor.id ||
+              sf.floorCodeSnapshot === selectedShareFloor.code ||
+              sf.floor?.code === selectedShareFloor.code
+            )?.patrolChecks || []),
+            ...offlineChecks.filter((c: any) =>
+              c.floorId === selectedShareFloor.id ||
+              c.floorCode === selectedShareFloor.code ||
+              c.sessionFloorId === `sf-${String(selectedShareFloor.code || '').toLowerCase()}`
+            ),
+          ]}
+          officerName={currentUser?.name}
+        />
       )}
     </div>
   );

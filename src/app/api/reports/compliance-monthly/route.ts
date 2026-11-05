@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       },
       orderBy: [
         { patrolDate: 'asc' },
-        { patrolNumber: 'asc' },
+        { startedAt: 'asc' },
       ],
     });
 

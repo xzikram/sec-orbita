@@ -17,7 +17,7 @@ export interface PreDownloadResult {
   error?: string;
 }
 
-export const CATALOG_CACHE_VERSION = 'sec-patrol-v21';
+export const CATALOG_CACHE_VERSION = 'sec-patrol-v22';
 
 /**
  * Downloads and caches all active floors, 133 rooms, and official QR tokens to IndexedDB.
@@ -25,14 +25,20 @@ export const CATALOG_CACHE_VERSION = 'sec-patrol-v21';
  */
 export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
   try {
-    // 1. Fetch floors with rooms & official QR tokens
+    // 1. Fetch floors with rooms & official QR tokens (fast 3s timeout)
     let floorsData: any[] = [];
-    const floorsRes = await fetch('/api/floors', { cache: 'no-cache' }).catch(() => null);
-    
-    if (floorsRes && floorsRes.ok) {
-      floorsData = await floorsRes.json();
-    } else {
-      // Offline fallback: Use comprehensive static catalog if offline at startup
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const floorsRes = await fetch('/api/floors', { cache: 'no-cache', signal: controller.signal }).catch(() => null);
+      clearTimeout(timer);
+
+      if (floorsRes && floorsRes.ok) {
+        floorsData = await floorsRes.json();
+      } else {
+        floorsData = fallbackFloors;
+      }
+    } catch {
       floorsData = fallbackFloors;
     }
 
@@ -54,12 +60,16 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
 
     // 3. Pre-cache active patrol session, schedules, checklists & auth user for offline resilience
     try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2500);
+
       const [sessionsRes, meRes, checklistsRes, schedulesRes] = await Promise.all([
-        fetch('/api/patrol/sessions?personal=true').catch(() => null),
-        fetch('/api/auth/me').catch(() => null),
-        fetch('/api/checklists').catch(() => null),
-        fetch('/api/schedules').catch(() => null),
+        fetch('/api/patrol/sessions?personal=true', { signal: controller.signal }).catch(() => null),
+        fetch('/api/auth/me', { signal: controller.signal }).catch(() => null),
+        fetch('/api/checklists', { signal: controller.signal }).catch(() => null),
+        fetch('/api/schedules', { signal: controller.signal }).catch(() => null),
       ]);
+      clearTimeout(timer);
 
       if (checklistsRes && checklistsRes.ok) {
         const checklistsData = await checklistsRes.json();

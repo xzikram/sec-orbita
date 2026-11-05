@@ -586,9 +586,13 @@ export function isRoomChecked(
     const offMatch = offlineChecks.some((c: any) => {
       if (!c) return false;
 
-      // Session isolation: If check has sessionId and currentSessionId is provided, reject if not matching
+      // Session isolation: Allow checks if either ID is an offline session placeholder
       if (c.sessionId && currentSessionId && c.sessionId !== currentSessionId) {
-        return false;
+        const isOffA = String(c.sessionId).startsWith('offline-') || c.sessionId === 'session-active';
+        const isOffB = String(currentSessionId).startsWith('offline-') || currentSessionId === 'session-active';
+        if (!isOffA && !isOffB) {
+          return false;
+        }
       }
 
       return checkMatchesRoom(c);

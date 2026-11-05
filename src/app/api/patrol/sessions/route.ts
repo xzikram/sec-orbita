@@ -45,6 +45,8 @@ export async function GET(request: NextRequest) {
   }
 
   const where: Record<string, any> = {};
+  const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+
   if (id) {
     where.id = id;
   } else {
@@ -52,7 +54,11 @@ export async function GET(request: NextRequest) {
     if (date) {
       where.patrolDate = new Date(date);
     } else {
-      where.patrolDate = todayDate;
+      // Cross-midnight resilience: match today's sessions OR any session currently in_progress started within last 12 hours
+      where.OR = [
+        { patrolDate: todayDate },
+        { status: 'in_progress', startedAt: { gte: twelveHoursAgo } },
+      ];
     }
   }
 
@@ -86,7 +92,10 @@ export async function GET(request: NextRequest) {
         }
       },
     },
-    orderBy: { patrolNumber: 'asc' },
+    orderBy: [
+      { patrolDate: 'asc' },
+      { startedAt: 'asc' },
+    ],
   });
 
   return NextResponse.json(sessions);
@@ -101,39 +110,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { scheduleId, notes } = body;
-
-    let schedule = null;
-    if (scheduleId) {
-      schedule = await prisma.patrolSchedule.findUnique({ where: { id: scheduleId } });
-    }
-
-    // Auto-resolve schedule based on current Makassar time if not specified
-    if (!schedule) {
-      const allSchedules = await prisma.patrolSchedule.findMany({ orderBy: { patrolNumber: 'asc' } });
-      const nowTime = new Intl.DateTimeFormat('id-ID', {
-        timeZone: 'Asia/Makassar',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      }).format(new Date()).replace('.', ':');
-
-      schedule = allSchedules.find(s => {
-        if (s.startTime < s.endTime) {
-          return nowTime >= s.startTime && nowTime < s.endTime;
-        }
-        return nowTime >= s.startTime || nowTime < s.endTime;
-      }) || allSchedules[0];
-    }
-
-    if (!schedule) {
-      return NextResponse.json({ error: 'Jadwal patroli tidak ditemukan' }, { status: 404 });
-    }
+    const { scheduleId, notes, forceNew, resumeSessionId } = body;
 
     const todayMakassarStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
     const patrolDate = new Date(todayMakassarStr);
 
-    // 1. Auto-close dangling sessions before starting or checking active round (> 12 hours)
+    // 1. Auto-close dangling sessions (> 12 hours)
     try {
       const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
       const staleSessions = await prisma.patrolSession.findMany({
@@ -162,66 +144,34 @@ export async function POST(request: NextRequest) {
       console.error('Auto-close error before POST:', autoCloseErr);
     }
 
-    // 2. Multi-officer On-Demand Concurrency:
-    // Only check if THIS SPECIFIC USER already has an active session in progress
-    const myActiveSession = await prisma.patrolSession.findFirst({
-      where: {
-        userId: auth.id,
-        patrolDate,
-        status: 'in_progress',
-      },
-      include: {
-        user: { select: { id: true, name: true, employeeId: true } },
-        schedule: true,
-        sessionFloors: true,
-      },
-    });
-
-    if (myActiveSession) {
-      // User already has their own active round, return it to resume without error
-      return NextResponse.json(myActiveSession, { status: 200 });
-    }
-
-    // 2b. Check if user already has a session record for THIS schedule today (prevent unique constraint collision)
-    const existingScheduleSession = await prisma.patrolSession.findUnique({
-      where: {
-        userId_scheduleId_patrolDate: {
-          userId: auth.id,
-          scheduleId: schedule.id,
-          patrolDate,
-        },
-      },
-      include: {
-        user: { select: { id: true, name: true, employeeId: true } },
-        schedule: true,
-        sessionFloors: {
-          include: {
-            floor: true,
-            patrolChecks: {
-              include: { findings: true },
+    // 2. Resume a specific incomplete session if requested
+    if (resumeSessionId) {
+      const targetIncomplete = await prisma.patrolSession.findUnique({
+        where: { id: resumeSessionId },
+        include: {
+          user: { select: { id: true, name: true, employeeId: true } },
+          schedule: true,
+          sessionFloors: {
+            include: {
+              floor: true,
+              patrolChecks: { include: { findings: true } },
             },
+            orderBy: { floor: { sortOrder: 'asc' } },
           },
         },
-      },
-    });
+      });
 
-    if (existingScheduleSession) {
-      if (existingScheduleSession.status === 'in_progress') {
-        return NextResponse.json(existingScheduleSession, { status: 200 });
-      }
-
-      if (existingScheduleSession.status === 'incomplete') {
-        // Patrol was previously ended early (e.g. Selesaikan Sebagian), but user wants to resume/continue it!
+      if (targetIncomplete && targetIncomplete.status === 'incomplete' && (auth.role === 'admin' || targetIncomplete.userId === auth.id)) {
         const timeMakassar = new Date().toLocaleTimeString('id-ID', {
           timeZone: 'Asia/Makassar',
           hour: '2-digit',
           minute: '2-digit',
         });
         const resumeNote = `[DILANJUTKAN KEMBALI: ${timeMakassar} WITA]`;
-        const updatedNotes = [existingScheduleSession.notes, resumeNote].filter(Boolean).join('\n');
+        const updatedNotes = [targetIncomplete.notes, resumeNote].filter(Boolean).join('\n');
 
         const resumedSession = await prisma.patrolSession.update({
-          where: { id: existingScheduleSession.id },
+          where: { id: targetIncomplete.id },
           data: {
             status: 'in_progress',
             completedAt: null,
@@ -233,10 +183,9 @@ export async function POST(request: NextRequest) {
             sessionFloors: {
               include: {
                 floor: true,
-                patrolChecks: {
-                  include: { findings: true },
-                },
+                patrolChecks: { include: { findings: true } },
               },
+              orderBy: { floor: { sortOrder: 'asc' } },
             },
           },
         });
@@ -249,25 +198,102 @@ export async function POST(request: NextRequest) {
             entityId: resumedSession.id,
             metadata: {
               reason: 'Melanjutkan sesi patroli yang sebelumnya diselesaikan sebagian (incomplete)',
-              patrolNumber: schedule.patrolNumber,
+              patrolNumber: resumedSession.patrolNumber,
             },
           },
         });
 
         return NextResponse.json(resumedSession, { status: 200 });
       }
+    }
 
-      if (existingScheduleSession.status === 'completed') {
-        // If already completed for this schedule, return it gracefully
-        return NextResponse.json(existingScheduleSession, { status: 200 });
+    // 3. If forceNew is requested: close any active in_progress session for this officer
+    if (forceNew) {
+      const activeToClose = await prisma.patrolSession.findFirst({
+        where: {
+          userId: auth.id,
+          patrolDate,
+          status: 'in_progress',
+        },
+      });
+
+      if (activeToClose) {
+        const timeMakassar = new Date().toLocaleTimeString('id-ID', {
+          timeZone: 'Asia/Makassar',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const closeNote = `[DITUTUP UNTUK MEMULAI RONDA BARU: ${timeMakassar} WITA]`;
+        const updatedNotes = [activeToClose.notes, closeNote].filter(Boolean).join('\n');
+
+        await prisma.patrolSession.update({
+          where: { id: activeToClose.id },
+          data: {
+            status: 'incomplete',
+            completedAt: new Date(),
+            notes: updatedNotes,
+          },
+        });
+
+        await prisma.activityLog.create({
+          data: {
+            userId: auth.id,
+            action: 'override_close_patrol',
+            entityType: 'patrol_session',
+            entityId: activeToClose.id,
+            metadata: {
+              reason: 'Menutup sesi lama untuk membuka putaran ronda baru',
+              previousPatrolNumber: activeToClose.patrolNumber,
+            },
+          },
+        });
+      }
+    } else {
+      // If not forceNew, check if user already has an active session in progress
+      const myActiveSession = await prisma.patrolSession.findFirst({
+        where: {
+          userId: auth.id,
+          patrolDate,
+          status: 'in_progress',
+        },
+        include: {
+          user: { select: { id: true, name: true, employeeId: true } },
+          schedule: true,
+          sessionFloors: {
+            include: {
+              floor: true,
+              patrolChecks: { include: { findings: true } },
+            },
+            orderBy: { floor: { sortOrder: 'asc' } },
+          },
+        },
+        orderBy: { startedAt: 'desc' },
+      });
+
+      if (myActiveSession) {
+        return NextResponse.json(myActiveSession, { status: 200 });
       }
     }
 
-    // Resolve shift dynamically based on schedule and real-time clock
+    // 4. Calculate next sequential patrol number for today (24-hour chronological sequence)
+    // Ronda 1 is whoever starts first today, Ronda 2 is next, etc.
+    const todaySessions = await prisma.patrolSession.findMany({
+      where: { patrolDate },
+      select: { patrolNumber: true },
+    });
+    const maxNumber = todaySessions.reduce((max, s) => Math.max(max, s.patrolNumber || 0), 0);
+    const nextPatrolNumber = maxNumber + 1;
+
+    // 5. Match schedule record if available (non-blocking reference)
+    const allSchedules = await prisma.patrolSchedule.findMany({ orderBy: { patrolNumber: 'asc' } });
+    const matchingSchedule = allSchedules.find(s => s.patrolNumber === nextPatrolNumber) || allSchedules[0] || null;
+    const resolvedScheduleId = scheduleId || matchingSchedule?.id || null;
+
+    // 6. Resolve shift dynamically
     let sessionShiftId = auth.shiftId || '';
     try {
       const activeShifts = await prisma.shift.findMany({ where: { isActive: true } });
-      const resolved = resolveShiftForSchedule(schedule, activeShifts);
+      const resolved = resolveShiftForSchedule(matchingSchedule, activeShifts);
       if (resolved && 'id' in resolved && resolved.id) {
         sessionShiftId = resolved.id;
       }
@@ -278,32 +304,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if patrol started earlier than scheduled
-    let earlyNotes: string | null = null;
-    const now = new Date();
-    if (schedule.startTime) {
-      const [sh, sm] = schedule.startTime.split(':').map(Number);
-      const nowH = parseInt(now.toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', hour12: false }));
-      const nowM = parseInt(now.toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', minute: '2-digit' }));
-      const diffMins = (sh * 60 + sm) - (nowH * 60 + nowM);
-      if (diffMins > 10 && diffMins <= 90) {
-        earlyNotes = `Mulai lebih awal pukul ${String(nowH).padStart(2, '0')}:${String(nowM).padStart(2, '0')} WITA (Jadwal resmi: ${schedule.startTime} - ${schedule.endTime})`;
-      }
-    }
-
-    // Get all active floors and create session floors
+    // 7. Get all active floors and create session floors
     const floors = await prisma.floor.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } });
+    const now = new Date();
 
     const session = await prisma.patrolSession.create({
       data: {
         userId: auth.id,
-        scheduleId: schedule.id,
+        scheduleId: resolvedScheduleId,
         shiftId: sessionShiftId,
         patrolDate,
-        patrolNumber: schedule.patrolNumber,
+        patrolNumber: nextPatrolNumber,
         status: 'in_progress',
         startedAt: now,
-        notes: [notes, earlyNotes].filter(Boolean).join(' | ') || null,
+        notes: notes || null,
         sessionFloors: {
           create: floors.map(f => ({
             floorId: f.id,
@@ -312,12 +326,31 @@ export async function POST(request: NextRequest) {
           })),
         },
       },
-      include: { sessionFloors: true },
+      include: {
+        user: { select: { id: true, name: true, employeeId: true } },
+        schedule: true,
+        sessionFloors: {
+          include: {
+            floor: true,
+            patrolChecks: true,
+          },
+          orderBy: { floor: { sortOrder: 'asc' } },
+        },
+      },
     });
 
     // Log activity
     await prisma.activityLog.create({
-      data: { userId: auth.id, action: 'start_patrol', entityType: 'patrol_session', entityId: session.id },
+      data: {
+        userId: auth.id,
+        action: 'start_patrol',
+        entityType: 'patrol_session',
+        entityId: session.id,
+        metadata: {
+          patrolNumber: nextPatrolNumber,
+          startedAt: now.toISOString(),
+        },
+      },
     });
 
     return NextResponse.json(session, { status: 201 });

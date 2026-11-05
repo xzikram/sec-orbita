@@ -12,6 +12,7 @@ import {
 } from '@/lib/dummy-data';
 import styles from './floor.module.css';
 import { getCachedSettings } from '@/lib/settings-client';
+import WhatsAppFloorShareModal from '@/components/WhatsAppFloorShareModal';
 
 export default function FloorDetailPage({
   params,
@@ -35,6 +36,7 @@ export default function FloorDetailPage({
   const [hasSessionQr, setHasSessionQr] = useState(false);
   const [settings, setSettings] = useState(() => getCachedSettings());
   const [loading, setLoading] = useState(true);
+  const [showWaModal, setShowWaModal] = useState(false);
 
   const fallbackFloor = getFloorById(id) || 
     (() => {
@@ -787,6 +789,30 @@ export default function FloorDetailPage({
               : `Seluruh titik pemeriksaan di ${floor.name} telah selesai. Kehadiran fisik sesi patroli ini telah tervalidasi.`}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '280px', margin: '0 auto' }}>
+            <button
+              type="button"
+              onClick={() => setShowWaModal(true)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                backgroundColor: '#25D366',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 3px 10px rgba(37, 211, 102, 0.3)',
+              }}
+              id="btn-share-floor-wa"
+            >
+              <span>📲</span>
+              <span>Bagikan Laporan ke WhatsApp</span>
+            </button>
             {nextFloor ? (
               <button
                 type="button"
@@ -876,10 +902,53 @@ export default function FloorDetailPage({
                   ⏩ Lewati & Scan di Lantai Lain Nanti
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setShowWaModal(true)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  backgroundColor: '#25D366',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(37, 211, 102, 0.25)',
+                }}
+                id="btn-share-floor-wa-pre-qr"
+              >
+                <span>📲</span>
+                <span>Bagikan Laporan ke WhatsApp</span>
+              </button>
             </div>
           </div>
         </div>
       ) : null}
+
+      {/* WhatsApp Floor Report & Collage Share Modal */}
+      {floor && (
+        <WhatsAppFloorShareModal
+          isOpen={showWaModal}
+          onClose={() => setShowWaModal(false)}
+          floor={floor}
+          rooms={floorRooms}
+          checks={[
+            ...(sessionFloor?.patrolChecks || []),
+            ...offlineChecks.filter((c: any) =>
+              c.sessionFloorId === sessionFloor?.id ||
+              c.floorId === floor?.id ||
+              c.floorCode === floor?.code
+            ),
+          ]}
+          officerName={currentUser?.name}
+        />
+      )}
     </div>
   );
 }

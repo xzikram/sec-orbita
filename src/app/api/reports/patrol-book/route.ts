@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
         completedAt: session.completedAt,
         notes: session.notes,
         officer: session.user || { name: 'Petugas Security', employeeId: 'SEC' },
-        schedule: session.schedule || { name: 'Jadwal Patroli', startTime: '00:00', endTime: '00:00' },
+        schedule: session.schedule || { name: `Ronda #${session.patrolNumber}`, startTime: '—', endTime: '—' },
         shift: session.shift || { name: 'Shift Patroli' },
       },
       floors: floorMatrix,

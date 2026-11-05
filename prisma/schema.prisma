@@ -208,7 +208,7 @@ model PatrolSchedule {
 model PatrolSession {
   id           String        @id @default(uuid())
   userId       String        @map("user_id")
-  scheduleId   String        @map("schedule_id")
+  scheduleId   String?       @map("schedule_id")
   shiftId      String        @map("shift_id")
   patrolDate   DateTime      @map("patrol_date") @db.Date
   patrolNumber Int           @map("patrol_number")
@@ -220,12 +220,13 @@ model PatrolSession {
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
   user          User                @relation(fields: [userId], references: [id])
-  schedule      PatrolSchedule      @relation(fields: [scheduleId], references: [id])
+  schedule      PatrolSchedule?     @relation(fields: [scheduleId], references: [id])
   shift         Shift               @relation(fields: [shiftId], references: [id])
   sessionFloors PatrolSessionFloor[]
   findings      Finding[]
 
-  @@unique([userId, scheduleId, patrolDate])
+  @@index([patrolDate, patrolNumber])
+  @@index([userId, status])
   @@map("patrol_sessions")
 }
 

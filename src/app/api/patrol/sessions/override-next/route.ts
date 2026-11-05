@@ -109,62 +109,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2. Check if a session already exists for this user, schedule, and date
-    let existingTargetSession = await prisma.patrolSession.findUnique({
-      where: {
-        userId_scheduleId_patrolDate: {
-          userId: auth.id,
-          scheduleId: schedule.id,
-          patrolDate,
-        },
-      },
-      include: {
-        user: { select: { id: true, name: true, employeeId: true } },
-        schedule: true,
-        sessionFloors: {
-          include: {
-            floor: true,
-            patrolChecks: {
-              include: { findings: true },
-            },
-          },
-        },
-      },
+    // 2. Calculate next sequential patrol number for today (24-hour chronological sequence)
+    const todaySessions = await prisma.patrolSession.findMany({
+      where: { patrolDate },
+      select: { patrolNumber: true },
     });
+    const maxNumber = todaySessions.reduce((max, s) => Math.max(max, s.patrolNumber || 0), 0);
+    const nextPatrolNumber = maxNumber + 1;
 
-    if (existingTargetSession) {
-      if (existingTargetSession.status !== 'in_progress') {
-        // Reopen if needed or return existing
-        existingTargetSession = await prisma.patrolSession.update({
-          where: { id: existingTargetSession.id },
-          data: { status: 'in_progress' },
-          include: {
-            user: { select: { id: true, name: true, employeeId: true } },
-            schedule: true,
-            sessionFloors: {
-              include: {
-                floor: true,
-                patrolChecks: {
-                  include: { findings: true },
-                },
-              },
-            },
-          },
-        });
-      }
-      return NextResponse.json({
-        success: true,
-        message: `Ronda #${schedule.patrolNumber} siap dijalankan`,
-        session: existingTargetSession,
-        closedPreviousSessionId: prevSessionToClose?.id || null,
-      });
-    }
+    // 3. Match schedule record if available (non-blocking reference)
+    const allSchedules = await prisma.patrolSchedule.findMany({ orderBy: { patrolNumber: 'asc' } });
+    const matchingSchedule = allSchedules.find(s => s.patrolNumber === nextPatrolNumber) || allSchedules[0] || null;
+    const resolvedScheduleId = scheduleId || matchingSchedule?.id || null;
 
     // Determine shift dynamically based on schedule and real-time clock
     let sessionShiftId = auth.shiftId || '';
     try {
       const activeShifts = await prisma.shift.findMany({ where: { isActive: true } });
-      const resolved = resolveShiftForSchedule(schedule, activeShifts);
+      const resolved = resolveShiftForSchedule(matchingSchedule, activeShifts);
       if (resolved && 'id' in resolved && resolved.id) {
         sessionShiftId = resolved.id;
       }
@@ -181,14 +143,14 @@ export async function POST(request: NextRequest) {
       orderBy: { sortOrder: 'asc' },
     });
 
-    // 3. Create the new session for this round
+    // 4. Create the new session for this round
     const newSession = await prisma.patrolSession.create({
       data: {
         userId: auth.id,
-        scheduleId: schedule.id,
+        scheduleId: resolvedScheduleId,
         shiftId: sessionShiftId,
         patrolDate,
-        patrolNumber: schedule.patrolNumber,
+        patrolNumber: nextPatrolNumber,
         status: 'in_progress',
         startedAt: now,
         notes: `Dimulai oleh ${auth.name} pada ${timeMakassar} WITA`,
@@ -208,11 +170,12 @@ export async function POST(request: NextRequest) {
             floor: true,
             patrolChecks: true,
           },
+          orderBy: { floor: { sortOrder: 'asc' } },
         },
       },
     });
 
-    // Log start activity
+    // Audit log
     await prisma.activityLog.create({
       data: {
         userId: auth.id,
@@ -220,15 +183,16 @@ export async function POST(request: NextRequest) {
         entityType: 'patrol_session',
         entityId: newSession.id,
         metadata: {
-          patrolNumber: schedule.patrolNumber,
-          scheduleName: schedule.name,
+          patrolNumber: nextPatrolNumber,
+          startedAt: now.toISOString(),
+          overrideFrom: prevSessionToClose?.id || null,
         },
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: `Ronda #${schedule.patrolNumber} berhasil dimulai, sesi sebelumnya telah ditutup dengan aman`,
+      message: `Ronda #${nextPatrolNumber} siap dijalankan`,
       session: newSession,
       closedPreviousSessionId: prevSessionToClose?.id || null,
     }, { status: 201 });

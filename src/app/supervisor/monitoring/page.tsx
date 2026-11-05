@@ -87,7 +87,7 @@ export default function MonitoringPage() {
           <h1 className={styles.pageTitle}>Monitoring Real-Time</h1>
           {activeSess ? (
             <p className={styles.pageSub}>
-              Patroli #{activeSess.patrolNumber} • {activeSess.schedule ? `${activeSess.schedule.startTime} - ${activeSess.schedule.endTime}` : 'Jadwal'} • {activeSess.user?.name || 'Petugas'}
+              Patroli #{activeSess.patrolNumber} • {activeSess.startedAt ? `Mulai: ${new Date(activeSess.startedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA` : (activeSess.schedule ? `${activeSess.schedule.startTime} - ${activeSess.schedule.endTime}` : 'Jadwal')} • {activeSess.user?.name || 'Petugas'}
             </p>
           ) : (
             <p className={styles.pageSub}>Pantau aktivitas patroli petugas keamanan rumah sakit secara langsung</p>

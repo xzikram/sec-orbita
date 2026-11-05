@@ -192,7 +192,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ sessio
           <div>
             <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>Jam Patroli</span>
             <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '2px', display: 'block' }}>
-              {session.schedule?.startTime} - {session.schedule?.endTime}
+              {session.startedAt ? `${new Date(session.startedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA` : (session.schedule?.startTime ? `${session.schedule.startTime} - ${session.schedule.endTime}` : 'Ronda')}
             </span>
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
               Mulai: {session.startedAt ? new Date(session.startedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'} • Selesai: {session.completedAt ? new Date(session.completedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}

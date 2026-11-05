@@ -68,6 +68,15 @@ async function executeSync(onProgress?: SyncProgressCallback): Promise<SyncResul
   let findingsSynced = 0;
   let qrScansSynced = 0;
 
+  // Read local session metadata so we can sync status & migrate offline ID
+  let localSession: any = null;
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('cached-active-session');
+      if (raw) localSession = JSON.parse(raw);
+    } catch {}
+  }
+
   try {
     const checks: OfflineCheck[] = await getOfflineChecks();
     const findings: OfflineFinding[] = await getOfflineFindings();
@@ -113,6 +122,11 @@ async function executeSync(onProgress?: SyncProgressCallback): Promise<SyncResul
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              sessionId: localSession?.id,
+              status: localSession?.status,
+              reason: localSession?.earlyReason || localSession?.reason,
+              notes: localSession?.earlyNotes || localSession?.notes,
+              completedAt: localSession?.completedAt,
               checks: chunk,
               findings: chunkFindings,
               qrScans: chunkQrScans,
@@ -134,6 +148,21 @@ async function executeSync(onProgress?: SyncProgressCallback): Promise<SyncResul
             checksSynced += syncedChecks.length;
             findingsSynced += syncedFnds.length;
             qrScansSynced += syncedQrs.length;
+
+            // Migrate offline session ID to server UUID smoothly without wiping session
+            if (typeof window !== 'undefined' && data.session?.id) {
+              try {
+                const currentRaw = localStorage.getItem('cached-active-session');
+                if (currentRaw) {
+                  const parsed = JSON.parse(currentRaw);
+                  if (String(parsed.id).startsWith('offline-') || parsed.id === 'session-active') {
+                    parsed.id = data.session.id;
+                    parsed.patrolNumber = data.session.patrolNumber || parsed.patrolNumber;
+                    localStorage.setItem('cached-active-session', JSON.stringify(parsed));
+                  }
+                }
+              } catch {}
+            }
           } else {
             batchSucceeded = false;
             break;
@@ -150,7 +179,16 @@ async function executeSync(onProgress?: SyncProgressCallback): Promise<SyncResul
         const res = await fetch('/api/patrol/sync-bundle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ checks: [], findings, qrScans }),
+          body: JSON.stringify({
+            sessionId: localSession?.id,
+            status: localSession?.status,
+            reason: localSession?.earlyReason || localSession?.reason,
+            notes: localSession?.earlyNotes || localSession?.notes,
+            completedAt: localSession?.completedAt,
+            checks: [],
+            findings,
+            qrScans,
+          }),
         });
         if (res.ok) {
           const data = await res.json();
@@ -160,6 +198,20 @@ async function executeSync(onProgress?: SyncProgressCallback): Promise<SyncResul
           ]);
           findingsSynced += (data.syncedFindingIds || []).length;
           qrScansSynced += (data.syncedQrScanIds || []).length;
+
+          if (typeof window !== 'undefined' && data.session?.id) {
+            try {
+              const currentRaw = localStorage.getItem('cached-active-session');
+              if (currentRaw) {
+                const parsed = JSON.parse(currentRaw);
+                if (String(parsed.id).startsWith('offline-') || parsed.id === 'session-active') {
+                  parsed.id = data.session.id;
+                  parsed.patrolNumber = data.session.patrolNumber || parsed.patrolNumber;
+                  localStorage.setItem('cached-active-session', JSON.stringify(parsed));
+                }
+              }
+            } catch {}
+          }
         } else {
           batchSucceeded = false;
         }
@@ -236,7 +288,7 @@ async function executeSync(onProgress?: SyncProgressCallback): Promise<SyncResul
       }
     }
 
-    // 3. Complete Wipe of temporary media & session cache after successful sync
+    // 3. Complete Wipe of temporary media ONLY when all items are confirmed synced
     const remainingChecksCount = (await getOfflineChecks()).length;
     const remainingFindingsCount = (await getOfflineFindings()).length;
     const remainingQrCount = (await getOfflineQrScans()).length;
@@ -246,9 +298,19 @@ async function executeSync(onProgress?: SyncProgressCallback): Promise<SyncResul
     if (allCleaned) {
       try {
         await clearTemporaryOfflineMedia();
+        // NEVER delete 'cached-active-session' during ongoing patrol!
+        // Only clear if the session was explicitly marked completed by officer
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('cached-active-session');
-          localStorage.removeItem('lastPatrolState');
+          const currentRaw = localStorage.getItem('cached-active-session');
+          if (currentRaw) {
+            try {
+              const parsed = JSON.parse(currentRaw);
+              if (parsed.status === 'completed') {
+                localStorage.removeItem('cached-active-session');
+                localStorage.removeItem('lastPatrolState');
+              }
+            } catch {}
+          }
         }
       } catch (clearErr) {
         console.warn('Post-sync clear notice:', clearErr);

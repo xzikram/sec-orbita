@@ -78,11 +78,10 @@ export async function GET(request: NextRequest) {
         ['BUKU MUTASI PATROLI SATUAN PENGAMANAN (SECURITY)'],
         [],
         ['INFORMASI SESI PATROLI', '', 'STATUS & KINERJA'],
-        ['No. Patroli / Sesi', `Patroli #${session.patrolNumber} (${session.schedule?.name || 'Ronda'})`, 'Status Sesi', session.status === 'completed' ? 'SELESAI (100%)' : session.status.toUpperCase()],
+        ['No. Patroli / Sesi', `Patroli #${session.patrolNumber}`, 'Status Sesi', session.status === 'completed' ? 'SELESAI (100%)' : session.status.toUpperCase()],
         ['Tanggal Patroli', sessionDateStr, 'Tingkat Kepatuhan', `${complianceRate}% (${totalChecks}/${totalActiveRooms} Ruangan)`],
-        ['Jadwal Resmi', `${session.schedule?.startTime || '—'} s/d ${session.schedule?.endTime || '—'} WITA`, 'Shift', session.shift?.name || '-'],
-        ['Waktu Pelaksanaan', `${startWita} s/d ${endWita}`, 'Total Lantai Diperiksa', `${session.sessionFloors.length} Lantai`],
-        ['Petugas Security', session.user?.name || 'Petugas', 'NIK / ID Petugas', session.user?.employeeId || '-'],
+        ['Waktu Pelaksanaan', `${startWita} s/d ${endWita}`, 'Shift', session.shift?.name || 'Reguler'],
+        ['Petugas Security', session.user?.name || 'Petugas', 'Total Lantai Diperiksa', `${session.sessionFloors.length} Lantai`],
         ['Catatan Sesi', session.notes || 'Aman terkendali', 'Total Temuan Kendala', `${session.findings.length} Temuan`],
         [],
         ['RINCIAN PEMERIKSAAN RUANGAN PER LANTAI'],
@@ -285,7 +284,7 @@ export async function GET(request: NextRequest) {
       },
       orderBy: [
         { patrolDate: 'asc' },
-        { patrolNumber: 'asc' },
+        { startedAt: 'asc' },
       ],
     });
 
@@ -409,18 +408,25 @@ export async function GET(request: NextRequest) {
       ['Temuan Selesai Ditangani', findings.filter(f => f.status === 'resolved').length, 'Laporan'],
       [],
       ['DAFTAR SESI PATROLI OPERASIONAL'],
-      ['No Sesi', 'Tanggal', 'Shift / Jadwal', 'Jam Mulai', 'Jam Selesai', 'Petugas Security', 'NIK', 'Status', 'Jml Ruangan Cek', 'Jml Temuan'],
+      ['No Sesi', 'Tanggal', 'Shift / Keterangan', 'Jam Mulai (WITA)', 'Jam Selesai (WITA)', 'Petugas Security', 'NIK', 'Status', 'Jml Ruangan Cek', 'Jml Temuan'],
     ];
 
     sessions.forEach(s => {
       const checksInSession = s.sessionFloors.reduce((acc, sf) => acc + sf.patrolChecks.length, 0);
       const findingsInSession = s.sessionFloors.reduce((acc, sf) => acc + sf.patrolChecks.filter(c => c.condition === 'finding').length, 0);
+      const startWita = s.startedAt
+        ? new Date(s.startedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' })
+        : '—';
+      const endWita = s.completedAt
+        ? new Date(s.completedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' })
+        : (s.status === 'in_progress' ? 'Sedang Berjalan' : '—');
+
       summaryRows.push([
         `Patroli #${s.patrolNumber}`,
         s.patrolDate.toISOString().split('T')[0],
-        s.shift?.name || s.schedule?.name || '-',
-        s.schedule?.startTime || '-',
-        s.schedule?.endTime || '-',
+        s.shift?.name || s.schedule?.name || `Ronda #${s.patrolNumber}`,
+        startWita,
+        endWita,
         s.user?.name || 'Petugas',
         s.user?.employeeId || '-',
         s.status.toUpperCase(),
@@ -530,9 +536,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const patrolHeaders: string[] = [];
+    for (let p = 1; p <= 8; p++) {
+      const sessP = sessions.find(s => s.patrolNumber === p);
+      if (sessP && sessP.startedAt) {
+        const timeStr = new Date(sessP.startedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
+        patrolHeaders.push(`Ronda #${p} (${timeStr} WITA)`);
+      } else {
+        patrolHeaders.push(`Ronda #${p}`);
+      }
+    }
+
     const matrixRows: any[][] = [
       ['RS MATA JEC ORBITA @ MAKASSAR'],
-      ['MATRIKS KONTROL 8 SESI PATROLI KEAMANAN (SHIFT PAGI: P1-P4 | SHIFT MALAM: P5-P8)'],
+      ['MATRIKS KONTROL SESI PATROLI KEAMANAN (RONDA #1 S/D #8)'],
       ['Periode:', periodLabel],
       ['Tanggal Unduh:', new Date().toLocaleString('id-ID', { timeZone: 'Asia/Makassar' }) + ' WITA'],
       [],
@@ -541,14 +558,7 @@ export async function GET(request: NextRequest) {
         'Lantai',
         'Kode',
         'Nama Ruangan',
-        'P1 (07:00-10:00) [Shift Pagi]',
-        'P2 (10:00-13:00) [Shift Pagi]',
-        'P3 (13:00-16:00) [Shift Pagi]',
-        'P4 (16:00-19:00) [Shift Pagi]',
-        'P5 (19:00-22:00) [Shift Malam]',
-        'P6 (22:00-01:00) [Shift Malam]',
-        'P7 (01:00-04:00) [Shift Malam]',
-        'P8 (04:00-07:00) [Shift Malam]',
+        ...patrolHeaders,
         'Total Sesi Diperiksa',
       ],
     ];
@@ -580,6 +590,7 @@ export async function GET(request: NextRequest) {
     // Summary footer for the 8 patrols
     const roomsCheckedRow: any[] = ['REKAP', 'TOTAL CEK', 'RUANGAN', '->'];
     const scheduleStatusRow: any[] = ['STATUS', 'SESI PATROLI', 'STATUS JALAN', '->'];
+    const timeExecRow: any[] = ['WAKTU', 'MULAI - SELESAI', 'WITA', '->'];
     const officerRow: any[] = ['PETUGAS', 'SECURITY', 'BERTUGAS', '->'];
 
     for (let p = 1; p <= 8; p++) {
@@ -589,16 +600,25 @@ export async function GET(request: NextRequest) {
         : 0;
 
       roomsCheckedRow.push(`${totalChecksInP} Ruangan`);
-      scheduleStatusRow.push(totalChecksInP > 0 ? '✓ JALAN' : '✗ TIDAK JALAN');
+      scheduleStatusRow.push(totalChecksInP > 0 ? (matchSess?.status === 'completed' ? '✓ SELESAI' : '⏳ BERJALAN/SEBAGIAN') : '✗ TIDAK JALAN');
+      if (matchSess?.startedAt) {
+        const sTime = new Date(matchSess.startedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
+        const eTime = matchSess.completedAt ? new Date(matchSess.completedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' }) : '...';
+        timeExecRow.push(`${sTime}-${eTime}`);
+      } else {
+        timeExecRow.push('—');
+      }
       officerRow.push(matchSess?.user?.name || '—');
     }
     roomsCheckedRow.push('');
     scheduleStatusRow.push('');
+    timeExecRow.push('');
     officerRow.push('');
 
     matrixRows.push([]);
     matrixRows.push(roomsCheckedRow);
     matrixRows.push(scheduleStatusRow);
+    matrixRows.push(timeExecRow);
     matrixRows.push(officerRow);
 
     const wsMatrix = XLSX.utils.aoa_to_sheet(matrixRows);
@@ -723,11 +743,15 @@ export async function GET(request: NextRequest) {
           const findings = checks.filter(c => c.condition === 'finding').length;
 
           let timeStr = '—';
-          if (sessLeft.startedAt && sessLeft.completedAt) {
+          if (sessLeft.startedAt) {
             const startWita = new Date(sessLeft.startedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
-            const endWita = new Date(sessLeft.completedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
-            const dur = Math.round((sessLeft.completedAt.getTime() - sessLeft.startedAt.getTime()) / (1000 * 60));
-            timeStr = `${startWita} - ${endWita} (${dur}m)`;
+            if (sessLeft.completedAt) {
+              const endWita = new Date(sessLeft.completedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
+              const dur = Math.round((sessLeft.completedAt.getTime() - sessLeft.startedAt.getTime()) / (1000 * 60));
+              timeStr = `${startWita} - ${endWita} (${dur}m)`;
+            } else {
+              timeStr = `${startWita} (Sedang Berjalan)`;
+            }
           }
 
           rowData.push(
@@ -774,11 +798,15 @@ export async function GET(request: NextRequest) {
           const findings = checks.filter(c => c.condition === 'finding').length;
 
           let timeStr = '—';
-          if (sessRight.startedAt && sessRight.completedAt) {
+          if (sessRight.startedAt) {
             const startWita = new Date(sessRight.startedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
-            const endWita = new Date(sessRight.completedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
-            const dur = Math.round((sessRight.completedAt.getTime() - sessRight.startedAt.getTime()) / (1000 * 60));
-            timeStr = `${startWita} - ${endWita} (${dur}m)`;
+            if (sessRight.completedAt) {
+              const endWita = new Date(sessRight.completedAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
+              const dur = Math.round((sessRight.completedAt.getTime() - sessRight.startedAt.getTime()) / (1000 * 60));
+              timeStr = `${startWita} - ${endWita} (${dur}m)`;
+            } else {
+              timeStr = `${startWita} (Sedang Berjalan)`;
+            }
           }
 
           rowData.push(

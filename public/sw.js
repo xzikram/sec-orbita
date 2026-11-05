@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v21';
+const CACHE_NAME = 'sec-patrol-v22';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -7,7 +7,10 @@ const STATIC_ASSETS = [
   '/Logo%20RS%20JEC%20ORBITA.png',
   '/apple-touch-icon.png',
   '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-512.png',
+  '/security/patrol',
+  '/security/patrol/summary',
+  '/security/dashboard'
 ];
 
 self.addEventListener('install', (e) => {
@@ -128,26 +131,22 @@ self.addEventListener('fetch', (e) => {
           return cached;
         }
 
-        return fetch(e.request)
-          .then((response) => {
-            if (response.status === 200) {
-              const clone = response.clone();
-              caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
-            }
-            return response;
-          })
-          .catch(async () => {
-            // When offline and exact RSC not cached:
-            // Match any cached RSC flight payload for this component type
+        // Fast-timeout (1200ms) for RSC fetch so weak signal doesn't hang UI
+        return new Promise((resolve) => {
+          let resolved = false;
+
+          const handleRscFallback = async () => {
+            if (resolved) return;
+            resolved = true;
             try {
               const cache = await caches.open(CACHE_NAME);
               const keys = await cache.keys();
-              
+
               if (url.pathname.includes('/room/')) {
                 const anyRoomRsc = keys.find(k => k.url.includes('/room/') && (k.url.includes('_rsc') || k.url.includes('?_rsc')));
                 if (anyRoomRsc) {
                   const match = await cache.match(anyRoomRsc);
-                  if (match) return match;
+                  if (match) return resolve(match);
                 }
               }
 
@@ -155,19 +154,43 @@ self.addEventListener('fetch', (e) => {
                 const anyFloorRsc = keys.find(k => k.url.includes('/floor/') && !k.url.includes('/qr-scan') && (k.url.includes('_rsc') || k.url.includes('?_rsc')));
                 if (anyFloorRsc) {
                   const match = await cache.match(anyFloorRsc);
-                  if (match) return match;
+                  if (match) return resolve(match);
                 }
               }
             } catch {}
 
-            return new Response('Offline RSC', { status: 503, statusText: 'Offline' });
-          });
+            // NEVER return 503! Return 200 empty flight stream to prevent React crash
+            resolve(new Response('', {
+              status: 200,
+              headers: { 'Content-Type': 'text/x-component; charset=utf-8' }
+            }));
+          };
+
+          const rscTimer = setTimeout(handleRscFallback, 1200);
+
+          fetch(e.request)
+            .then((response) => {
+              clearTimeout(rscTimer);
+              if (!resolved) {
+                resolved = true;
+                if (response.status === 200) {
+                  const clone = response.clone();
+                  caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+                }
+                resolve(response);
+              }
+            })
+            .catch(() => {
+              clearTimeout(rscTimer);
+              handleRscFallback();
+            });
+        });
       })
     );
     return;
   }
 
-  // 4. HTML navigation pages — network-first with 1000ms timeout
+  // 4. HTML navigation pages — network-first with fast 1200ms timeout & instant offline fallback
   // STRICT RULE: Navigation requests MUST ONLY return valid text/html, NEVER raw RSC stream!
   if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
     e.respondWith(
@@ -200,7 +223,7 @@ self.addEventListener('fetch', (e) => {
                 !k.url.includes('.json')
               );
 
-              // 1. Room inspection: find cached room HTML
+              // 1. Room inspection: find cached room HTML or fallback to floor or patrol shell
               if (url.pathname.includes('/room/')) {
                 const roomKey = validHtmlKeys.find(k => k.url.includes('/security/patrol/room/'));
                 if (roomKey) {
@@ -209,24 +232,9 @@ self.addEventListener('fetch', (e) => {
                     return resolve(roomRes);
                   }
                 }
-              }
-
-              // 2. QR scan: find cached qr-scan HTML
-              if (url.pathname.includes('/qr-scan')) {
-                const qrKey = validHtmlKeys.find(k => k.url.includes('/qr-scan'));
-                if (qrKey) {
-                  const qrRes = await cache.match(qrKey);
-                  if (qrRes && !qrRes.headers.get('content-type')?.includes('text/x-component')) {
-                    return resolve(qrRes);
-                  }
-                }
-              }
-
-              // 3. Floor page: find exact cached floor HTML or fallback to patrol shell
-              if (url.pathname.includes('/floor/')) {
-                const exactFloorKey = validHtmlKeys.find(k => k.url.endsWith(url.pathname) || k.url.includes(url.pathname));
-                if (exactFloorKey) {
-                  const floorRes = await cache.match(exactFloorKey);
+                const floorKey = validHtmlKeys.find(k => k.url.includes('/security/patrol/floor/') && !k.url.includes('/qr-scan'));
+                if (floorKey) {
+                  const floorRes = await cache.match(floorKey);
                   if (floorRes && !floorRes.headers.get('content-type')?.includes('text/x-component')) {
                     return resolve(floorRes);
                   }
@@ -235,7 +243,40 @@ self.addEventListener('fetch', (e) => {
                 if (patrolShell) return resolve(patrolShell);
               }
 
-              // 4. Default patrol shell (Guaranteed pure HTML) — ONLY for patrol route or summary
+              // 2. QR scan: find cached qr-scan HTML or fallback to patrol shell
+              if (url.pathname.includes('/qr-scan')) {
+                const qrKey = validHtmlKeys.find(k => k.url.includes('/qr-scan'));
+                if (qrKey) {
+                  const qrRes = await cache.match(qrKey);
+                  if (qrRes && !qrRes.headers.get('content-type')?.includes('text/x-component')) {
+                    return resolve(qrRes);
+                  }
+                }
+                const patrolShell = await cache.match('/security/patrol');
+                if (patrolShell) return resolve(patrolShell);
+              }
+
+              // 3. Floor page: find exact cached floor HTML or any floor or fallback to patrol shell
+              if (url.pathname.includes('/floor/')) {
+                const exactFloorKey = validHtmlKeys.find(k => k.url.endsWith(url.pathname) || k.url.includes(url.pathname));
+                if (exactFloorKey) {
+                  const floorRes = await cache.match(exactFloorKey);
+                  if (floorRes && !floorRes.headers.get('content-type')?.includes('text/x-component')) {
+                    return resolve(floorRes);
+                  }
+                }
+                const anyFloorKey = validHtmlKeys.find(k => k.url.includes('/security/patrol/floor/') && !k.url.includes('/qr-scan'));
+                if (anyFloorKey) {
+                  const floorRes = await cache.match(anyFloorKey);
+                  if (floorRes && !floorRes.headers.get('content-type')?.includes('text/x-component')) {
+                    return resolve(floorRes);
+                  }
+                }
+                const patrolShell = await cache.match('/security/patrol');
+                if (patrolShell) return resolve(patrolShell);
+              }
+
+              // 4. Default patrol shell (Guaranteed pure HTML)
               if (url.pathname === '/security/patrol' || url.pathname === '/security/patrol/') {
                 const patrolShell = (await cache.match('/security/patrol')) ||
                                     (await cache.match('/security/patrol/summary'));
@@ -275,7 +316,35 @@ self.addEventListener('fetch', (e) => {
           ));
         };
 
-        const timeoutId = setTimeout(handleOfflineOrTimeout, 6000);
+        // If offline right now, serve from cache instantly (0ms delay)
+        if (typeof self !== 'undefined' && self.navigator && !self.navigator.onLine) {
+          handleOfflineOrTimeout();
+          return;
+        }
+
+        const timeoutId = setTimeout(handleOfflineOrTimeout, 1200);
+
+        fetch(e.request)
+          .then((response) => {
+            clearTimeout(timeoutId);
+            if (!isResolved) {
+              isResolved = true;
+              // Never cache redirected responses or login pages to avoid session redirect poison loops
+              if (response.status === 200 && !response.redirected && !response.url.includes('/login') && url.pathname !== '/login') {
+                const clone = response.clone();
+                caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+              }
+              resolve(response);
+            }
+          })
+          .catch(() => {
+            clearTimeout(timeoutId);
+            handleOfflineOrTimeout();
+          });
+      })
+    );
+    return;
+  }
 
         fetch(e.request)
           .then((response) => {
