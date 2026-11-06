@@ -165,9 +165,15 @@ export default function SecurityLayout({
     }
 
     fetch('/api/auth/me')
-      .then(res => res.json())
+      .then(res => {
+        if (res.status === 401 && !localStorage.getItem('cached-user')) {
+          window.location.replace('/login');
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
       .then(data => {
-        if (data.user) {
+        if (data?.user) {
           setCurrentUser(data.user);
           if (data.user.activeShift) {
             setLiveShift(data.user.activeShift);
@@ -177,7 +183,7 @@ export default function SecurityLayout({
           } catch {}
         }
       })
-      .catch(err => console.error('Error fetching auth user:', err));
+      .catch(() => {});
 
 
     // Global uncaught error listener to send errors to IT/Admin

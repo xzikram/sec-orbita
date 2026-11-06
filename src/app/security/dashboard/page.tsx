@@ -645,46 +645,80 @@ export default function SecurityDashboard() {
     setCurrentTime(new Date());
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
 
-    // Check resume state
+    // 1. FAST LOCAL INIT: Render UI immediately (< 15ms) using cached data
+    let localUser: any = null;
+    let localActiveSess: any = null;
     try {
-      const saved = localStorage.getItem('lastPatrolState');
-      if (saved) {
-        const state = JSON.parse(saved);
-        // Only show if less than 8 hours old
+      const cachedUserStr = localStorage.getItem('cached-user');
+      if (cachedUserStr) {
+        localUser = JSON.parse(cachedUserStr);
+        setCurrentUser(localUser);
+      }
+
+      const cachedSessStr = localStorage.getItem('cached-active-session');
+      if (cachedSessStr) {
+        const parsed = JSON.parse(cachedSessStr);
+        if (!isSessionStaleOrPastDay(parsed) && parsed.status === 'in_progress') {
+          localActiveSess = parsed;
+        }
+      }
+
+      const savedState = localStorage.getItem('lastPatrolState');
+      if (savedState) {
+        const state = JSON.parse(savedState);
         if (Date.now() - new Date(state.timestamp).getTime() < 8 * 3600000) {
           setResumeState(state);
         } else {
           localStorage.removeItem('lastPatrolState');
         }
       }
-    } catch { /* ignore */ }
 
-    // Fetch real data from APIs
+      // Initialize baseline data immediately so user never sees an infinite spinner
+      setData({
+        session: localActiveSess,
+        incompleteSession: null,
+        totalRooms: 133,
+        checkedRooms: 0,
+        findingsCount: 0,
+        floorsCompleted: 0,
+        nextRoundNumber: localActiveSess?.patrolNumber || 1,
+      });
+      setLoading(false);
+    } catch {
+      setLoading(false);
+    }
+
+    // 2. BACKGROUND DATA SYNC with fast AbortController timeout (3000ms max)
     async function loadDashboard() {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
       try {
         const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
         const [meRes, sessionsRes, findingsRes, floorsRes, staffRes, shiftsRes] = await Promise.all([
-          fetch('/api/auth/me').catch(() => null),
-          fetch(`/api/patrol/sessions?date=${today}`).catch(() => null),
-          fetch('/api/findings?status=new&limit=100').catch(() => null),
-          fetch('/api/floors').catch(() => null),
-          fetch('/api/users?role=security').catch(() => null),
-          fetch('/api/shifts').catch(() => null),
+          fetch('/api/auth/me', { signal: controller.signal }).catch(() => null),
+          fetch(`/api/patrol/sessions?date=${today}`, { signal: controller.signal }).catch(() => null),
+          fetch('/api/findings?status=new&limit=100', { signal: controller.signal }).catch(() => null),
+          fetch('/api/floors', { signal: controller.signal }).catch(() => null),
+          fetch('/api/users?role=security', { signal: controller.signal }).catch(() => null),
+          fetch('/api/shifts', { signal: controller.signal }).catch(() => null),
         ]);
+        clearTimeout(timeoutId);
 
-        let loggedInUser: any = null;
+        // Check authentication: if 401 and no local user cached, redirect to login
+        if (meRes && meRes.status === 401 && !localStorage.getItem('cached-user')) {
+          router.replace('/login');
+          return;
+        }
+
+        let loggedInUser = localUser;
         if (meRes && meRes.ok) {
           const meData = await meRes.json();
           loggedInUser = meData.user || null;
           setCurrentUser(loggedInUser);
-        } else {
-          try {
-            const cachedUser = localStorage.getItem('cached-user');
-            if (cachedUser) {
-              loggedInUser = JSON.parse(cachedUser);
-              setCurrentUser(loggedInUser);
-            }
-          } catch {}
+          if (loggedInUser) {
+            try { localStorage.setItem('cached-user', JSON.stringify(loggedInUser)); } catch {}
+          }
         }
 
         if (staffRes && staffRes.ok) {
