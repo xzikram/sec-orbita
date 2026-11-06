@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v23';
+const CACHE_NAME = 'sec-patrol-v24';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -175,10 +175,13 @@ self.addEventListener('fetch', (e) => {
               }
             } catch {}
 
-            // NEVER return 503! Return 200 empty flight stream to prevent React crash
-            resolve(new Response('', {
-              status: 200,
-              headers: { 'Content-Type': 'text/x-component; charset=utf-8' }
+            // When offline or server unreachable, return 504 Gateway Timeout.
+            // In Next.js App Router, 504 triggers clean fallback to browser document navigation,
+            // which Rule 4 intercepts and serves from the cached HTML shell!
+            resolve(new Response('RSC Offline Fallback', {
+              status: 504,
+              statusText: 'Gateway Timeout',
+              headers: { 'Content-Type': 'text/plain' }
             }));
           };
 

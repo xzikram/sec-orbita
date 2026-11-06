@@ -232,12 +232,7 @@ export default function QRScanPage({
         <button
           className="btn btn-primary btn-lg"
           onClick={() => {
-            const targetUrl = `/security/patrol/floor/${floor.id}`;
-            if (typeof window !== 'undefined' && !navigator.onLine) {
-              window.location.href = targetUrl;
-            } else {
-              router.push(targetUrl);
-            }
+            window.location.href = `/security/patrol/floor/${floor.id}`;
           }}
           style={{ fontWeight: 700 }}
         >
@@ -268,11 +263,7 @@ export default function QRScanPage({
     } catch {}
 
     const targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
-    if (typeof window !== 'undefined' && !navigator.onLine) {
-      window.location.href = targetUrl;
-    } else {
-      router.push(targetUrl);
-    }
+    window.location.href = targetUrl;
   };
 
   const handleScanSuccess = async (scannedText: string) => {
@@ -382,11 +373,7 @@ export default function QRScanPage({
     // 5. Transition to next floor or summary
     setTimeout(() => {
       const targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
-      if (typeof window !== 'undefined' && !navigator.onLine) {
-        window.location.href = targetUrl;
-      } else {
-        router.push(targetUrl);
-      }
+      window.location.href = targetUrl;
     }, 2400);
   };
 
@@ -466,12 +453,7 @@ export default function QRScanPage({
                   type="button"
                   className="btn btn-primary btn-lg"
                   onClick={() => {
-                    const targetUrl = `/security/patrol/floor/${nextFloor.id}`;
-                    if (typeof window !== 'undefined' && !navigator.onLine) {
-                      window.location.href = targetUrl;
-                    } else {
-                      router.push(targetUrl);
-                    }
+                    window.location.href = `/security/patrol/floor/${nextFloor.id}`;
                   }}
                   style={{ fontWeight: 700 }}
                 >
@@ -481,12 +463,7 @@ export default function QRScanPage({
                   type="button"
                   className="btn btn-outline btn-sm"
                   onClick={() => {
-                    const targetUrl = '/security/patrol';
-                    if (typeof window !== 'undefined' && !navigator.onLine) {
-                      window.location.href = targetUrl;
-                    } else {
-                      router.push(targetUrl);
-                    }
+                    window.location.href = '/security/patrol';
                   }}
                 >
                   Lihat Rute Patroli
@@ -497,12 +474,7 @@ export default function QRScanPage({
                 type="button"
                 className="btn btn-primary btn-lg"
                 onClick={() => {
-                  const targetUrl = '/security/patrol/summary';
-                  if (typeof window !== 'undefined' && !navigator.onLine) {
-                    window.location.href = targetUrl;
-                  } else {
-                    router.push(targetUrl);
-                  }
+                  window.location.href = '/security/patrol/summary';
                 }}
                 style={{ fontWeight: 700 }}
               >

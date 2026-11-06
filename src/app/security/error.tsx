@@ -96,7 +96,6 @@ export default function SecurityErrorPage({
       sessionStorage.removeItem('security_chunk_retry_count');
       sessionStorage.removeItem('patrol_chunk_retry_count');
       sessionStorage.removeItem('security_render_retry_count');
-      localStorage.removeItem('cached-active-session');
     } catch {}
     window.location.reload();
   };
@@ -164,6 +163,21 @@ export default function SecurityErrorPage({
           </div>
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              onClick={() => { window.location.href = '/security/patrol'; }}
+              style={{
+                background: '#059669',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '10px 18px',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              🛡️ Lanjut Patroli (Offline)
+            </button>
             <button
               onClick={doRetry}
               style={{

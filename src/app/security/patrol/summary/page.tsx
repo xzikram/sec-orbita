@@ -442,7 +442,7 @@ export default function PatrolSummaryPage() {
           className="btn btn-primary btn-lg"
           style={{ width: '100%', justifyContent: 'center' }}
           onClick={(e) => {
-            if (typeof window !== 'undefined' && !navigator.onLine) {
+            if (typeof window !== 'undefined') {
               e.preventDefault();
               window.location.href = '/security/dashboard';
             }

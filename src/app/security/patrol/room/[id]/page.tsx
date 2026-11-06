@@ -305,7 +305,7 @@ export default function RoomCheckPage({
     return (
       <div className="page-content" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
         <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>Ruangan tidak ditemukan</p>
-        <button className="btn btn-outline btn-sm" onClick={() => router.push('/security/patrol')}>
+        <button className="btn btn-outline btn-sm" onClick={() => { window.location.href = '/security/patrol'; }}>
           Kembali ke Rute Patroli
         </button>
       </div>
@@ -736,11 +736,7 @@ export default function RoomCheckPage({
               targetUrl = `/security/patrol/floor/${floorTarget}/qr-scan`;
             }
 
-            if (typeof window !== 'undefined' && !navigator.onLine) {
-              window.location.href = targetUrl;
-            } else {
-              router.push(targetUrl);
-            }
+            window.location.href = targetUrl;
           }
         } catch (navErr: any) {
           console.error('Navigation error after submit:', navErr);
@@ -751,11 +747,7 @@ export default function RoomCheckPage({
           });
           const floorTarget = floor ? floor.id : room.floorId;
           const targetUrl = hasSessionQr ? '/security/patrol' : `/security/patrol/floor/${floorTarget}/qr-scan`;
-          if (typeof window !== 'undefined' && !navigator.onLine) {
-            window.location.href = targetUrl;
-          } else {
-            router.push(targetUrl);
-          }
+          window.location.href = targetUrl;
         }
       }, 1000);
     } catch (submitErr: any) {
@@ -811,11 +803,7 @@ export default function RoomCheckPage({
               className={styles.backBtn}
               onClick={() => {
                 const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
-                if (typeof window !== 'undefined' && !navigator.onLine) {
-                  window.location.href = targetUrl;
-                } else {
-                  router.push(targetUrl);
-                }
+                window.location.href = targetUrl;
               }}
               aria-label="Kembali"
             >
@@ -892,11 +880,7 @@ export default function RoomCheckPage({
             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontWeight: 800, fontSize: '16px', padding: '14px 20px', borderRadius: '12px', marginBottom: '10px' }}
             onClick={() => {
               const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}/qr-scan`;
-              if (typeof window !== 'undefined' && !navigator.onLine) {
-                window.location.href = targetUrl;
-              } else {
-                router.push(targetUrl);
-              }
+              window.location.href = targetUrl;
             }}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -913,11 +897,7 @@ export default function RoomCheckPage({
             style={{ width: '100%', color: 'var(--text-secondary)', fontWeight: 600 }}
             onClick={() => {
               const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
-              if (typeof window !== 'undefined' && !navigator.onLine) {
-                window.location.href = targetUrl;
-              } else {
-                router.push(targetUrl);
-              }
+              window.location.href = targetUrl;
             }}
           >
             Lihat Ringkasan Ruangan Lantai
@@ -946,11 +926,7 @@ export default function RoomCheckPage({
               className={styles.backBtn}
               onClick={() => {
                 const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
-                if (typeof window !== 'undefined' && !navigator.onLine) {
-                  window.location.href = targetUrl;
-                } else {
-                  router.push(targetUrl);
-                }
+                window.location.href = targetUrl;
               }}
               aria-label="Kembali"
             >
@@ -1019,12 +995,7 @@ export default function RoomCheckPage({
                     cursor: 'pointer'
                   }}
                   onClick={() => {
-                    const targetUrl = `/security/patrol`;
-                    if (typeof window !== 'undefined' && !navigator.onLine) {
-                      window.location.href = targetUrl;
-                    } else {
-                      router.push(targetUrl);
-                    }
+                    window.location.href = '/security/patrol';
                   }}
                 >
                   Lantai Selesai ✓ →
@@ -1044,12 +1015,7 @@ export default function RoomCheckPage({
                     cursor: 'pointer'
                   }}
                   onClick={() => {
-                    const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}/qr-scan`;
-                    if (typeof window !== 'undefined' && !navigator.onLine) {
-                      window.location.href = targetUrl;
-                    } else {
-                      router.push(targetUrl);
-                    }
+                    window.location.href = `/security/patrol/floor/${floor?.id || room.floorId}/qr-scan`;
                   }}
                 >
                   Scan QR →

@@ -121,7 +121,7 @@ export default function SecurityDashboard() {
           parsed.status === 'in_progress' &&
           (!currentUser?.id || !parsed.userId || parsed.userId === currentUser.id)
         ) {
-          router.push('/security/patrol');
+          window.location.href = '/security/patrol';
           return;
         }
       }
@@ -215,17 +215,9 @@ export default function SecurityDashboard() {
       setPrepareProgress(100);
       setPrepareStatusText('Rute patroli siap!');
 
-      if (typeof window !== 'undefined' && !navigator.onLine) {
-        window.location.href = '/security/patrol';
-      } else {
-        router.push('/security/patrol');
-      }
+      window.location.href = '/security/patrol';
     } catch {
-      if (typeof window !== 'undefined' && !navigator.onLine) {
-        window.location.href = '/security/patrol';
-      } else {
-        router.push('/security/patrol');
-      }
+      window.location.href = '/security/patrol';
     } finally {
       setIsPreparingOffline(false);
     }
@@ -319,14 +311,10 @@ export default function SecurityDashboard() {
       setPrepareStatusText('Ronda baru siap dimulai!');
       await new Promise(r => setTimeout(r, 150));
 
-      if (typeof window !== 'undefined' && !navigator.onLine) {
-        window.location.href = '/security/patrol';
-      } else {
-        router.push('/security/patrol');
-      }
+      window.location.href = '/security/patrol';
     } catch (err) {
       console.error('New round prep error:', err);
-      router.push('/security/patrol');
+      window.location.href = '/security/patrol';
     } finally {
       setIsPreparingOffline(false);
     }
@@ -376,10 +364,10 @@ export default function SecurityDashboard() {
       await new Promise(r => setTimeout(r, 200));
 
       setPrepareProgress(100);
-      router.push('/security/patrol');
+      window.location.href = '/security/patrol';
     } catch (err) {
       console.error('Resume round error:', err);
-      router.push('/security/patrol');
+      window.location.href = '/security/patrol';
     } finally {
       setIsPreparingOffline(false);
     }
@@ -977,7 +965,7 @@ export default function SecurityDashboard() {
               className="btn btn-primary btn-sm"
               onClick={(e) => {
                 localStorage.removeItem('lastPatrolState');
-                if (typeof window !== 'undefined' && !navigator.onLine) {
+                if (typeof window !== 'undefined') {
                   e.preventDefault();
                   window.location.href = `/security/patrol/floor/${resumeState.floorId}`;
                 }

@@ -796,7 +796,7 @@ export default function PatrolPage() {
             className={`${styles.timelineItem} animate-slide-up stagger-${index + 1}`}
             id={`patrol-floor-${fp.floor.code}`}
             onClick={(e) => {
-              if (typeof window !== 'undefined' && !navigator.onLine) {
+              if (typeof window !== 'undefined') {
                 e.preventDefault();
                 window.location.href = `/security/patrol/floor/${fp.floor.id}`;
               }
@@ -1002,7 +1002,7 @@ export default function PatrolPage() {
                   className="btn btn-primary"
                   style={{ fontWeight: 700, justifyContent: 'center', padding: '10px' }}
                   onClick={(e) => {
-                    if (typeof window !== 'undefined' && !navigator.onLine) {
+                    if (typeof window !== 'undefined') {
                       e.preventDefault();
                       window.location.href = `/security/patrol/floor/${activeOrFirstFloor?.floor?.id || activeOrFirstFloor?.floorId}/qr-scan`;
                     }

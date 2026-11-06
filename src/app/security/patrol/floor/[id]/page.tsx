@@ -258,7 +258,7 @@ export default function FloorDetailPage({
     return (
       <div className="page-content" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
         <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>Lantai tidak ditemukan</p>
-        <button className="btn btn-outline btn-sm" onClick={() => router.push('/security/patrol')}>
+        <button className="btn btn-outline btn-sm" onClick={() => { window.location.href = '/security/patrol'; }}>
           Kembali ke Rute Patroli
         </button>
       </div>
@@ -441,16 +441,16 @@ export default function FloorDetailPage({
   };
 
   const handleGoToRoom = (roomId: string, e?: React.MouseEvent) => {
-    // When offline, use window.location.href to guarantee instant document shell load from Service Worker cache
-    // completely bypassing Next.js RSC fetch 503 error
-    if (typeof window !== 'undefined' && !navigator.onLine) {
+    // Use window.location.href to guarantee instant document shell load from Service Worker cache
+    // completely immune to network state or mobile data routing
+    if (typeof window !== 'undefined') {
       if (e) e.preventDefault();
       window.location.href = `/security/patrol/room/${roomId}`;
     }
   };
 
   const handleGoToQr = (e?: React.MouseEvent) => {
-    if (typeof window !== 'undefined' && !navigator.onLine && floor) {
+    if (typeof window !== 'undefined' && floor) {
       if (e) e.preventDefault();
       window.location.href = `/security/patrol/floor/${floor.id}/qr-scan`;
     }
@@ -501,15 +501,11 @@ export default function FloorDetailPage({
     markCurrentFloorCompletedInCache();
 
     const targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
-    if (typeof window !== 'undefined' && !navigator.onLine) {
-      window.location.href = targetUrl;
-    } else {
-      router.push(targetUrl);
-    }
+    window.location.href = targetUrl;
   };
 
   const handleGoToPatrol = (e?: React.MouseEvent) => {
-    if (typeof window !== 'undefined' && !navigator.onLine) {
+    if (typeof window !== 'undefined') {
       if (e) e.preventDefault();
       window.location.href = '/security/patrol';
     }
@@ -820,12 +816,7 @@ export default function FloorDetailPage({
                 style={{ fontWeight: 700 }}
                 onClick={() => {
                   markCurrentFloorCompletedInCache();
-                  const target = `/security/patrol/floor/${nextFloor.id}`;
-                  if (typeof window !== 'undefined' && !navigator.onLine) {
-                    window.location.href = target;
-                  } else {
-                    router.push(target);
-                  }
+                  window.location.href = `/security/patrol/floor/${nextFloor.id}`;
                 }}
               >
                 Lanjut ke {nextFloor.name} →
@@ -837,12 +828,7 @@ export default function FloorDetailPage({
                 style={{ fontWeight: 700 }}
                 onClick={() => {
                   markCurrentFloorCompletedInCache();
-                  const target = `/security/patrol/summary`;
-                  if (typeof window !== 'undefined' && !navigator.onLine) {
-                    window.location.href = target;
-                  } else {
-                    router.push(target);
-                  }
+                  window.location.href = `/security/patrol/summary`;
                 }}
               >
                 Lihat Ringkasan Patroli 🎉
