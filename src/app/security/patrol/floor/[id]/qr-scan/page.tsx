@@ -6,6 +6,10 @@ import QRScanner from '@/components/QRScanner';
 import { getFloorById, getRoomsByFloor, floors, isRoomChecked } from '@/lib/dummy-data';
 import { getCachedSettings } from '@/lib/settings-client';
 import WhatsAppFloorShareModal from '@/components/WhatsAppFloorShareModal';
+import { validateAnyOfficialFloorQr, isOfficialQrValidForFloor, getFloorByQrToken } from '@/lib/qr-constants';
+import { saveOfflineQrScan, getOfflineChecks, getCachedFloors, matchFloor } from '@/lib/db';
+import { getResilientRoomsForFloor } from '@/lib/offline-cache';
+import { syncOfflineData } from '@/lib/sync';
 import styles from './qrscan.module.css';
 
 export default function QRScanPage({
@@ -91,43 +95,35 @@ export default function QRScanPage({
         }
 
         // 2. Read IndexedDB data
-        const dbMod = await import('@/lib/db').catch(() => null);
-        if (dbMod) {
-          if (dbMod.getOfflineChecks) {
-            try {
-              const off = await dbMod.getOfflineChecks();
-              setOfflineChecks(off);
-            } catch {}
-          }
+        try {
+          const off = await getOfflineChecks();
+          setOfflineChecks(off);
+        } catch {}
 
-          let targetFloorIdentifier: string = id;
-          if (dbMod.getCachedFloors) {
-            try {
-              const cachedFloors = await dbMod.getCachedFloors();
-              if (Array.isArray(cachedFloors) && cachedFloors.length > 0) {
-                setCachedFloorsList(cachedFloors);
-              }
-              const matchedFloor = cachedFloors.find((f: any) =>
-                dbMod.matchFloor ? dbMod.matchFloor(f, id) : (
-                  String(f.id).toLowerCase() === String(id).toLowerCase() ||
-                  String(f.code || '').toLowerCase() === String(id).toLowerCase()
-                )
-              );
-              if (matchedFloor) {
-                setDbFloor(matchedFloor);
-                targetFloorIdentifier = matchedFloor.code || matchedFloor.id;
-              }
-            } catch {}
+        let targetFloorIdentifier: string = id;
+        try {
+          const cachedFloors = await getCachedFloors();
+          if (Array.isArray(cachedFloors) && cachedFloors.length > 0) {
+            setCachedFloorsList(cachedFloors);
           }
+          const matchedFloor = cachedFloors.find((f: any) =>
+            matchFloor ? matchFloor(f, id) : (
+              String(f.id).toLowerCase() === String(id).toLowerCase() ||
+              String(f.code || '').toLowerCase() === String(id).toLowerCase()
+            )
+          );
+          if (matchedFloor) {
+            setDbFloor(matchedFloor);
+            targetFloorIdentifier = matchedFloor.code || matchedFloor.id;
+          }
+        } catch {}
 
-          try {
-            const { getResilientRoomsForFloor } = await import('@/lib/offline-cache');
-            const rooms = await getResilientRoomsForFloor(targetFloorIdentifier);
-            if (Array.isArray(rooms) && rooms.length > 0) {
-              setCachedRooms(rooms);
-            }
-          } catch {}
-        }
+        try {
+          const rooms = await getResilientRoomsForFloor(targetFloorIdentifier);
+          if (Array.isArray(rooms) && rooms.length > 0) {
+            setCachedRooms(rooms);
+          }
+        } catch {}
 
         // 3. Render immediately (< 25ms)
         setLoading(false);
@@ -274,7 +270,6 @@ export default function QRScanPage({
       if (parsed.token) tokenValue = String(parsed.token).trim();
     } catch {}
 
-    const { validateAnyOfficialFloorQr, isOfficialQrValidForFloor, getFloorByQrToken } = await import('@/lib/qr-constants');
     const targetFloorCode = floor ? floor.code : id;
     const anyOfficial = validateAnyOfficialFloorQr(tokenValue);
     const isFloorMatch = isOfficialQrValidForFloor(targetFloorCode, tokenValue);
@@ -304,7 +299,6 @@ export default function QRScanPage({
 
     // 1. Immediately save scan record to IndexedDB
     try {
-      const { saveOfflineQrScan } = await import('@/lib/db');
       await saveOfflineQrScan({
         id: `qr-scan-${Date.now()}-${verifiedFloorCode}`,
         sessionFloorId: sfId,
@@ -360,7 +354,6 @@ export default function QRScanPage({
     // 4. Background non-blocking sync: attempt server validation & memory wipe
     (async () => {
       try {
-        const { syncOfflineData } = await import('@/lib/sync');
         const syncRes = await syncOfflineData();
         if (syncRes.qrScansSynced > 0 || syncRes.checksSynced > 0) {
           setIsOfflineScan(false);

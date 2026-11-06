@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v24';
+const CACHE_NAME = 'sec-patrol-v25';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -13,7 +13,12 @@ const STATIC_ASSETS = [
 const PRECACHE_SHELLS = [
   '/security/patrol',
   '/security/patrol/summary',
-  '/security/dashboard'
+  '/security/dashboard',
+  '/security/patrol/floor/f-sb/qr-scan',
+  '/security/patrol/floor/e20088de-d3c8-4079-9532-3c5eeffe31ea/qr-scan',
+  '/security/patrol/floor/f-sb',
+  '/security/patrol/floor/e20088de-d3c8-4079-9532-3c5eeffe31ea',
+  '/security/patrol/room/rm-sb-01'
 ];
 
 self.addEventListener('install', (e) => {
@@ -37,7 +42,7 @@ self.addEventListener('install', (e) => {
       await Promise.allSettled(
         PRECACHE_SHELLS.map(async (shell) => {
           try {
-            const res = await fetch(shell, { cache: 'no-cache' });
+            const res = await fetch(shell, { cache: 'no-cache', credentials: 'include' });
             if (res && res.status === 200) {
               await cache.put(shell, res);
             }

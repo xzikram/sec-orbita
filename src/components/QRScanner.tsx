@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
 import styles from './qr-scanner.module.css';
 
 interface QRScannerProps {
@@ -45,7 +46,6 @@ export default function QRScanner({ onScan, onError, onCancel, floorName, hideHe
     setErrorMsg('');
 
     try {
-      const { Html5Qrcode } = await import('html5-qrcode');
       if (!scannerRef.current) return;
 
       // Clean up previous instance if running
@@ -182,7 +182,6 @@ export default function QRScanner({ onScan, onError, onCancel, floorName, hideHe
 
     setStatus('loading');
     try {
-      const { Html5Qrcode } = await import('html5-qrcode');
       const tempId = 'temp-scan-file-' + Date.now();
       const div = document.createElement('div');
       div.id = tempId;

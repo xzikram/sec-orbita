@@ -229,11 +229,23 @@ export default function PatrolPage() {
       fetchAndCacheSettings().then(setSettings).catch(() => {});
     }).catch(() => {});
 
-    // Background auto-sync if online
+    // Background auto-sync if online & pre-warm offline patrol shells
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       import('@/lib/sync').then(({ syncOfflineData }) => {
         syncOfflineData().catch(() => {});
       }).catch(() => {});
+
+      setTimeout(() => {
+        try {
+          const warmUrls = [
+            '/security/patrol/summary',
+            '/security/patrol/floor/f-sb/qr-scan',
+            '/security/patrol/floor/f-sb',
+            '/security/patrol/room/rm-sb-01',
+          ];
+          warmUrls.forEach(u => fetch(u, { credentials: 'include' }).catch(() => {}));
+        } catch {}
+      }, 500);
     }
 
     const handleSyncDone = () => {
@@ -253,6 +265,15 @@ export default function PatrolPage() {
       window.removeEventListener('offline-sync-complete', handleSyncDone);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'caches' in window && navigator.onLine && catalogFloors.length > 0) {
+      catalogFloors.forEach((f: any) => {
+        fetch(`/security/patrol/floor/${f.id}`, { credentials: 'include' }).catch(() => {});
+        fetch(`/security/patrol/floor/${f.id}/qr-scan`, { credentials: 'include' }).catch(() => {});
+      });
+    }
+  }, [catalogFloors]);
 
   const handleSetReversed = (reversed: boolean) => {
     setIsReversed(reversed);

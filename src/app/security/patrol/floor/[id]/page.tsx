@@ -250,6 +250,12 @@ export default function FloorDetailPage({
     loadData();
   }, [id]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'caches' in window && navigator.onLine && floor) {
+      fetch(`/security/patrol/floor/${floor.id}/qr-scan`, { credentials: 'include' }).catch(() => {});
+    }
+  }, [floor]);
+
   if (loading) {
     return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat progress lantai...</p></div>;
   }
