@@ -259,7 +259,7 @@ export default function RoomCheckPage({
         // 6. Background non-blocking network refresh if online
         if (navigator.onLine) {
           const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 1200);
+          const timer = setTimeout(() => controller.abort(), 4000);
 
           Promise.all([
             fetch('/api/auth/me', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),

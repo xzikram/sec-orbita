@@ -215,7 +215,7 @@ export default function FloorDetailPage({
         // 5. Background network update if online
         if (navigator.onLine) {
           const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 1200);
+          const timer = setTimeout(() => controller.abort(), 4000);
 
           Promise.all([
             fetch('/api/auth/me', { signal: controller.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
@@ -253,8 +253,12 @@ export default function FloorDetailPage({
   useEffect(() => {
     if (typeof window !== 'undefined' && 'caches' in window && navigator.onLine && floor) {
       fetch(`/security/patrol/floor/${floor.id}/qr-scan`, { credentials: 'include' }).catch(() => {});
+      // Pre-warm room HTML shell into Service Worker cache so clicking "Periksa" loads in 0ms!
+      if (floorRooms.length > 0) {
+        fetch(`/security/patrol/room/${floorRooms[0].id}`, { credentials: 'include' }).catch(() => {});
+      }
     }
-  }, [floor]);
+  }, [floor, floorRooms]);
 
   if (loading) {
     return <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60dvh' }}><p className="text-sm text-muted">Memuat progress lantai...</p></div>;

@@ -61,9 +61,9 @@ export async function submitRoomCheck(payload: RoomCheckPayload): Promise<{ succ
     }
   }
 
-  // Fast-timeout (1.2s) - If server is unreachable in building dead zones, fall back to offline storage with ZERO perceptible lag
+  // Robust timeout (15s) for uploading checklist and photo payload over mobile/Wi-Fi
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 1200);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
     const res = await fetch('/api/patrol/checks', {
@@ -115,7 +115,7 @@ export async function submitFinding(payload: FindingPayload): Promise<{ success:
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 1200);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
     const res = await fetch('/api/findings', {

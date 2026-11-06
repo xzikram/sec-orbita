@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v26';
+const CACHE_NAME = 'sec-patrol-v27';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -126,6 +126,8 @@ self.addEventListener('fetch', (e) => {
             caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
           }
           return response;
+        }).catch(() => {
+          return caches.match(e.request);
         });
       })
     );
@@ -152,7 +154,8 @@ self.addEventListener('fetch', (e) => {
           return cached;
         }
 
-        // Fast-timeout (1200ms) for RSC fetch so weak signal doesn't hang UI
+        // Non-blocking timeout for RSC fetch so weak signal doesn't hang UI
+        // If offline, fallback instantly (0ms); if online, allow up to 6000ms before falling back to document navigation
         return new Promise((resolve) => {
           let resolved = false;
 
@@ -190,7 +193,8 @@ self.addEventListener('fetch', (e) => {
             }));
           };
 
-          const rscTimer = setTimeout(handleRscFallback, 1200);
+          const isOnline = typeof self !== 'undefined' && self.navigator && self.navigator.onLine;
+          const rscTimer = setTimeout(handleRscFallback, isOnline ? 6000 : 0);
 
           fetch(e.request)
             .then((response) => {
@@ -247,8 +251,12 @@ self.addEventListener('fetch', (e) => {
                 !k.url.includes('.json')
               );
 
-              // 1. Room inspection: find cached room HTML or fallback to floor or patrol shell
+              // 1. Room inspection: find cached room HTML or canonical room shell
               if (url.pathname.includes('/room/')) {
+                const canonicalRoom = await cache.match('/security/patrol/room/__canonical__');
+                if (canonicalRoom && !canonicalRoom.headers.get('content-type')?.includes('text/x-component')) {
+                  return resolve(canonicalRoom);
+                }
                 const roomKey = validHtmlKeys.find(k => k.url.includes('/security/patrol/room/'));
                 if (roomKey) {
                   const roomRes = await cache.match(roomKey);
@@ -256,13 +264,7 @@ self.addEventListener('fetch', (e) => {
                     return resolve(roomRes);
                   }
                 }
-                const floorKey = validHtmlKeys.find(k => k.url.includes('/security/patrol/floor/') && !k.url.includes('/qr-scan'));
-                if (floorKey) {
-                  const floorRes = await cache.match(floorKey);
-                  if (floorRes && !floorRes.headers.get('content-type')?.includes('text/x-component')) {
-                    return resolve(floorRes);
-                  }
-                }
+                // NEVER fall back to floor HTML! If no room shell is cached yet, fall back to patrol shell
                 const patrolShell = await cache.match('/security/patrol');
                 if (patrolShell) return resolve(patrolShell);
               }
@@ -341,12 +343,14 @@ self.addEventListener('fetch', (e) => {
         };
 
         // If offline right now, serve from cache instantly (0ms delay)
-        if (typeof self !== 'undefined' && self.navigator && !self.navigator.onLine) {
+        const isOnline = typeof self !== 'undefined' && self.navigator && self.navigator.onLine;
+        if (!isOnline) {
           handleOfflineOrTimeout();
           return;
         }
 
-        const timeoutId = setTimeout(handleOfflineOrTimeout, 1200);
+        // When online, give network 7000ms so mobile Wi-Fi / cellular data has time to load
+        const timeoutId = setTimeout(handleOfflineOrTimeout, 7000);
 
         fetch(e.request)
           .then((response) => {
@@ -356,7 +360,13 @@ self.addEventListener('fetch', (e) => {
               // Never cache redirected responses or login pages to avoid session redirect poison loops
               if (response.status === 200 && !response.redirected && !response.url.includes('/login') && url.pathname !== '/login') {
                 const clone = response.clone();
-                caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+                caches.open(CACHE_NAME).then(cache => {
+                  cache.put(e.request, clone.clone());
+                  // Also store as canonical room shell for instant offline fallback across all rooms
+                  if (url.pathname.includes('/security/patrol/room/')) {
+                    cache.put('/security/patrol/room/__canonical__', clone);
+                  }
+                });
               }
               resolve(response);
             }

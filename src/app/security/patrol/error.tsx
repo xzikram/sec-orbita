@@ -46,10 +46,18 @@ export default function PatrolErrorPage({
       lowerMsg.includes('load failed') ||
       lowerMsg.includes('server components render') ||
       lowerMsg.includes('error loading dynamically imported module') ||
+      lowerMsg.includes('instantiated') ||
+      lowerMsg.includes('module factory') ||
+      lowerMsg.includes('was required from module') ||
       (lowerMsg.includes('chunk') && lowerMsg.includes('failed'));
 
     // If it's a chunk mismatch from a new deployment, auto-reload cleanly up to 2 times
     if (isChunkError) {
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+      if (isOffline) {
+        console.warn('Patrol chunk error occurred while offline. Preserving local cache.');
+        return;
+      }
       const retryKey = 'patrol_chunk_retry_count';
       const count = parseInt(sessionStorage.getItem(retryKey) || '0', 10);
       if (count < 2) {
@@ -107,7 +115,7 @@ export default function PatrolErrorPage({
       sessionStorage.removeItem('chunk_reload_patrol');
       sessionStorage.removeItem('patrol_chunk_retry_count');
       sessionStorage.removeItem('patrol_render_retry_count');
-      localStorage.removeItem('cached-active-session');
+      // Preserving cached-active-session to protect officer's active patrol session!
     } catch {}
     window.location.reload();
   };
