@@ -63,12 +63,25 @@ export default function SecurityErrorPage({
 
       const retryKey = 'security_chunk_retry_count';
       const count = parseInt(sessionStorage.getItem(retryKey) || '0', 10);
-      if (count < 1) {
+      if (count < 2) {
         sessionStorage.setItem(retryKey, String(count + 1));
-        window.location.reload();
+        if (typeof caches !== 'undefined') {
+          caches.keys().then((names) => {
+            return Promise.all(names.map(n => caches.delete(n)));
+          }).finally(() => {
+            if (typeof window !== 'undefined') {
+              const path = window.location.pathname;
+              window.location.href = `${path}?v=${Date.now()}`;
+            }
+          });
+        } else if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
         return;
       }
       sessionStorage.removeItem(retryKey);
+      // Stale chunk errors should not be reported to IT system error log
+      return;
     }
 
     // Otomatis kirim error log ke Tim IT / Admin hanya jika bukan chunk error transien
@@ -150,21 +163,23 @@ export default function SecurityErrorPage({
             Terjadi kendala teknis pada aplikasi. Data patroli Anda tetap aman.
           </p>
 
-          <div style={{
-            background: '#f0fdf4',
-            border: '1px solid #bbf7d0',
-            borderRadius: '8px',
-            padding: '8px 14px',
-            fontSize: '12px',
-            color: '#15803d',
-            fontWeight: 600,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            marginBottom: '20px'
-          }}>
-            <span>✓</span> Laporan error otomatis telah dikirim ke Tim IT
-          </div>
+          {reported && (
+            <div style={{
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '8px',
+              padding: '8px 14px',
+              fontSize: '12px',
+              color: '#15803d',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              marginBottom: '20px'
+            }}>
+              <span>✓</span> Laporan error otomatis telah dikirim ke Tim IT
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
             <button

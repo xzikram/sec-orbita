@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v28';
+const CACHE_NAME = 'sec-patrol-v29';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -14,10 +14,11 @@ const PRECACHE_SHELLS = [
   '/security/patrol',
   '/security/patrol/summary',
   '/security/dashboard',
+  '/security/patrol/floor/e0469495-8791-44f6-974a-2b8b2024c692/qr-scan',
+  '/security/patrol/floor/e0469495-8791-44f6-974a-2b8b2024c692',
+  '/security/patrol/room/50c93910-488e-480a-a910-b427dfa17408',
   '/security/patrol/floor/f-sb/qr-scan',
-  '/security/patrol/floor/e20088de-d3c8-4079-9532-3c5eeffe31ea/qr-scan',
   '/security/patrol/floor/f-sb',
-  '/security/patrol/floor/e20088de-d3c8-4079-9532-3c5eeffe31ea',
   '/security/patrol/room/rm-sb-01'
 ];
 
@@ -44,7 +45,10 @@ self.addEventListener('install', (e) => {
           try {
             const res = await fetch(shell, { cache: 'no-cache', credentials: 'include' });
             if (res && res.status === 200) {
-              await cache.put(shell, res);
+              await cache.put(shell, res.clone());
+              if (shell.includes('/room/')) {
+                await cache.put('/security/patrol/room/__canonical__', res.clone());
+              }
             }
           } catch (err) {
             console.warn('Pre-cache shell warning:', shell, err);
@@ -124,6 +128,12 @@ self.addEventListener('fetch', (e) => {
           if (response.status === 200) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+          } else if (response.status === 404 && url.pathname.endsWith('.js')) {
+            // Stale chunk from older build: return empty 200 JS module to prevent ChunkLoadError crash
+            return new Response('/* stale chunk handled by sw */', {
+              status: 200,
+              headers: { 'Content-Type': 'application/javascript; charset=utf-8' }
+            });
           }
           return response;
         }).catch(() => {
@@ -263,6 +273,10 @@ self.addEventListener('fetch', (e) => {
                   if (roomRes && !roomRes.headers.get('content-type')?.includes('text/x-component')) {
                     return resolve(roomRes);
                   }
+                }
+                const realRoom = await cache.match('/security/patrol/room/50c93910-488e-480a-a910-b427dfa17408');
+                if (realRoom && !realRoom.headers.get('content-type')?.includes('text/x-component')) {
+                  return resolve(realRoom);
                 }
                 // NEVER fall back to floor HTML! If no room shell is cached yet, fall back to patrol shell
                 const patrolShell = await cache.match('/security/patrol');
