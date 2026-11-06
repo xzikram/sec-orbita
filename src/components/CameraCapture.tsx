@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
+import imageCompression from 'browser-image-compression';
 import { getCachedSettings } from '@/lib/settings-client';
 import styles from './camera-capture.module.css';
 
@@ -232,7 +233,6 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
       finalBlob = blob;
       if (blob.size > 700 * 1024) {
         try {
-          const { default: imageCompression } = await import('browser-image-compression');
           const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
           const compressed = await imageCompression(file, {
             maxSizeMB: 0.5,
@@ -293,7 +293,6 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
           finalBlob = blob;
           if (blob.size > 700 * 1024) {
             try {
-              const { default: imageCompression } = await import('browser-image-compression');
               const compressFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
               finalBlob = await imageCompression(compressFile, {
                 maxSizeMB: 0.5,

@@ -151,13 +151,6 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
       }
     }
 
-    // 5. Pre-warm QR Scanner chunk in background
-    if (typeof window !== 'undefined') {
-      try {
-        import('html5-qrcode').catch(() => {});
-      } catch {}
-    }
-
     const nowIso = new Date().toISOString();
     localStorage.setItem('offline-patrol-cache-time', nowIso);
     localStorage.setItem('offline-patrol-start-time', nowIso);

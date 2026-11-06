@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { reportClientError } from '@/lib/error-reporter';
 
 export default function SecurityErrorPage({
   error,
@@ -72,14 +73,12 @@ export default function SecurityErrorPage({
 
     // Otomatis kirim error log ke Tim IT / Admin hanya jika bukan chunk error transien
     try {
-      import('@/lib/error-reporter').then(({ reportClientError }) => {
-        reportClientError({
-          message: error?.message || 'Security App Runtime Error',
-          stack: error?.stack || null,
-          digest: error?.digest || null,
-          url: typeof window !== 'undefined' ? window.location.href : '',
-        }).then(() => setReported(true)).catch(() => setReported(true));
-      }).catch(() => setReported(true));
+      reportClientError({
+        message: error?.message || 'Security App Runtime Error',
+        stack: error?.stack || null,
+        digest: error?.digest || null,
+        url: typeof window !== 'undefined' ? window.location.href : '',
+      }).then(() => setReported(true)).catch(() => setReported(true));
     } catch {
       setReported(true);
     }
