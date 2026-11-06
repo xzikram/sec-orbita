@@ -8,6 +8,7 @@ import {
   floors,
   getRoomsByFloor,
   getFloorById,
+  getRoomById,
   isRoomChecked,
 } from '@/lib/dummy-data';
 import styles from './floor.module.css';
@@ -22,6 +23,8 @@ import {
   STORE_MASTER_ROOMS,
 } from '@/lib/db';
 import WhatsAppFloorShareModal from '@/components/WhatsAppFloorShareModal';
+import RoomInspectionSheet from '@/components/RoomInspectionSheet';
+import FloorQrScannerSheet from '@/components/FloorQrScannerSheet';
 
 export default function FloorDetailPage({
   params,
@@ -60,6 +63,25 @@ export default function FloorDetailPage({
   const [settings, setSettings] = useState(() => getCachedSettings());
   const [loading, setLoading] = useState(true);
   const [showWaModal, setShowWaModal] = useState(false);
+  const [inspectingRoom, setInspectingRoom] = useState<Room | null>(null);
+  const [isScanningQr, setIsScanningQr] = useState<boolean>(false);
+
+  // Check if roomId or scan was requested via URL query params
+  useEffect(() => {
+    if (typeof window !== 'undefined' && floorRooms.length > 0) {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const targetRoomId = searchParams.get('room');
+        if (targetRoomId) {
+          const found = floorRooms.find(r => r.id === targetRoomId || r.code === targetRoomId);
+          if (found) setInspectingRoom(found);
+        }
+        if (searchParams.get('scan') === '1') {
+          setIsScanningQr(true);
+        }
+      } catch {}
+    }
+  }, [floorRooms]);
 
   const fallbackFloor = getFloorById(id) || 
     (() => {
@@ -480,19 +502,18 @@ export default function FloorDetailPage({
   };
 
   const handleGoToRoom = (roomId: string, e?: React.MouseEvent) => {
-    // Use window.location.href to guarantee instant document shell load from Service Worker cache
-    // completely immune to network state or mobile data routing
-    if (typeof window !== 'undefined') {
-      if (e) e.preventDefault();
+    if (e) e.preventDefault();
+    const target = floorRooms.find(r => r.id === roomId || r.code === roomId) || getRoomById(roomId);
+    if (target) {
+      setInspectingRoom(target);
+    } else if (typeof window !== 'undefined') {
       window.location.href = `/security/patrol/room/${roomId}`;
     }
   };
 
   const handleGoToQr = (e?: React.MouseEvent) => {
-    if (typeof window !== 'undefined' && floor) {
-      if (e) e.preventDefault();
-      window.location.href = `/security/patrol/floor/${floor.id}/qr-scan`;
-    }
+    if (e) e.preventDefault();
+    setIsScanningQr(true);
   };
 
   const floorsSource = cachedFloorsList.length > 0 ? cachedFloorsList : (
@@ -852,16 +873,24 @@ export default function FloorDetailPage({
 
                   <div className={styles.roomAction}>
                     {isChecked ? (
-                      <span className="badge badge-success">✓</span>
+                      <button
+                        type="button"
+                        className="badge badge-success"
+                        style={{ cursor: 'pointer', border: 'none', background: 'var(--color-success-500, #10b981)', color: '#fff', padding: '5px 8px', borderRadius: '6px', fontSize: '12px' }}
+                        onClick={(e) => handleGoToRoom(room.id, e)}
+                        title="Klik untuk lihat / perbarui pemeriksaan"
+                      >
+                        ✓
+                      </button>
                     ) : (
-                      <Link
-                        href={`/security/patrol/room/${room.id}`}
+                      <button
+                        type="button"
                         className="btn btn-primary btn-sm"
                         id={`btn-check-${room.code}`}
                         onClick={(e) => handleGoToRoom(room.id, e)}
                       >
                         Periksa
-                      </Link>
+                      </button>
                     )}
                   </div>
                 </div>
@@ -872,11 +901,12 @@ export default function FloorDetailPage({
           {/* Continue CTA */}
           {percent < 100 && nextRoom && (
             <div className={styles.continueCta} style={{ marginTop: '1.5rem' }}>
-              <Link
-                href={`/security/patrol/room/${nextRoom.id}`}
+              <button
+                type="button"
                 className="btn btn-primary btn-xl"
                 id="btn-continue-patrol"
                 onClick={(e) => handleGoToRoom(nextRoom.id, e)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
@@ -884,7 +914,7 @@ export default function FloorDetailPage({
                   <line x1="8" y1="12" x2="16" y2="12" />
                 </svg>
                 Periksa {nextRoom.name}
-              </Link>
+              </button>
             </div>
           )}
 
@@ -973,12 +1003,12 @@ export default function FloorDetailPage({
                 : 'Scan stiker barcode di lantai ini untuk verifikasi kehadiran fisik (cukup 1x scan per sesi patroli).'}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', maxWidth: '300px', margin: '0 auto' }}>
-              <Link
-                href={`/security/patrol/floor/${floor.id}/qr-scan`}
+              <button
+                type="button"
                 className="btn btn-success btn-xl"
                 id="btn-scan-qr"
                 onClick={handleGoToQr}
-                style={{ fontWeight: 700 }}
+                style={{ fontWeight: 700, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="3" width="7" height="7" />
@@ -987,7 +1017,7 @@ export default function FloorDetailPage({
                   <rect x="3" y="14" width="7" height="7" />
                 </svg>
                 Scan Barcode {qrScanMode === 'per_floor' ? floor.name : 'Kehadiran'}
-              </Link>
+              </button>
               {qrScanMode !== 'per_floor' && (
                 <button
                   type="button"
@@ -1050,6 +1080,87 @@ export default function FloorDetailPage({
           ]}
           officerName={currentUser?.name}
         />
+      )}
+
+      {/* In-Page Fullscreen Room Inspection (Pilihan A: 100% Offline Resilience) */}
+      {inspectingRoom && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'var(--bg-primary, #ffffff)',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          <RoomInspectionSheet
+            room={inspectingRoom}
+            floor={floor}
+            session={session}
+            activeFloorRooms={floorRooms}
+            offlineChecks={offlineChecks}
+            currentUser={currentUser}
+            settings={settings}
+            onClose={() => setInspectingRoom(null)}
+            onSaveSuccess={(checkResult, checkedRoom, nextRoom, isFloorDone) => {
+              setOfflineChecks(prev => {
+                const exists = prev.some(c => c.roomId === checkedRoom.id || c.roomCode === checkedRoom.code);
+                if (exists) return prev;
+                return [
+                  ...prev,
+                  {
+                    roomId: checkedRoom.id,
+                    roomCode: checkedRoom.code,
+                    floorId: floor.id,
+                    checkedAt: new Date().toISOString(),
+                  },
+                ];
+              });
+
+              if (nextRoom) {
+                setInspectingRoom(nextRoom);
+              } else if (isFloorDone) {
+                setInspectingRoom(null);
+                if (isRequireQr && !hasThisFloorQr) {
+                  setIsScanningQr(true);
+                }
+              }
+            }}
+            onStartFloorQrScan={() => {
+              setInspectingRoom(null);
+              setIsScanningQr(true);
+            }}
+          />
+        </div>
+      )}
+
+      {/* In-Page Fullscreen QR Scanner (Pilihan A: 100% Offline Resilience) */}
+      {isScanningQr && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            background: 'var(--bg-primary, #ffffff)',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          <FloorQrScannerSheet
+            floor={floor}
+            session={session}
+            sessionFloor={sessionFloor}
+            settings={settings}
+            isAllRoomsChecked={checked >= total}
+            nextFloor={nextFloor}
+            onClose={() => setIsScanningQr(false)}
+            onScanSuccess={() => {
+              setHasSessionQr(true);
+              getOfflineQrScans().then(qrs => setOfflineQrs(qrs || [])).catch(() => {});
+            }}
+          />
+        </div>
       )}
     </div>
   );

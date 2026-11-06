@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sec-patrol-v29';
+const CACHE_NAME = 'sec-patrol-v30';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/offline.html',
@@ -343,7 +343,10 @@ self.addEventListener('fetch', (e) => {
               if (profileShell) return resolve(profileShell);
             }
 
-            // C. Fallback to offline notice page for other routes
+            // C. Fallback to patrol shell or offline notice page for other routes
+            const patrolShell = await cache.match('/security/patrol');
+            if (patrolShell) return resolve(patrolShell);
+
             const offlinePage = await cache.match('/offline.html');
             if (offlinePage) return resolve(offlinePage);
           } catch (err) {
@@ -351,7 +354,7 @@ self.addEventListener('fetch', (e) => {
           }
 
           resolve(new Response(
-            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>RS Mata JEC ORBITA - Offline</title><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:sans-serif;padding:2rem;text-align:center;background:#0f172a;color:#fff"><h2>Mode Offline</h2><p>Data tersimpan di HP Anda. Silakan kembali ke rute patroli.</p><a href="/security/patrol" style="display:inline-block;margin-top:1rem;padding:0.75rem 1.5rem;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px">Ke Rute Patroli</a></body></html>',
+            '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/security/patrol"><title>RS Mata JEC ORBITA</title></head><body style="font-family:sans-serif;padding:2rem;text-align:center;background:#0f172a;color:#fff"><p>Menghubungkan ke Patroli...</p><script>window.location.replace("/security/patrol");</script></body></html>',
             { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
           ));
         };
@@ -363,8 +366,9 @@ self.addEventListener('fetch', (e) => {
           return;
         }
 
-        // When online, give network 7000ms so mobile Wi-Fi / cellular data has time to load
-        const timeoutId = setTimeout(handleOfflineOrTimeout, 7000);
+        // Quick 1800ms network timeout before falling back to cached shell
+        // Prevents freeze when on cellular data where hospital IP is unreachable
+        const timeoutId = setTimeout(handleOfflineOrTimeout, 1800);
 
         fetch(e.request)
           .then((response) => {

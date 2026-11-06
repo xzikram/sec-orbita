@@ -562,7 +562,9 @@ export default function QRScanPage({
       <div className={styles.header}>
         <button
           className="btn btn-ghost btn-icon"
-          onClick={() => router.back()}
+          onClick={() => {
+            window.location.href = `/security/patrol/floor/${floor?.id || id}`;
+          }}
           aria-label="Kembali"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

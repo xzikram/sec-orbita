@@ -815,12 +815,8 @@ export default function RoomCheckPage({
             <button
               className={styles.backBtn}
               onClick={() => {
-                if (typeof window !== 'undefined' && window.history.length > 1) {
-                  router.back();
-                } else {
-                  const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
-                  router.push(targetUrl);
-                }
+                const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
+                window.location.href = targetUrl;
               }}
               aria-label="Kembali"
             >
@@ -946,12 +942,8 @@ export default function RoomCheckPage({
             <button
               className={styles.backBtn}
               onClick={() => {
-                if (typeof window !== 'undefined' && window.history.length > 1) {
-                  router.back();
-                } else {
-                  const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
-                  router.push(targetUrl);
-                }
+                const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
+                window.location.href = targetUrl;
               }}
               aria-label="Kembali"
             >

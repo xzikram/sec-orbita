@@ -17,7 +17,7 @@ export interface PreDownloadResult {
   error?: string;
 }
 
-export const CATALOG_CACHE_VERSION = 'sec-patrol-v23';
+export const CATALOG_CACHE_VERSION = 'sec-patrol-v30';
 
 /**
  * Downloads and caches all active floors, 133 rooms, and official QR tokens to IndexedDB.
@@ -139,8 +139,11 @@ export async function downloadPatrolPackage(): Promise<PreDownloadResult> {
         Promise.allSettled(
           routesToPrecache.map(async (route) => {
             try {
-              const res = await fetch(route);
-              if (res.ok) {
+              const res = await fetch(route, {
+                headers: { 'Accept': 'text/html' },
+                credentials: 'include',
+              });
+              if (res.ok && res.status === 200 && !res.redirected) {
                 await cache.put(route, res);
               }
             } catch {}
