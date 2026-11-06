@@ -425,8 +425,20 @@ export default function RoomInspectionSheet({
       setSyncMode(result.mode);
       setShowSuccess(true);
 
-      // Notify parent
-      onSaveSuccess(result, currentRoom, nextUnchecked, isCompleted);
+      // Notify parent with photoBase64 and check status
+      onSaveSuccess(
+        {
+          ...result,
+          photoBase64: photo || '',
+          acStatus,
+          lightStatus,
+          condition,
+          remarks,
+        },
+        currentRoom,
+        nextUnchecked,
+        isCompleted
+      );
     } catch (err: any) {
       console.error('Submit room check error:', err);
       reportClientError({

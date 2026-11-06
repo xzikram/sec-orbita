@@ -144,27 +144,36 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+export interface PhotoCollageItem {
+  src: string;
+  label?: string;
+}
+
 /**
  * Creates an elegant stitched photo grid collage (e.g. 4x3 or 3x3) using HTML5 Canvas
  * completely offline in the browser.
  */
 export async function createFloorCollageImage(
-  photoSources: string[],
+  photoSources: (string | PhotoCollageItem)[],
   floorTitle: string = 'RS Mata JEC ORBITA'
 ): Promise<{ blob: Blob; file: File; dataUrl: string } | null> {
   if (!photoSources || photoSources.length === 0) return null;
 
   try {
+    const normalizedItems = photoSources.map(p => 
+      typeof p === 'string' ? { src: p, label: '' } : p
+    ).filter(p => Boolean(p.src));
+
     // Limit to at most 16 photos for clean collage
-    const sourcesToUse = photoSources.slice(0, 16);
-    const count = sourcesToUse.length;
+    const itemsToUse = normalizedItems.slice(0, 16);
+    if (itemsToUse.length === 0) return null;
 
     // Load all images in parallel
-    const loadedImages: HTMLImageElement[] = [];
-    for (const src of sourcesToUse) {
+    const loadedImages: { img: HTMLImageElement; label?: string }[] = [];
+    for (const item of itemsToUse) {
       try {
-        const img = await loadImage(src);
-        loadedImages.push(img);
+        const img = await loadImage(item.src);
+        loadedImages.push({ img, label: item.label });
       } catch (loadErr) {
         console.warn('Failed to load image for collage:', loadErr);
       }
@@ -174,67 +183,76 @@ export async function createFloorCollageImage(
 
     const cellWidth = 480;
     const cellHeight = 480;
-    const gap = 8; // white gap between photos
+    const gap = 8; // gap between photos
+    const headerH = 64; // header banner height
     const rects: { x: number; y: number; w: number; h: number }[] = [];
     let canvasWidth = 0;
-    let canvasHeight = 0;
+    let gridHeight = 0;
 
     // Smart layout algorithms matching WhatsApp multi-image album structures:
-    if (loadedImages.length === 10) {
-      // 2 on top (each spans 2 columns), 4 in middle, 4 at bottom (Matches Floor 8 & 9 user reports)
+    if (loadedImages.length === 1) {
+      canvasWidth = cellWidth + 2 * gap;
+      rects.push({ x: gap, y: headerH + gap, w: cellWidth, h: cellHeight });
+      gridHeight = cellHeight + 2 * gap;
+    } else if (loadedImages.length === 2) {
+      canvasWidth = 2 * cellWidth + 3 * gap;
+      rects.push({ x: gap, y: headerH + gap, w: cellWidth, h: cellHeight });
+      rects.push({ x: gap + cellWidth + gap, y: headerH + gap, w: cellWidth, h: cellHeight });
+      gridHeight = cellHeight + 2 * gap;
+    } else if (loadedImages.length === 5) {
+      // 2 on top, 3 at bottom
+      canvasWidth = 3 * cellWidth + 4 * gap;
+      const topW = (canvasWidth - 3 * gap) / 2;
+      const botW = (canvasWidth - 4 * gap) / 3;
+
+      rects.push({ x: gap, y: headerH + gap, w: topW, h: cellHeight });
+      rects.push({ x: gap + topW + gap, y: headerH + gap, w: topW, h: cellHeight });
+
+      const yBot = headerH + gap + cellHeight + gap;
+      for (let c = 0; c < 3; c++) {
+        rects.push({ x: gap + c * (botW + gap), y: yBot, w: botW, h: cellHeight });
+      }
+      gridHeight = 2 * cellHeight + 3 * gap;
+    } else if (loadedImages.length === 10) {
+      // 2 on top (each spans 2 columns), 4 in middle, 4 at bottom
       canvasWidth = 4 * cellWidth + 5 * gap;
       const topW = (canvasWidth - 3 * gap) / 2;
       const topH = Math.round(cellHeight * 1.15);
 
-      // Top row (2 photos)
-      rects.push({ x: gap, y: gap, w: topW, h: topH });
-      rects.push({ x: gap + topW + gap, y: gap, w: topW, h: topH });
+      rects.push({ x: gap, y: headerH + gap, w: topW, h: topH });
+      rects.push({ x: gap + topW + gap, y: headerH + gap, w: topW, h: topH });
 
-      // Middle row (4 photos)
-      const yMid = gap + topH + gap;
+      const yMid = headerH + gap + topH + gap;
       for (let c = 0; c < 4; c++) {
         rects.push({ x: gap + c * (cellWidth + gap), y: yMid, w: cellWidth, h: cellHeight });
       }
 
-      // Bottom row (4 photos)
       const yBot = yMid + cellHeight + gap;
       for (let c = 0; c < 4; c++) {
         rects.push({ x: gap + c * (cellWidth + gap), y: yBot, w: cellWidth, h: cellHeight });
       }
-      canvasHeight = yBot + cellHeight + gap;
-    } else if (loadedImages.length === 5) {
-      // 2 on top, 3 at bottom
-      canvasWidth = 6 * 240 + 7 * gap;
-      const topW = (canvasWidth - 3 * gap) / 2;
-      const botW = (canvasWidth - 4 * gap) / 3;
-
-      rects.push({ x: gap, y: gap, w: topW, h: cellHeight });
-      rects.push({ x: gap + topW + gap, y: gap, w: topW, h: cellHeight });
-
-      const yBot = gap + cellHeight + gap;
-      for (let c = 0; c < 3; c++) {
-        rects.push({ x: gap + c * (botW + gap), y: yBot, w: botW, h: cellHeight });
-      }
-      canvasHeight = yBot + cellHeight + gap;
+      gridHeight = topH + 2 * cellHeight + 4 * gap;
     } else {
-      // Standard regular grid (e.g. 12 photos -> 4 cols x 3 rows; 8 photos -> 4 cols x 2 rows; 9 -> 3x3)
+      // Standard regular grid
       let cols = 3;
       if (loadedImages.length <= 4) cols = 2;
-      else if (loadedImages.length >= 10 || loadedImages.length === 8) cols = 4;
+      else if (loadedImages.length >= 8) cols = 4;
       else cols = 3;
 
       const rows = Math.ceil(loadedImages.length / cols);
       canvasWidth = cols * cellWidth + (cols + 1) * gap;
-      canvasHeight = rows * cellHeight + (rows + 1) * gap;
+      gridHeight = rows * cellHeight + (rows + 1) * gap;
 
       for (let i = 0; i < loadedImages.length; i++) {
         const col = i % cols;
         const row = Math.floor(i / cols);
         const x = gap + col * (cellWidth + gap);
-        const y = gap + row * (cellHeight + gap);
+        const y = headerH + gap + row * (cellHeight + gap);
         rects.push({ x, y, w: cellWidth, h: cellHeight });
       }
     }
+
+    const canvasHeight = headerH + gridHeight;
 
     const canvas = document.createElement('canvas');
     canvas.width = canvasWidth;
@@ -242,15 +260,40 @@ export async function createFloorCollageImage(
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    // Background white frame
-    ctx.fillStyle = '#ffffff';
+    // 1. Background white frame
+    ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    // Draw each photo into its cell (aspect-fill / cover crop)
-    loadedImages.forEach((img, idx) => {
+    // 2. Header banner (Dark Navy)
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, canvasWidth, headerH);
+
+    // Header text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`🏥 RS MATA JEC ORBITA • ${floorTitle.toUpperCase()}`, gap + 8, headerH / 2);
+
+    const nowStr = new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Makassar',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date());
+
+    ctx.font = '500 16px sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    const timeWidth = ctx.measureText(nowStr).width;
+    ctx.fillText(nowStr, canvasWidth - timeWidth - gap - 8, headerH / 2);
+
+    // 3. Draw each photo into its cell (aspect-fill / cover crop)
+    loadedImages.forEach((item, idx) => {
       const rect = rects[idx];
       if (!rect) return;
 
+      const { img, label } = item;
       const { x, y, w: targetW, h: targetH } = rect;
 
       ctx.save();
@@ -276,6 +319,32 @@ export async function createFloorCollageImage(
 
       ctx.drawImage(img, drawX, drawY, drawW, drawH);
       ctx.restore();
+
+      // 4. Draw room label tag at bottom-left corner of tile
+      if (label && label.trim()) {
+        ctx.save();
+        ctx.font = 'bold 18px sans-serif';
+        const paddingX = 12;
+        const tagH = 32;
+        const textW = ctx.measureText(label).width;
+        const tagW = Math.min(targetW - 24, textW + paddingX * 2);
+        const tagX = x + 10;
+        const tagY = y + targetH - tagH - 10;
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+        ctx.beginPath();
+        if (typeof (ctx as any).roundRect === 'function') {
+          (ctx as any).roundRect(tagX, tagY, tagW, tagH, 6);
+        } else {
+          ctx.rect(tagX, tagY, tagW, tagH);
+        }
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, tagX + paddingX, tagY + tagH / 2, tagW - paddingX * 2);
+        ctx.restore();
+      }
     });
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.88);

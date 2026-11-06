@@ -5,6 +5,7 @@ import QRScanner from '@/components/QRScanner';
 import { validateAnyOfficialFloorQr, isOfficialQrValidForFloor, getFloorByQrToken } from '@/lib/qr-constants';
 import { saveOfflineQrScan } from '@/lib/db';
 import { syncOfflineData } from '@/lib/sync';
+import { getRoomsByFloor } from '@/lib/dummy-data';
 import WhatsAppFloorShareModal from '@/components/WhatsAppFloorShareModal';
 import styles from '@/app/security/patrol/floor/[id]/qr-scan/qrscan.module.css';
 
@@ -15,6 +16,8 @@ interface FloorQrScannerSheetProps {
   settings?: any;
   isAllRoomsChecked: boolean;
   nextFloor?: any;
+  rooms?: any[];
+  checks?: any[];
   onClose: () => void;
   onScanSuccess: (verifiedFloorInfo: { name: string; code: string }) => void;
 }
@@ -26,6 +29,8 @@ export default function FloorQrScannerSheet({
   settings = {},
   isAllRoomsChecked,
   nextFloor,
+  rooms = [],
+  checks = [],
   onClose,
   onScanSuccess,
 }: FloorQrScannerSheetProps) {
@@ -266,8 +271,8 @@ export default function FloorQrScannerSheet({
             isOpen={showWaModal}
             onClose={() => setShowWaModal(false)}
             floor={floor}
-            rooms={floor?.rooms || []}
-            checks={sessionFloor?.patrolChecks || []}
+            rooms={rooms && rooms.length > 0 ? rooms : (floor ? getRoomsByFloor(floor.id) : [])}
+            checks={checks && checks.length > 0 ? checks : (sessionFloor?.patrolChecks || [])}
             officerName={session?.user?.name || ''}
           />
         )}

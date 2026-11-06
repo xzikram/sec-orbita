@@ -81,7 +81,8 @@ export async function GET(request: NextRequest) {
           patrolChecks: {
             include: {
               user: { select: { id: true, name: true, employeeId: true } },
-              findings: true
+              findings: true,
+              photos: true,
             }
           },
         },

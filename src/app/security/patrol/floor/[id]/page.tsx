@@ -1105,15 +1105,19 @@ export default function FloorDetailPage({
             onClose={() => setInspectingRoom(null)}
             onSaveSuccess={(checkResult, checkedRoom, nextRoom, isFloorDone) => {
               setOfflineChecks(prev => {
-                const exists = prev.some(c => c.roomId === checkedRoom.id || c.roomCode === checkedRoom.code);
-                if (exists) return prev;
+                const filtered = prev.filter(c => c.roomId !== checkedRoom.id && c.roomCode !== checkedRoom.code);
                 return [
-                  ...prev,
+                  ...filtered,
                   {
                     roomId: checkedRoom.id,
                     roomCode: checkedRoom.code,
                     floorId: floor.id,
                     checkedAt: new Date().toISOString(),
+                    photoBase64: checkResult.photoBase64 || '',
+                    acStatus: checkResult.acStatus,
+                    lightStatus: checkResult.lightStatus,
+                    condition: checkResult.condition,
+                    remarks: checkResult.remarks,
                   },
                 ];
               });
@@ -1154,6 +1158,15 @@ export default function FloorDetailPage({
             settings={settings}
             isAllRoomsChecked={checked >= total}
             nextFloor={nextFloor}
+            rooms={floorRooms}
+            checks={[
+              ...(sessionFloor?.patrolChecks || []),
+              ...offlineChecks.filter((c: any) =>
+                c.sessionFloorId === sessionFloor?.id ||
+                c.floorId === floor?.id ||
+                c.floorCode === floor?.code
+              ),
+            ]}
             onClose={() => setIsScanningQr(false)}
             onScanSuccess={() => {
               setHasSessionQr(true);
