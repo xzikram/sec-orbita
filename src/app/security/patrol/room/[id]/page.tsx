@@ -4,9 +4,18 @@ import { use, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import CameraCapture from '@/components/CameraCapture';
 import { submitRoomCheck, submitFinding } from '@/lib/data-client';
-import { getCachedSettings } from '@/lib/settings-client';
+import { getCachedSettings, fetchAndCacheSettings } from '@/lib/settings-client';
 import { reportClientError } from '@/lib/error-reporter';
-import { getDefaultChecklistItems } from '@/lib/offline-cache';
+import {
+  getDefaultChecklistItems,
+  getResilientRoomById,
+  getResilientRoomsForFloor,
+} from '@/lib/offline-cache';
+import {
+  getCachedFloors,
+  getOfflineChecks,
+  getOfflineQrScans,
+} from '@/lib/db';
 import {
   floors,
   getRoomById,
@@ -167,7 +176,6 @@ export default function RoomCheckPage({
 
         // 2. Resilient room resolution (IndexedDB master_rooms -> static catalog)
         let resolvedRoom = getRoomById(currentRoomId);
-        const { getResilientRoomById, getResilientRoomsForFloor } = await import('@/lib/offline-cache');
         const dbRoom = await getResilientRoomById(currentRoomId);
         if (dbRoom) {
           resolvedRoom = dbRoom;
@@ -190,7 +198,6 @@ export default function RoomCheckPage({
           // 3. Resilient floor rooms list for progression (sorted by custom order if set)
           const fRooms = await getResilientRoomsForFloor(resolvedRoom.floorId);
           if (fRooms && fRooms.length > 0) {
-            const { getCachedFloors } = await import('@/lib/db');
             const cFloors = await getCachedFloors().catch(() => []);
             const mFloor = cFloors.find((f: any) => f.id === resolvedRoom.floorId || String(f.code || '').toUpperCase() === String(resolvedRoom.code || '').split('-')[0].toUpperCase());
             const targetFloorCode = String(mFloor?.code || (resolvedRoom as any).floorCodeSnapshot || (resolvedRoom as any).floor?.code || (resolvedRoom.code ? resolvedRoom.code.split('-')[0] : '')).toUpperCase().trim();
@@ -225,7 +232,6 @@ export default function RoomCheckPage({
 
         // 4. Get offline checks and QR scans from IndexedDB
         try {
-          const { getOfflineChecks, getOfflineQrScans } = await import('@/lib/db');
           const [offline, offlineQrsList] = await Promise.all([
             getOfflineChecks().catch(() => []),
             getOfflineQrScans().catch(() => []),
@@ -239,9 +245,7 @@ export default function RoomCheckPage({
           console.error('IndexedDB load error:', e);
         }
 
-        import('@/lib/settings-client').then(({ fetchAndCacheSettings }) => {
-          fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
-        }).catch(() => {});
+        fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
 
         // Check cached active session for qrValidated
         if (cachedSess) {
@@ -644,7 +648,6 @@ export default function RoomCheckPage({
             } catch {}
 
             if (floorsToOrder.length === 0) {
-              const { getCachedFloors } = await import('@/lib/db');
               const cFloors = await getCachedFloors().catch(() => []);
               if (cFloors.length > 0) {
                 floorsToOrder = cFloors;

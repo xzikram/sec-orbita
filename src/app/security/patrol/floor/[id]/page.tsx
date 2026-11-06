@@ -11,7 +11,16 @@ import {
   isRoomChecked,
 } from '@/lib/dummy-data';
 import styles from './floor.module.css';
-import { getCachedSettings } from '@/lib/settings-client';
+import { getCachedSettings, fetchAndCacheSettings } from '@/lib/settings-client';
+import { getResilientRoomsForFloor } from '@/lib/offline-cache';
+import {
+  getCachedFloors,
+  matchFloor,
+  getOfflineChecks,
+  getOfflineQrScans,
+  openDB,
+  STORE_MASTER_ROOMS,
+} from '@/lib/db';
 import WhatsAppFloorShareModal from '@/components/WhatsAppFloorShareModal';
 
 export default function FloorDetailPage({
@@ -92,28 +101,24 @@ export default function FloorDetailPage({
 
         // 2. Resolve floor from IndexedDB master_floors if available
         let matchedFloor: any = null;
-        const dbMod = await import('@/lib/db').catch(() => null);
-        if (dbMod && dbMod.getCachedFloors) {
-          try {
-            const cachedFloors = await dbMod.getCachedFloors();
-            setCachedFloorsList(cachedFloors);
-            matchedFloor = cachedFloors.find((f: any) =>
-              dbMod.matchFloor ? dbMod.matchFloor(f, id) : (
-                String(f.id).toLowerCase() === String(id).toLowerCase() ||
-                String(f.code || '').toLowerCase() === String(id).toLowerCase()
-              )
-            );
-            if (matchedFloor) {
-              setDbFloor(matchedFloor);
-            }
-          } catch {}
-        }
+        try {
+          const cachedFloors = await getCachedFloors();
+          setCachedFloorsList(cachedFloors);
+          matchedFloor = cachedFloors.find((f: any) =>
+            matchFloor ? matchFloor(f, id) : (
+              String(f.id).toLowerCase() === String(id).toLowerCase() ||
+              String(f.code || '').toLowerCase() === String(id).toLowerCase()
+            )
+          );
+          if (matchedFloor) {
+            setDbFloor(matchedFloor);
+          }
+        } catch {}
 
         // 3. Resolve rooms from IndexedDB master_rooms
         const resolvedFloor = matchedFloor || fallbackFloor;
         const targetFloorIdentifier = resolvedFloor ? (resolvedFloor.code || resolvedFloor.id) : id;
         const targetFloorCode = String(resolvedFloor?.code || dbFloor?.code || id).replace(/^floor-/, '').replace(/^sf-/, '').toUpperCase().trim();
-        const { getResilientRoomsForFloor } = await import('@/lib/offline-cache');
         const defaultRooms = await getResilientRoomsForFloor(targetFloorIdentifier);
         setDefaultFloorRooms(defaultRooms);
 
@@ -186,7 +191,6 @@ export default function FloorDetailPage({
 
         // 3. Get offline checks and QR scans from IndexedDB
         try {
-          const { getOfflineChecks, getOfflineQrScans } = await import('@/lib/db');
           const [offline, offlineQrsList] = await Promise.all([
             getOfflineChecks().catch(() => []),
             getOfflineQrScans().catch(() => []),
@@ -204,9 +208,7 @@ export default function FloorDetailPage({
           setHasSessionQr(true);
         }
 
-        import('@/lib/settings-client').then(({ fetchAndCacheSettings }) => {
-          fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
-        }).catch(() => {});
+        fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
 
         // 4. Set loading false immediately (< 25ms render)
         setLoading(false);
@@ -368,7 +370,7 @@ export default function FloorDetailPage({
     }
 
     // 3. Immediately update IndexedDB master_rooms locally for 100% offline consistency
-    import('@/lib/db').then(async ({ openDB, STORE_MASTER_ROOMS }) => {
+    (async () => {
       try {
         const db = await openDB();
         const tx = db.transaction(STORE_MASTER_ROOMS, 'readwrite');
@@ -383,7 +385,7 @@ export default function FloorDetailPage({
           };
         });
       } catch {}
-    }).catch(() => {});
+    })();
 
     // 4. Visual feedback toast (Option A)
     triggerToast('✓ Urutan tersimpan');
@@ -405,7 +407,7 @@ export default function FloorDetailPage({
     localStorage.removeItem(`patrol-order-${empId}-${id}`);
 
     // Update IndexedDB master_rooms locally
-    import('@/lib/db').then(async ({ openDB, STORE_MASTER_ROOMS }) => {
+    (async () => {
       try {
         const db = await openDB();
         const tx = db.transaction(STORE_MASTER_ROOMS, 'readwrite');
@@ -420,7 +422,7 @@ export default function FloorDetailPage({
           };
         });
       } catch {}
-    }).catch(() => {});
+    })();
 
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       fetch('/api/users/preferences/route-order', {

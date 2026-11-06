@@ -4,8 +4,15 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getRealtimeShift, getOppositeShift } from '@/lib/shifts';
-import { getRoomsByFloor } from '@/lib/dummy-data';
-import { resolveCurrentSchedule, getCachedSchedules } from '@/lib/offline-cache';
+import { getRoomsByFloor, floors as fallbackFloors, floors } from '@/lib/dummy-data';
+import { resolveCurrentSchedule, getCachedSchedules, downloadPatrolPackage } from '@/lib/offline-cache';
+import {
+  getCachedFloors,
+  getOfflineCount,
+  clearTemporaryOfflineMedia,
+  getOfflineChecks,
+} from '@/lib/db';
+import { syncOfflineData } from '@/lib/sync';
 import styles from './dashboard.module.css';
 
 interface SessionFloor {
@@ -134,7 +141,6 @@ export default function SecurityDashboard() {
     try {
       setPrepareProgress(45);
       setPrepareStatusText('Mengunduh katalog 12 Lantai & 133 Ruangan...');
-      const { downloadPatrolPackage } = await import('@/lib/offline-cache');
       const res = await downloadPatrolPackage();
 
       // Ensure an active session exists locally for full offline patrol round
@@ -181,9 +187,8 @@ export default function SecurityDashboard() {
       }
 
       if (!cached) {
-        const { getCachedFloors } = await import('@/lib/db');
         const dbFloors = await getCachedFloors().catch(() => []);
-        const chosenFloors = dbFloors.length > 0 ? dbFloors : (await import('@/lib/dummy-data')).floors;
+        const chosenFloors = dbFloors.length > 0 ? dbFloors : floors;
         const sched = resolveCurrentSchedule(schedulesList) || {
           id: 'default-sched',
           name: 'Ronda Patroli',
@@ -230,7 +235,6 @@ export default function SecurityDashboard() {
 
     try {
       // 1. Clear old temporary offline checks ONLY if everything was synced (count == 0)
-      const { clearTemporaryOfflineMedia, getOfflineCount } = await import('@/lib/db');
       const pendingCounts = await getOfflineCount().catch(() => ({ checks: 0, findings: 0, qrScans: 0 }));
       const totalPending = pendingCounts.checks + pendingCounts.findings + (pendingCounts.qrScans || 0);
       if (totalPending === 0) {
@@ -238,7 +242,7 @@ export default function SecurityDashboard() {
       } else {
         // Unsynced checks present from prior round: preserve them and trigger background sync
         if (typeof navigator !== 'undefined' && navigator.onLine) {
-          import('@/lib/sync').then(({ syncOfflineData }) => syncOfflineData().catch(() => {})).catch(() => {});
+          syncOfflineData().catch(() => {});
         }
       }
       try {
@@ -248,7 +252,6 @@ export default function SecurityDashboard() {
 
       setPrepareProgress(45);
       setPrepareStatusText('Mengunduh katalog 12 Lantai & 133 Ruangan...');
-      const { downloadPatrolPackage } = await import('@/lib/offline-cache');
       const res = await downloadPatrolPackage();
 
       let cached = null;
@@ -279,9 +282,8 @@ export default function SecurityDashboard() {
       }
 
       if (!cached) {
-        const { getCachedFloors } = await import('@/lib/db');
         const dbFloors = await getCachedFloors().catch(() => []);
-        const chosenFloors = dbFloors.length > 0 ? dbFloors : (await import('@/lib/dummy-data')).floors;
+        const chosenFloors = dbFloors.length > 0 ? dbFloors : floors;
         const targetPatrolNumber = data?.nextRoundNumber || 1;
         const offlineSession = {
           id: `offline-sess-${Date.now()}`,
@@ -328,7 +330,6 @@ export default function SecurityDashboard() {
     try {
       setPrepareProgress(45);
       setPrepareStatusText('Mengunduh katalog 12 Lantai & 133 Ruangan...');
-      const { downloadPatrolPackage } = await import('@/lib/offline-cache');
       await downloadPatrolPackage();
 
       let cached = null;
@@ -557,12 +558,10 @@ export default function SecurityDashboard() {
 
       if (!Array.isArray(floors) || floors.length === 0) {
         try {
-          const { getCachedFloors } = await import('@/lib/db');
           floors = await getCachedFloors();
         } catch {}
       }
       if (!Array.isArray(floors) || floors.length === 0) {
-        const { floors: fallbackFloors } = await import('@/lib/dummy-data');
         floors = fallbackFloors;
       }
 
@@ -601,7 +600,6 @@ export default function SecurityDashboard() {
 
       let offlineChecks: any[] = [];
       try {
-        const { getOfflineChecks } = await import('@/lib/db');
         offlineChecks = await getOfflineChecks();
       } catch {}
 
@@ -731,12 +729,10 @@ export default function SecurityDashboard() {
 
         if (!Array.isArray(floors) || floors.length === 0) {
           try {
-            const { getCachedFloors } = await import('@/lib/db');
             floors = await getCachedFloors();
           } catch {}
         }
         if (!Array.isArray(floors) || floors.length === 0) {
-          const { floors: fallbackFloors } = await import('@/lib/dummy-data');
           floors = fallbackFloors;
         }
 
@@ -792,7 +788,6 @@ export default function SecurityDashboard() {
 
         let offlineChecks: any[] = [];
         try {
-          const { getOfflineChecks } = await import('@/lib/db');
           offlineChecks = await getOfflineChecks();
         } catch {}
 
@@ -823,9 +818,7 @@ export default function SecurityDashboard() {
     setLastRefreshTime(new Date());
 
     // Background pre-download of offline patrol package
-    import('@/lib/offline-cache').then(({ downloadPatrolPackage }) => {
-      downloadPatrolPackage().catch(() => {});
-    }).catch(() => {});
+    downloadPatrolPackage().catch(() => {});
 
     // Fetch leaderboard stats
     fetch('/api/leaderboard')

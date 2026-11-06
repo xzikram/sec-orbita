@@ -12,7 +12,18 @@ import {
   dbRoomCodeMap,
 } from '@/lib/dummy-data';
 import styles from './patrol.module.css';
-import { getCachedSettings } from '@/lib/settings-client';
+import { getCachedSettings, fetchAndCacheSettings } from '@/lib/settings-client';
+import {
+  getCachedFloors,
+  getCachedRoomsByFloor,
+  getOfflineChecks,
+  getOfflineQrScans,
+} from '@/lib/db';
+import {
+  ensureFreshPatrolCatalog,
+  resolveCurrentSchedule,
+} from '@/lib/offline-cache';
+import { syncOfflineData } from '@/lib/sync';
 import WhatsAppFloorShareModal from '@/components/WhatsAppFloorShareModal';
 
 // Canonical physical floor progression for RS Mata JEC ORBITA
@@ -131,7 +142,6 @@ export default function PatrolPage() {
 
         // 2. Get offline checks and QR scans from IndexedDB
         try {
-          const { getOfflineChecks, getOfflineQrScans, getCachedFloors, getCachedRoomsByFloor } = await import('@/lib/db');
           const [offline, offlineQrsList, cFloors] = await Promise.all([
             getOfflineChecks().catch(() => []),
             getOfflineQrScans().catch(() => []),
@@ -220,20 +230,14 @@ export default function PatrolPage() {
     loadData();
 
     // Pre-cache patrol package and auto-heal stale catalog in background
-    import('@/lib/offline-cache').then(({ ensureFreshPatrolCatalog }) => {
-      ensureFreshPatrolCatalog().catch(() => {});
-    }).catch(() => {});
+    ensureFreshPatrolCatalog().catch(() => {});
 
     // Fetch operational system settings in background
-    import('@/lib/settings-client').then(({ fetchAndCacheSettings }) => {
-      fetchAndCacheSettings().then(setSettings).catch(() => {});
-    }).catch(() => {});
+    fetchAndCacheSettings().then(setSettings).catch(() => {});
 
     // Background auto-sync if online & pre-warm offline patrol shells
     if (typeof navigator !== 'undefined' && navigator.onLine) {
-      import('@/lib/sync').then(({ syncOfflineData }) => {
-        syncOfflineData().catch(() => {});
-      }).catch(() => {});
+      syncOfflineData().catch(() => {});
 
       setTimeout(() => {
         try {
@@ -249,7 +253,7 @@ export default function PatrolPage() {
     }
 
     const handleSyncDone = () => {
-      import('@/lib/db').then(async ({ getOfflineChecks, getOfflineQrScans }) => {
+      (async () => {
         const [off, offQrs] = await Promise.all([
           getOfflineChecks().catch(() => []),
           getOfflineQrScans().catch(() => []),
@@ -257,7 +261,7 @@ export default function PatrolPage() {
         setOfflineChecks(off);
         setOfflineQrs(offQrs);
         setOfflineQrCount(offQrs.length);
-      }).catch(() => {});
+      })();
     };
 
     window.addEventListener('offline-sync-complete', handleSyncDone);
@@ -340,7 +344,7 @@ export default function PatrolPage() {
 
     // 3. Trigger background sync if online
     if (typeof navigator !== 'undefined' && navigator.onLine) {
-      import('@/lib/sync').then(({ syncOfflineData }) => syncOfflineData().catch(() => {})).catch(() => {});
+      syncOfflineData().catch(() => {});
     }
 
     // 4. Navigate immediately to summary page without hanging or alert blocker
@@ -379,10 +383,8 @@ export default function PatrolPage() {
         if (cu) currentUserId = JSON.parse(cu).id;
       } catch {}
 
-      const { resolveCurrentSchedule } = await import('@/lib/offline-cache');
-      const { getCachedFloors } = await import('@/lib/db');
       const cachedFloors = await getCachedFloors().catch(() => []);
-      const fallbackFloors = cachedFloors.length > 0 ? cachedFloors : (await import('@/lib/dummy-data')).floors;
+      const fallbackFloors = cachedFloors.length > 0 ? cachedFloors : floors;
       const sched = resolveCurrentSchedule() || {
         id: 'default-sched',
         name: 'Ronda Patroli',
@@ -411,10 +413,8 @@ export default function PatrolPage() {
       setSession(offlineSession);
     } catch {
       try {
-        const { resolveCurrentSchedule } = await import('@/lib/offline-cache');
-        const { getCachedFloors } = await import('@/lib/db');
         const cachedFloors = await getCachedFloors().catch(() => []);
-        const fallbackFloors = cachedFloors.length > 0 ? cachedFloors : (await import('@/lib/dummy-data')).floors;
+        const fallbackFloors = cachedFloors.length > 0 ? cachedFloors : floors;
         const sched = resolveCurrentSchedule() || {
           id: 'default-sched',
           name: 'Ronda Patroli',

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { reportClientError } from '@/lib/error-reporter';
 
 export default function PatrolErrorPage({
   error,
@@ -70,14 +71,12 @@ export default function PatrolErrorPage({
 
     // Otomatis kirim error log ke Tim IT / Admin hanya jika bukan chunk error transien
     try {
-      import('@/lib/error-reporter').then(({ reportClientError }) => {
-        reportClientError({
-          message: error?.message || 'Patrol Runtime Error',
-          stack: error?.stack || null,
-          digest: error?.digest || null,
-          url: typeof window !== 'undefined' ? window.location.href : '',
-        }).then(() => setReported(true)).catch(() => setReported(true));
-      }).catch(() => setReported(true));
+      reportClientError({
+        message: error?.message || 'Patrol Runtime Error',
+        stack: error?.stack || null,
+        digest: error?.digest || null,
+        url: typeof window !== 'undefined' ? window.location.href : '',
+      }).then(() => setReported(true)).catch(() => setReported(true));
     } catch {
       setReported(true);
     }

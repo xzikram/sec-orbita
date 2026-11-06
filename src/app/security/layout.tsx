@@ -8,6 +8,8 @@ import ConnectionStatus from '@/components/ConnectionStatus';
 import { getRealtimeShift, ShiftInfo } from '@/lib/shifts';
 import { reportClientError, flushQueuedSystemErrors } from '@/lib/error-reporter';
 import { fetchAndCacheSettings } from '@/lib/settings-client';
+import { syncOfflineData } from '@/lib/sync';
+import { getOfflineCount } from '@/lib/db';
 import styles from './security.module.css';
 
 interface LayoutUser {
@@ -111,7 +113,6 @@ export default function SecurityLayout({
       try {
         flushQueuedSystemErrors().catch(() => {});
         fetchAndCacheSettings().catch(() => {});
-        const { syncOfflineData } = await import('@/lib/sync');
         await syncOfflineData();
         checkOffline();
       } catch (err) {
@@ -130,12 +131,10 @@ export default function SecurityLayout({
     // Check offline data count and auto-sync if online
     const checkOffline = async () => {
       try {
-        const { getOfflineCount } = await import('@/lib/db');
         const counts = await getOfflineCount();
         const total = counts.checks + counts.findings + (counts.qrScans || 0);
         setOfflineCount(total);
         if (typeof navigator !== 'undefined' && navigator.onLine && total > 0) {
-          const { syncOfflineData } = await import('@/lib/sync');
           syncOfflineData().catch(() => {});
         }
       } catch { /* ignore */ }

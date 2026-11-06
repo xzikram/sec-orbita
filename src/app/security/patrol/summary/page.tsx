@@ -3,7 +3,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { syncOfflineData } from '@/lib/sync';
-import { getOfflineCount, getCachedFloors } from '@/lib/db';
+import {
+  getOfflineCount,
+  getCachedFloors,
+  getOfflineChecks,
+  getOfflineFindings,
+  getOfflineQrScans,
+} from '@/lib/db';
 import styles from './summary.module.css';
 
 export default function PatrolSummaryPage() {
@@ -91,7 +97,6 @@ export default function PatrolSummaryPage() {
           }
         }
 
-        const { getOfflineChecks, getOfflineFindings, getOfflineQrScans } = await import('@/lib/db');
         const [offChecks, offFindings, offQr, cFloors] = await Promise.all([
           getOfflineChecks().catch(() => []),
           getOfflineFindings().catch(() => []),
