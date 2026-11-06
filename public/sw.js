@@ -104,11 +104,6 @@ self.addEventListener('fetch', (e) => {
             caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
           }
           return response;
-        }).catch(() => {
-          return new Response('', {
-            status: 200,
-            headers: { 'Content-Type': 'application/javascript; charset=utf-8' }
-          });
         });
       })
     );
@@ -126,11 +121,6 @@ self.addEventListener('fetch', (e) => {
             caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
           }
           return response;
-        }).catch(() => {
-          return new Response('', {
-            status: 200,
-            headers: { 'Content-Type': 'application/javascript; charset=utf-8' }
-          });
         });
       })
     );
@@ -349,28 +339,6 @@ self.addEventListener('fetch', (e) => {
         }
 
         const timeoutId = setTimeout(handleOfflineOrTimeout, 1200);
-
-        fetch(e.request)
-          .then((response) => {
-            clearTimeout(timeoutId);
-            if (!isResolved) {
-              isResolved = true;
-              // Never cache redirected responses or login pages to avoid session redirect poison loops
-              if (response.status === 200 && !response.redirected && !response.url.includes('/login') && url.pathname !== '/login') {
-                const clone = response.clone();
-                caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
-              }
-              resolve(response);
-            }
-          })
-          .catch(() => {
-            clearTimeout(timeoutId);
-            handleOfflineOrTimeout();
-          });
-      })
-    );
-    return;
-  }
 
         fetch(e.request)
           .then((response) => {
