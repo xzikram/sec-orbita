@@ -17,10 +17,40 @@ export function openDB(): Promise<IDBDatabase> {
       return;
     }
 
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error('IndexedDB open timeout (safety fallback)'));
+      }
+    }, 4000);
+
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.onblocked = () => {
+      console.warn('IndexedDB version upgrade blocked by another connection');
+      if (!settled && request.result) {
+        settled = true;
+        clearTimeout(timeout);
+        resolve(request.result);
+      }
+    };
+
+    request.onerror = () => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        reject(request.error);
+      }
+    };
+
+    request.onsuccess = () => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        resolve(request.result);
+      }
+    };
 
     request.onupgradeneeded = (event) => {
       const db = request.result;
@@ -205,6 +235,23 @@ export function matchFloor(f: CachedFloor, query: string): boolean {
   // 6. Clean stripped prefix: 'floor-1' -> '1', 'floor-p4' -> 'p4'
   const cleanQ = q.replace(/^floor-/, '').replace(/^sf-/, '');
   if (cleanQ === fCode) return true;
+
+  // Direct dummy id match e.g. 'floor-1' -> 'L1', 'floor-2' -> 'P2'
+  const dummyIdToCode: Record<string, string> = {
+    'floor-sb': 'sb',
+    'floor-1': 'l1',
+    'floor-2': 'p2',
+    'floor-3': 'p3',
+    'floor-4': 'p4',
+    'floor-5': 'l5',
+    'floor-6': 'l6',
+    'floor-7': 'l7',
+    'floor-8': 'l8',
+    'floor-9': 'l9',
+    'floor-10': 'l10',
+    'floor-11': 'l11',
+  };
+  if (dummyIdToCode[q] && dummyIdToCode[q] === fCode) return true;
 
   // 7. Canonical numeric/code mapping for RS Mata JEC ORBITA
   const aliasMap: Record<string, string> = {

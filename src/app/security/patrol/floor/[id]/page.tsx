@@ -28,8 +28,22 @@ export default function FloorDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params);
+  const { id: paramId } = use(params);
   const router = useRouter();
+
+  const [id, setId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const match = window.location.pathname.match(/\/security\/patrol\/floor\/([^/?#]+)/);
+      if (match && match[1] && match[1] !== 'undefined') return decodeURIComponent(match[1]);
+    }
+    return paramId;
+  });
+
+  useEffect(() => {
+    if (paramId && paramId !== id) {
+      setId(paramId);
+    }
+  }, [paramId]);
 
   const [session, setSession] = useState<any>(null);
   const [dbFloor, setDbFloor] = useState<any>(null);
@@ -49,7 +63,14 @@ export default function FloorDetailPage({
 
   const fallbackFloor = getFloorById(id) || 
     (() => {
-      const match = session?.sessionFloors?.find((sf: any) => 
+      let activeSource = session;
+      if (!activeSource && typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem('cached-active-session');
+          if (cached) activeSource = JSON.parse(cached);
+        } catch {}
+      }
+      const match = activeSource?.sessionFloors?.find((sf: any) => 
         sf.floorId === id || 
         sf.id === id || 
         String(sf.floorCodeSnapshot || '').toUpperCase() === String(id).toUpperCase() ||
@@ -66,6 +87,11 @@ export default function FloorDetailPage({
   const floor = dbFloor || fallbackFloor;
 
   useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+      setMounted(true);
+    }, 350);
+
     async function loadData() {
       try {
         // 1. Read cached user and active session instantly from localStorage
@@ -250,6 +276,7 @@ export default function FloorDetailPage({
       }
     }
     loadData();
+    return () => clearTimeout(safetyTimer);
   }, [id]);
 
   useEffect(() => {

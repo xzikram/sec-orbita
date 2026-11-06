@@ -4,7 +4,7 @@ import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import QRScanner from '@/components/QRScanner';
 import { getFloorById, getRoomsByFloor, floors, isRoomChecked } from '@/lib/dummy-data';
-import { getCachedSettings } from '@/lib/settings-client';
+import { getCachedSettings, fetchAndCacheSettings } from '@/lib/settings-client';
 import WhatsAppFloorShareModal from '@/components/WhatsAppFloorShareModal';
 import { validateAnyOfficialFloorQr, isOfficialQrValidForFloor, getFloorByQrToken } from '@/lib/qr-constants';
 import { saveOfflineQrScan, getOfflineChecks, getCachedFloors, matchFloor } from '@/lib/db';
@@ -17,8 +17,22 @@ export default function QRScanPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params);
+  const { id: paramId } = use(params);
   const router = useRouter();
+
+  const [id, setId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const match = window.location.pathname.match(/\/security\/patrol\/floor\/([^/?#]+)/);
+      if (match && match[1] && match[1] !== 'undefined') return decodeURIComponent(match[1]);
+    }
+    return paramId;
+  });
+
+  useEffect(() => {
+    if (paramId && paramId !== id) {
+      setId(paramId);
+    }
+  }, [paramId]);
 
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
@@ -28,7 +42,14 @@ export default function QRScanPage({
 
   const fallbackFloor = getFloorById(id) || 
     (() => {
-      const match = session?.sessionFloors?.find((sf: any) => 
+      let activeSource = session;
+      if (!activeSource && typeof window !== 'undefined') {
+        try {
+          const cached = localStorage.getItem('cached-active-session');
+          if (cached) activeSource = JSON.parse(cached);
+        } catch {}
+      }
+      const match = activeSource?.sessionFloors?.find((sf: any) => 
         sf.floorId === id || 
         sf.id === id || 
         String(sf.floorCodeSnapshot || '').toUpperCase() === String(id).toUpperCase() ||
@@ -60,6 +81,10 @@ export default function QRScanPage({
     const handleOffline = () => setIsOfflineScan(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 350);
 
     async function loadData() {
       try {
@@ -128,9 +153,7 @@ export default function QRScanPage({
         // 3. Render immediately (< 25ms)
         setLoading(false);
 
-        import('@/lib/settings-client').then(({ fetchAndCacheSettings }) => {
-          fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
-        }).catch(() => {});
+        fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
 
         // 4. Background network update if online
         if (navigator.onLine) {
@@ -162,6 +185,7 @@ export default function QRScanPage({
     loadData();
 
     return () => {
+      clearTimeout(safetyTimer);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -194,8 +218,9 @@ export default function QRScanPage({
 
   // Calculate next floor based on user route direction
   const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
-  const availableFloors = cachedFloorsList.length > 0 ? cachedFloorsList : floors;
+  const availableFloors = (cachedFloorsList.length > 0 ? cachedFloorsList : floors).filter(Boolean);
   const getSortVal = (fl: any) => {
+    if (!fl) return 999;
     if (typeof fl.sortOrder === 'number' && !isNaN(fl.sortOrder)) return fl.sortOrder;
     const c = String(fl.code || '').toUpperCase();
     if (c.includes('SB') || c.includes('SEMI')) return 0;
@@ -203,7 +228,7 @@ export default function QRScanPage({
     return m ? parseInt(m[0], 10) : 999;
   };
   const sortedFloors = [...availableFloors].sort((a, b) => isReversed ? getSortVal(b) - getSortVal(a) : getSortVal(a) - getSortVal(b));
-  const currentIdx = sortedFloors.findIndex(f => f.id === floor?.id || (floor?.code && f.code === floor?.code));
+  const currentIdx = sortedFloors.findIndex(f => f && (f.id === floor?.id || (floor?.code && f.code === floor?.code)));
   const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
 
   if (loading) {

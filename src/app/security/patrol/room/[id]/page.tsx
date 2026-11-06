@@ -15,6 +15,7 @@ import {
   getCachedFloors,
   getOfflineChecks,
   getOfflineQrScans,
+  matchFloor,
 } from '@/lib/db';
 import {
   floors,
@@ -65,6 +66,7 @@ export default function RoomCheckPage({
   });
 
   const [room, setRoom] = useState<any>(() => getRoomById(currentRoomId));
+  const [dbFloor, setDbFloor] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
   const [offlineChecks, setOfflineChecks] = useState<any[]>([]);
@@ -195,11 +197,19 @@ export default function RoomCheckPage({
             setMusicStatus(null);
           }
 
-          // 3. Resilient floor rooms list for progression (sorted by custom order if set)
-          const fRooms = await getResilientRoomsForFloor(resolvedRoom.floorId);
+          // 3. Resilient floor resolution & rooms list for progression
+          const cFloors = await getCachedFloors().catch(() => []);
+          const mFloor = cFloors.find((f: any) =>
+            f.id === resolvedRoom.floorId ||
+            (matchFloor && matchFloor(f, resolvedRoom.floorId)) ||
+            String(f.code || '').toUpperCase() === String(resolvedRoom.code || '').split('-')[0].toUpperCase()
+          );
+          if (mFloor) {
+            setDbFloor(mFloor);
+          }
+
+          const fRooms = await getResilientRoomsForFloor(mFloor?.code || resolvedRoom.floorId);
           if (fRooms && fRooms.length > 0) {
-            const cFloors = await getCachedFloors().catch(() => []);
-            const mFloor = cFloors.find((f: any) => f.id === resolvedRoom.floorId || String(f.code || '').toUpperCase() === String(resolvedRoom.code || '').split('-')[0].toUpperCase());
             const targetFloorCode = String(mFloor?.code || (resolvedRoom as any).floorCodeSnapshot || (resolvedRoom as any).floor?.code || (resolvedRoom.code ? resolvedRoom.code.split('-')[0] : '')).toUpperCase().trim();
             const empId = currentUserId || 'guest';
             const savedCodesStr = localStorage.getItem(`patrol-order-codes-${empId}-${targetFloorCode}`) || localStorage.getItem(`patrol-order-codes-guest-${targetFloorCode}`);
@@ -316,7 +326,7 @@ export default function RoomCheckPage({
     );
   }
 
-  const floor = getFloorById(room.floorId) || (room.code ? getFloorById(room.code.split('-')[0]) : undefined);
+  const floor = dbFloor || getFloorById(room.floorId) || (room.code ? getFloorById(room.code.split('-')[0]) : undefined);
   const activeFloorRooms = floorRooms.length > 0 ? floorRooms : (floor ? getRoomsByFloor(floor.id) : getRoomsByFloor(room.floorId));
   const currentSession = session || { sessionFloors: [] };
   const sessionFloor = currentSession.sessionFloors?.find((sf: any) => {
@@ -805,8 +815,12 @@ export default function RoomCheckPage({
             <button
               className={styles.backBtn}
               onClick={() => {
-                const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
-                window.location.href = targetUrl;
+                if (typeof window !== 'undefined' && window.history.length > 1) {
+                  router.back();
+                } else {
+                  const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
+                  router.push(targetUrl);
+                }
               }}
               aria-label="Kembali"
             >
@@ -899,8 +913,12 @@ export default function RoomCheckPage({
             className="btn btn-ghost btn-sm"
             style={{ width: '100%', color: 'var(--text-secondary)', fontWeight: 600 }}
             onClick={() => {
-              const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
-              window.location.href = targetUrl;
+              if (typeof window !== 'undefined' && window.history.length > 1) {
+                router.back();
+              } else {
+                const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
+                router.push(targetUrl);
+              }
             }}
           >
             Lihat Ringkasan Ruangan Lantai
@@ -928,8 +946,12 @@ export default function RoomCheckPage({
             <button
               className={styles.backBtn}
               onClick={() => {
-                const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
-                window.location.href = targetUrl;
+                if (typeof window !== 'undefined' && window.history.length > 1) {
+                  router.back();
+                } else {
+                  const targetUrl = `/security/patrol/floor/${floor?.id || room.floorId}`;
+                  router.push(targetUrl);
+                }
               }}
               aria-label="Kembali"
             >
