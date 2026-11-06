@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
+    // 1. Verify user authentication (only authenticated personnel can view patrol photos)
+    const auth = await getAuthUser().catch(() => null);
+    if (!auth) {
+      return new NextResponse('Unauthorized: Sesi login diperlukan untuk melihat foto pemeriksaan', { status: 401 });
+    }
+
     const resolvedParams = await params;
     const pathSegments = resolvedParams.path;
 

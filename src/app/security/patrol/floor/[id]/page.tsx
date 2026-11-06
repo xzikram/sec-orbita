@@ -557,6 +557,83 @@ export default function FloorDetailPage({
             style={{ width: `${percent}%` }}
           />
         </div>
+
+        {/* Quick QR Validation Action Bar (Scan barcode anytime SOP) */}
+        {hasThisFloorQr ? (
+          <div style={{
+            marginTop: '12px',
+            padding: '9px 12px',
+            borderRadius: '10px',
+            background: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '8px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '16px', color: '#059669', fontWeight: 'bold' }}>✓</span>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: '#065f46' }}>
+                  Barcode Kehadiran Tervalidasi
+                </div>
+                <div style={{ fontSize: '11px', color: '#047857' }}>
+                  Kehadiran fisik di {floor.name} telah sah tervalidasi
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleGoToQr}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#059669',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                padding: '2px 4px'
+              }}
+            >
+              Scan Ulang 🔄
+            </button>
+          </div>
+        ) : (
+          <div style={{
+            marginTop: '12px',
+            padding: '9px 12px',
+            borderRadius: '10px',
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '8px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>📍</span>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: '#1e40af' }}>
+                  Barcode Kehadiran Fisik
+                </div>
+                <div style={{ fontSize: '11px', color: '#3b82f6' }}>
+                  Bebas scan barcode sekarang saat tiba atau setelah selesai
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={handleGoToQr}
+              style={{ fontWeight: 700, fontSize: '11.5px', padding: '6px 12px', borderRadius: '8px' }}
+              id="btn-scan-qr-header"
+            >
+              📱 Scan Barcode
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Reorder controls header */}

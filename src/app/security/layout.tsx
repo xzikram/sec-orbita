@@ -332,8 +332,11 @@ export default function SecurityLayout({
             href={item.path}
             className={`bottom-nav-item ${isNavActive(item.path) ? 'active' : ''}`}
             id={`nav-${item.label.toLowerCase()}`}
-            onClick={() => {
-              if (typeof window !== 'undefined') {
+            onClick={(e) => {
+              if (typeof window !== 'undefined' && !navigator.onLine) {
+                e.preventDefault();
+                window.location.href = item.path;
+              } else if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('sec-nav-refresh', { detail: { path: item.path } }));
               }
             }}

@@ -117,40 +117,85 @@ export default function CameraCapture({ onCapture, onCancel, watermarkText, room
       timeZone: 'Asia/Makassar',
     });
 
-    // Semi-transparent bar at bottom
-    const barHeight = 56;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    // Dynamic resolution-based scaling (ensures clear legibility on both 720p and 12MP high-res photos)
+    const baseDimension = Math.min(width, height);
+    const scale = Math.max(1, baseDimension / 720);
+
+    const barHeight = Math.round(Math.max(64, height * 0.075));
+    const paddingX = Math.round(Math.max(16, width * 0.025));
+    const titleFontSize = Math.round(Math.max(16, 16 * scale));
+    const subFontSize = Math.round(Math.max(12, 12.5 * scale));
+    const badgeFontSize = Math.round(Math.max(11, 11 * scale));
+
+    // Semi-transparent high-contrast dark bar at bottom
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
     ctx.fillRect(0, height - barHeight, width, barHeight);
 
-    // Text
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 14px Inter, Arial, sans-serif';
+    // Subtle brand accent stripe at the top edge of the banner
+    ctx.fillStyle = '#0ea5e9';
+    ctx.fillRect(0, height - barHeight, width, Math.max(2, Math.round(2 * scale)));
+
+    // Helper: truncate text safely with ellipsis if room name is too long to prevent colliding with timestamp
+    const maxLeftWidth = width * 0.55;
+    const truncateText = (text: string, maxW: number, font: string): string => {
+      ctx.font = font;
+      if (ctx.measureText(text).width <= maxW) return text;
+      let trimmed = text;
+      while (trimmed.length > 3 && ctx.measureText(trimmed + '...').width > maxW) {
+        trimmed = trimmed.slice(0, -1);
+      }
+      return trimmed + '...';
+    };
+
+    const rawLeftText = roomName || watermarkText || 'Pemeriksaan Ruangan';
+    const leftTitleFont = `bold ${titleFontSize}px Inter, -apple-system, sans-serif`;
+    const safeLeftText = truncateText(rawLeftText, maxLeftWidth, leftTitleFont);
+
+    const rawBottomText = officerName ? `📷 ${officerName}` : hospitalName;
+    const leftSubFont = `${subFontSize}px Inter, -apple-system, sans-serif`;
+    const safeBottomText = truncateText(rawBottomText, maxLeftWidth, leftSubFont);
+
+    const rightTopText = showTimestamp ? timestamp : '';
+    const rightBottomText = hospitalName;
+
+    const row1Y = height - barHeight + Math.round(barHeight * 0.38);
+    const row2Y = height - barHeight + Math.round(barHeight * 0.74);
+
+    // 1. Left Column: Room Name (Bold) & Officer Name
     ctx.textBaseline = 'middle';
-
-    const leftText = roomName || watermarkText || 'Security Patrol';
-    const rightText = showTimestamp ? timestamp : '';
-    const bottomText = officerName ? `📷 ${officerName}` : hospitalName;
-
-    ctx.fillText(leftText, 12, height - barHeight + 18);
-
-    ctx.font = '12px Inter, Arial, sans-serif';
-    ctx.fillText(bottomText, 12, height - barHeight + 38);
-
-    if (showTimestamp) {
-      ctx.font = 'bold 13px Inter, Arial, sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText(rightText, width - 12, height - barHeight + 18);
-    }
-
-    ctx.font = '11px Inter, Arial, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(hospitalName, width - 12, height - barHeight + 38);
     ctx.textAlign = 'left';
 
-    // Small logo-like shield top-right
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.font = '10px Inter, Arial, sans-serif';
-    ctx.fillText('🛡️ PATROL VERIFIED', 12, 20);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = leftTitleFont;
+    ctx.fillText(safeLeftText, paddingX, row1Y);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = leftSubFont;
+    ctx.fillText(safeBottomText, paddingX, row2Y);
+
+    // 2. Right Column: Timestamp (Bold WITA) & Hospital Name
+    ctx.textAlign = 'right';
+    if (showTimestamp) {
+      ctx.fillStyle = '#38bdf8'; // High-visibility bright cyan for time
+      ctx.font = `bold ${Math.round(subFontSize * 1.08)}px Inter, -apple-system, monospace`;
+      ctx.fillText(rightTopText, width - paddingX, row1Y);
+    }
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = `bold ${subFontSize}px Inter, -apple-system, sans-serif`;
+    ctx.fillText(rightBottomText, width - paddingX, row2Y);
+    ctx.textAlign = 'left';
+
+    // 3. Top-left discreet security badge
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
+    const badgeText = '🛡️ PATROL VERIFIED';
+    ctx.font = `bold ${badgeFontSize}px Inter, sans-serif`;
+    const badgeWidth = ctx.measureText(badgeText).width + Math.round(16 * scale);
+    const badgeHeight = Math.round(24 * scale);
+    ctx.fillRect(Math.round(12 * scale), Math.round(12 * scale), badgeWidth, badgeHeight);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(badgeText, Math.round(20 * scale), Math.round(12 * scale + badgeHeight / 2));
   };
 
   const takePhoto = async () => {

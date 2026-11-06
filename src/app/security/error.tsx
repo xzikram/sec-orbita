@@ -52,13 +52,18 @@ export default function SecurityErrorPage({
       (lowerMsg.includes('chunk') && lowerMsg.includes('failed'));
 
     if (isChunkError) {
+      // CRITICAL PWA SAFEGUARD: NEVER delete caches or force hard reload when offline,
+      // as wiping caches while offline produces a permanent "This site can't be reached" blank screen!
+      const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+      if (isOffline) {
+        console.warn('Chunk error occurred while offline. Preserving local PWA cache.');
+        return;
+      }
+
       const retryKey = 'security_chunk_retry_count';
       const count = parseInt(sessionStorage.getItem(retryKey) || '0', 10);
-      if (count < 2) {
+      if (count < 1) {
         sessionStorage.setItem(retryKey, String(count + 1));
-        if ('caches' in window) {
-          caches.keys().then(names => Promise.all(names.map(n => caches.delete(n)))).catch(() => {});
-        }
         window.location.reload();
         return;
       }

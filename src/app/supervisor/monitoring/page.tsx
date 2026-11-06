@@ -30,19 +30,28 @@ export default function MonitoringPage() {
     else setRefreshing(true);
 
     try {
-      const [sessRes, floorRes] = await Promise.all([
-        fetch('/api/patrol/sessions'),
-        fetch('/api/floors'),
-      ]);
+      if (!isBackground) {
+        const [sessRes, floorRes] = await Promise.all([
+          fetch('/api/patrol/sessions'),
+          fetch('/api/floors'),
+        ]);
 
-      if (sessRes.ok) {
-        const sessData = await sessRes.json();
-        setSessions(Array.isArray(sessData) ? sessData : []);
-      }
+        if (sessRes.ok) {
+          const sessData = await sessRes.json();
+          setSessions(Array.isArray(sessData) ? sessData : []);
+        }
 
-      if (floorRes.ok) {
-        const floorData = await floorRes.json();
-        setFloors(Array.isArray(floorData) ? floorData : []);
+        if (floorRes.ok) {
+          const floorData = await floorRes.json();
+          setFloors(Array.isArray(floorData) ? floorData : []);
+        }
+      } else {
+        // High efficiency: interval polling only fetches active patrol sessions
+        const sessRes = await fetch('/api/patrol/sessions');
+        if (sessRes.ok) {
+          const sessData = await sessRes.json();
+          setSessions(Array.isArray(sessData) ? sessData : []);
+        }
       }
 
       setLastRefreshed(new Date());

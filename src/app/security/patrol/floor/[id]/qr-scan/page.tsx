@@ -214,30 +214,7 @@ export default function QRScanPage({
     );
   }
 
-  // Pre-scan guard: block scanner if rooms are incomplete
-  if (!isAllRoomsChecked && floor) {
-    return (
-      <div className="page-content" style={{ textAlign: 'center', padding: '3rem 1.25rem', paddingBottom: '96px' }}>
-        <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: '#fef2f2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: '28px', border: '1px solid #fecaca' }}>
-          ⚠️
-        </div>
-        <h2 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '8px', color: 'var(--text-primary)' }}>Pemeriksaan Ruangan Belum Lengkap</h2>
-        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '24px', lineHeight: 1.5 }}>
-          Anda baru memeriksa <strong>{uniqueChecked.size} dari {floorRooms.length} ruangan</strong> di {floor.name}. Selesaikan seluruh ceklist & foto ruangan terlebih dahulu sebelum melakukan scan QR lantai.
-        </p>
-        <button
-          className="btn btn-primary btn-lg"
-          onClick={() => {
-            window.location.href = `/security/patrol/floor/${floor.id}`;
-          }}
-          style={{ fontWeight: 700 }}
-        >
-          ← Selesaikan Pemeriksaan Ruangan
-        </button>
-      </div>
-    );
-  }
-
+  // Note: Petugas bebas melakukan scan barcode kehadiran kapan saja (awal/tengah/akhir pemeriksaan)
   const handleSkipScan = () => {
     // Current floor's rooms are already 100% checked. Mark it completed locally and proceed to next floor!
     try {
@@ -316,13 +293,17 @@ export default function QRScanPage({
       if (cached) {
         const sess = JSON.parse(cached);
         if (Array.isArray(sess.sessionFloors)) {
-          // Mark current floor completed
+          // Mark current floor completed only if all rooms checked
           const curSf = sess.sessionFloors.find((f: any) => 
             f.floorCodeSnapshot === currentFloorCode || f.id === sfId || f.floorId === id || f.floor?.code === currentFloorCode
           );
           if (curSf) {
-            curSf.status = 'completed';
-            curSf.completedAt = new Date().toISOString();
+            if (isAllRoomsChecked) {
+              curSf.status = 'completed';
+              curSf.completedAt = new Date().toISOString();
+            } else if (curSf.status !== 'completed') {
+              curSf.status = 'in_progress';
+            }
           }
 
           // Mark verified floor with QR validated
@@ -333,7 +314,10 @@ export default function QRScanPage({
             verifiedSf.qrValidated = true;
             verifiedSf.qrScannedAt = new Date().toISOString();
             verifiedSf.qrTokenUsed = tokenValue;
-            verifiedSf.status = 'completed';
+            if (isAllRoomsChecked) {
+              verifiedSf.status = 'completed';
+              verifiedSf.completedAt = verifiedSf.completedAt || new Date().toISOString();
+            }
           } else if (curSf) {
             curSf.qrValidated = true;
             curSf.qrScannedAt = new Date().toISOString();
@@ -363,9 +347,11 @@ export default function QRScanPage({
       }
     })();
 
-    // 5. Transition to next floor or summary
+    // 5. Transition: if rooms still need checking, return to floor; otherwise proceed to next floor or summary
     setTimeout(() => {
-      const targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
+      const targetUrl = !isAllRoomsChecked 
+        ? `/security/patrol/floor/${floor?.id || id}`
+        : (nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary');
       window.location.href = targetUrl;
     }, 2400);
   };
@@ -440,7 +426,29 @@ export default function QRScanPage({
               <span>📲</span>
               <span>Bagikan Laporan ke WhatsApp</span>
             </button>
-            {nextFloor ? (
+            {!isAllRoomsChecked ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-lg"
+                  onClick={() => {
+                    window.location.href = `/security/patrol/floor/${floor?.id || id}`;
+                  }}
+                  style={{ fontWeight: 700 }}
+                >
+                  ← Lanjut Periksa Ruangan di {floor?.name}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={() => {
+                    window.location.href = '/security/patrol';
+                  }}
+                >
+                  Lihat Rute Patroli
+                </button>
+              </>
+            ) : nextFloor ? (
               <>
                 <button
                   type="button"
