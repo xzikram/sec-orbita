@@ -17,7 +17,7 @@ export interface PreDownloadResult {
   error?: string;
 }
 
-export const CATALOG_CACHE_VERSION = 'sec-patrol-v30';
+export const CATALOG_CACHE_VERSION = 'sec-patrol-v31';
 
 /**
  * Downloads and caches all active floors, 133 rooms, and official QR tokens to IndexedDB.

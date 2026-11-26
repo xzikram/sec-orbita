@@ -79,22 +79,22 @@ export default function FloorDetailPage({
         if (searchParams.get('scan') === '1') {
           setIsScanningQr(true);
         }
-      } catch {}
+      } catch { }
     }
   }, [floorRooms]);
 
-  const fallbackFloor = getFloorById(id) || 
+  const fallbackFloor = getFloorById(id) ||
     (() => {
       let activeSource = session;
       if (!activeSource && typeof window !== 'undefined') {
         try {
           const cached = localStorage.getItem('cached-active-session');
           if (cached) activeSource = JSON.parse(cached);
-        } catch {}
+        } catch { }
       }
-      const match = activeSource?.sessionFloors?.find((sf: any) => 
-        sf.floorId === id || 
-        sf.id === id || 
+      const match = activeSource?.sessionFloors?.find((sf: any) =>
+        sf.floorId === id ||
+        sf.id === id ||
         String(sf.floorCodeSnapshot || '').toUpperCase() === String(id).toUpperCase() ||
         sf.floor?.id === id ||
         String(sf.floor?.code || '').toUpperCase() === String(id).toUpperCase()
@@ -124,7 +124,7 @@ export default function FloorDetailPage({
             const u = JSON.parse(cachedUser);
             setCurrentUser(u);
             empId = u.employeeId || 'guest';
-          } catch {}
+          } catch { }
         }
 
         let activeSess: any = null;
@@ -144,7 +144,7 @@ export default function FloorDetailPage({
               activeSess = parsed;
               setSession(activeSess);
             }
-          } catch {}
+          } catch { }
         }
 
         // 2. Resolve floor from IndexedDB master_floors if available
@@ -161,7 +161,7 @@ export default function FloorDetailPage({
           if (matchedFloor) {
             setDbFloor(matchedFloor);
           }
-        } catch {}
+        } catch { }
 
         // 3. Resolve rooms from IndexedDB master_rooms
         const resolvedFloor = matchedFloor || fallbackFloor;
@@ -193,7 +193,7 @@ export default function FloorDetailPage({
               setFloorRooms(applyRoomOrdering(defaultRooms, savedCodes));
               loadedFromLocal = true;
             }
-          } catch {}
+          } catch { }
         }
 
         if (!loadedFromLocal) {
@@ -213,7 +213,7 @@ export default function FloorDetailPage({
               const missing = defaultRooms.filter(r => !sortedIds.has(r.id));
               setFloorRooms([...sorted, ...missing]);
               loadedFromLocal = true;
-            } catch {}
+            } catch { }
           }
         }
 
@@ -234,7 +234,7 @@ export default function FloorDetailPage({
                 }
               }
             })
-            .catch(() => {});
+            .catch(() => { });
         }
 
         // 3. Get offline checks and QR scans from IndexedDB
@@ -256,7 +256,7 @@ export default function FloorDetailPage({
           setHasSessionQr(true);
         }
 
-        fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
+        fetchAndCacheSettings().then(s => setSettings(s)).catch(() => { });
 
         // 4. Set loading false immediately (< 25ms render)
         setLoading(false);
@@ -274,7 +274,7 @@ export default function FloorDetailPage({
             clearTimeout(timer);
             if (meData?.user) {
               setCurrentUser(meData.user);
-              try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch {}
+              try { localStorage.setItem('cached-user', JSON.stringify(meData.user)); } catch { }
             }
             if (Array.isArray(sessions)) {
               const myId = meData?.user?.id || currentUser?.id;
@@ -284,7 +284,7 @@ export default function FloorDetailPage({
                 if (active.sessionFloors?.some((sf: any) => sf.qrValidated)) {
                   setHasSessionQr(true);
                 }
-                try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
+                try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch { }
               }
             }
           }).catch(() => {
@@ -303,10 +303,10 @@ export default function FloorDetailPage({
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'caches' in window && navigator.onLine && floor) {
-      fetch(`/security/patrol/floor/${floor.id}/qr-scan`, { credentials: 'include' }).catch(() => {});
+      fetch(`/security/patrol/floor/${floor.id}/qr-scan`, { credentials: 'include' }).catch(() => { });
       // Pre-warm room HTML shell into Service Worker cache so clicking "Periksa" loads in 0ms!
       if (floorRooms.length > 0) {
-        fetch(`/security/patrol/room/${floorRooms[0].id}`, { credentials: 'include' }).catch(() => {});
+        fetch(`/security/patrol/room/${floorRooms[0].id}`, { credentials: 'include' }).catch(() => { });
       }
     }
   }, [floor, floorRooms]);
@@ -342,7 +342,7 @@ export default function FloorDetailPage({
       (fCode && sfCode.includes(fCode))
     );
   });
-  
+
   // Combine online (DB) checks and offline checks for this floor by code snapshot
   const combinedCheckedSet = new Set<string>();
   floorRooms.forEach((r: Room) => {
@@ -415,7 +415,7 @@ export default function FloorDetailPage({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ floorCode: targetFloorCode, roomCodes }),
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     // 3. Immediately update IndexedDB master_rooms locally for 100% offline consistency
@@ -433,7 +433,7 @@ export default function FloorDetailPage({
             }
           };
         });
-      } catch {}
+      } catch { }
     })();
 
     // 4. Visual feedback toast (Option A)
@@ -470,7 +470,7 @@ export default function FloorDetailPage({
             }
           };
         });
-      } catch {}
+      } catch { }
     })();
 
     if (typeof navigator !== 'undefined' && navigator.onLine) {
@@ -478,7 +478,7 @@ export default function FloorDetailPage({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ floorCode: targetFloorCode, reset: true }),
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     triggerToast('↺ Urutan standar dipulihkan');
@@ -519,11 +519,11 @@ export default function FloorDetailPage({
   const floorsSource = cachedFloorsList.length > 0 ? cachedFloorsList : (
     session?.sessionFloors && session.sessionFloors.length > 0
       ? session.sessionFloors.map((sf: any) => ({
-          id: sf.floorId || sf.id,
-          code: sf.floorCodeSnapshot || sf.floor?.code || '',
-          name: sf.floorNameSnapshot || sf.floor?.name || '',
-          sortOrder: typeof sf.floor?.sortOrder === 'number' ? sf.floor.sortOrder : (typeof sf.sortOrder === 'number' ? sf.sortOrder : 999),
-        }))
+        id: sf.floorId || sf.id,
+        code: sf.floorCodeSnapshot || sf.floor?.code || '',
+        name: sf.floorNameSnapshot || sf.floor?.name || '',
+        sortOrder: typeof sf.floor?.sortOrder === 'number' ? sf.floor.sortOrder : (typeof sf.sortOrder === 'number' ? sf.sortOrder : 999),
+      }))
       : floors
   );
   const getSortVal = (fl: any) => {
@@ -533,10 +533,59 @@ export default function FloorDetailPage({
     const m = c.match(/\d+/);
     return m ? parseInt(m[0], 10) : 999;
   };
-  const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
+  const empIdForRoute = currentUser?.employeeId || 'guest';
+  const savedReversed = typeof window !== 'undefined'
+    ? (localStorage.getItem(`patrol-reversed-${empIdForRoute}`) ?? localStorage.getItem('patrol-reversed'))
+    : null;
+  const isReversed = savedReversed === 'true';
   const sortedFloors = [...floorsSource].sort((a, b) => isReversed ? getSortVal(b) - getSortVal(a) : getSortVal(a) - getSortVal(b));
   const currentIdx = sortedFloors.findIndex(f => f.id === floor?.id || (floor?.code && f.code === floor?.code));
-  const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
+
+  const isOtherFloorDone = (fl: any): boolean => {
+    if (!fl) return true;
+    const flCode = String(fl.code || '').toUpperCase().trim();
+    const sf = currentSession.sessionFloors?.find((s: any) =>
+      s.floorId === fl.id ||
+      String(s.floorCodeSnapshot || s.floor?.code || '').toUpperCase().trim() === flCode
+    );
+    if (!sf) return false;
+    if (sf.status === 'completed') return true;
+    const flRooms = getRoomsByFloor(fl.id || flCode);
+    if (flRooms.length > 0) {
+      const doneCodes = new Set<string>();
+      if (Array.isArray(sf.patrolChecks)) {
+        sf.patrolChecks.forEach((c: any) => {
+          if (c.roomCodeSnapshot) doneCodes.add(String(c.roomCodeSnapshot).toUpperCase());
+          else if (c.roomId) doneCodes.add(String(c.roomId));
+        });
+      }
+      offlineChecks.forEach((c: any) => {
+        if (c.sessionId && currentSession?.id && c.sessionId !== currentSession.id) return;
+        const cFloor = String(c.floorCode || '').toUpperCase().trim();
+        if (cFloor === flCode || c.floorId === fl.id || c.sessionFloorId === sf.id) {
+          if (c.roomCode) doneCodes.add(String(c.roomCode).toUpperCase());
+          else if (c.roomId) doneCodes.add(String(c.roomId));
+        }
+      });
+      if (doneCodes.size >= flRooms.length) return true;
+    }
+    return false;
+  };
+
+  const nextFloor = (() => {
+    if (currentIdx === -1) return null;
+    // 1. Prefer next uncompleted floor in current route direction
+    const afterCandidate = sortedFloors.slice(currentIdx + 1).find(fl => !isOtherFloorDone(fl));
+    if (afterCandidate) return afterCandidate;
+    // 2. If all floors after currentIdx are completed (or we're at the end, e.g. Lantai 11 in SB->11),
+    // pick the nearest uncompleted floor before currentIdx instead of looping or ending patrol prematurely
+    for (let i = currentIdx - 1; i >= 0; i--) {
+      if (!isOtherFloorDone(sortedFloors[i])) {
+        return sortedFloors[i];
+      }
+    }
+    return null;
+  })();
 
   const markCurrentFloorCompletedInCache = () => {
     try {
@@ -544,7 +593,7 @@ export default function FloorDetailPage({
       if (cached) {
         const sess = JSON.parse(cached);
         if (Array.isArray(sess.sessionFloors)) {
-          const sf = sess.sessionFloors.find((f: any) => 
+          const sf = sess.sessionFloors.find((f: any) =>
             f.floorCodeSnapshot === (floor?.code || id) || f.id === sessionFloor?.id || f.floorId === id || f.floor?.code === (floor?.code || id)
           );
           if (sf) {
@@ -554,7 +603,7 @@ export default function FloorDetailPage({
           }
         }
       }
-    } catch {}
+    } catch { }
   };
 
   const handleSkipFloorQr = () => {
@@ -713,20 +762,20 @@ export default function FloorDetailPage({
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <button 
+          <button
             type="button"
-            className="btn btn-ghost btn-sm" 
-            onClick={resetToDefaultOrder} 
+            className="btn btn-ghost btn-sm"
+            onClick={resetToDefaultOrder}
             title="Kembalikan urutan ke standar rumah sakit"
             id="btn-reset-order"
             style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', padding: '4px 8px', height: 'auto', background: 'var(--color-neutral-100)', color: 'var(--text-secondary)' }}
           >
             ↺ Reset Standar
           </button>
-          <button 
+          <button
             type="button"
-            className="btn btn-ghost btn-sm" 
-            onClick={reverseOrder} 
+            className="btn btn-ghost btn-sm"
+            onClick={reverseOrder}
             id="btn-reverse-order"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '4px 8px', height: 'auto', background: 'var(--color-neutral-100)', color: 'var(--color-primary-600)', fontWeight: 'bold' }}
           >
@@ -741,182 +790,182 @@ export default function FloorDetailPage({
         </div>
       </div>
 
-          {/* Room List */}
-          <div className={styles.roomList}>
-            {floorRooms.map((room, index) => {
-              const isChecked = combinedCheckedSet.has(room.code);
-              const isNext = nextRoom?.id === room.id;
-              const check = sessionFloor?.patrolChecks?.find((c: any) => c.roomCodeSnapshot === room.code) ||
-                            offlineChecks.find((c: any) => 
-                              c.roomCode === room.code || 
-                              c.roomId === room.id || 
-                              c.roomId === room.code || 
-                              (c.roomId && String(c.roomId).toLowerCase() === room.code.toLowerCase())
-                            );
+      {/* Room List */}
+      <div className={styles.roomList}>
+        {floorRooms.map((room, index) => {
+          const isChecked = combinedCheckedSet.has(room.code);
+          const isNext = nextRoom?.id === room.id;
+          const check = sessionFloor?.patrolChecks?.find((c: any) => c.roomCodeSnapshot === room.code) ||
+            offlineChecks.find((c: any) =>
+              c.roomCode === room.code ||
+              c.roomId === room.id ||
+              c.roomId === room.code ||
+              (c.roomId && String(c.roomId).toLowerCase() === room.code.toLowerCase())
+            );
 
-              return (
-                <div
-                  key={room.id}
-                  className={`${styles.roomItem} ${isChecked ? styles.roomChecked : ''} ${isNext ? styles.roomNext : ''} animate-slide-up stagger-${Math.min(index + 1, 6)}`}
-                  id={`room-${room.code}`}
-                >
-                  <div className={styles.roomOrder} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', minWidth: '44px', flexShrink: 0 }}>
-                    {isChecked ? (
-                      <div className={styles.checkIcon}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                    ) : (
-                      <>
-                        <span className={styles.orderNumber} style={{ fontWeight: 'bold', fontSize: '13px' }}>{index + 1}</span>
-                        <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                          {index > 0 && (
-                            <button 
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveRoom(index, 'up'); }} 
-                              style={{
-                                background: 'var(--color-neutral-100)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '6px',
-                                color: 'var(--color-neutral-700)',
-                                width: '28px',
-                                height: '28px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '11px',
-                                cursor: 'pointer',
-                                touchAction: 'manipulation',
-                              }} 
-                              aria-label="Pindah urutan ke atas"
-                              title="Naik"
-                            >
-                              ▲
-                            </button>
-                          )}
-                          {index < floorRooms.length - 1 && (
-                            <button 
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveRoom(index, 'down'); }} 
-                              style={{
-                                background: 'var(--color-neutral-100)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '6px',
-                                color: 'var(--color-neutral-700)',
-                                width: '28px',
-                                height: '28px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '11px',
-                                cursor: 'pointer',
-                                touchAction: 'manipulation',
-                              }} 
-                              aria-label="Pindah urutan ke bawah"
-                              title="Turun"
-                            >
-                              ▼
-                            </button>
-                          )}
-                        </div>
-                      </>
+          return (
+            <div
+              key={room.id}
+              className={`${styles.roomItem} ${isChecked ? styles.roomChecked : ''} ${isNext ? styles.roomNext : ''} animate-slide-up stagger-${Math.min(index + 1, 6)}`}
+              id={`room-${room.code}`}
+            >
+              <div className={styles.roomOrder} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', minWidth: '44px', flexShrink: 0 }}>
+                {isChecked ? (
+                  <div className={styles.checkIcon}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                ) : (
+                  <>
+                    <span className={styles.orderNumber} style={{ fontWeight: 'bold', fontSize: '13px' }}>{index + 1}</span>
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                      {index > 0 && (
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveRoom(index, 'up'); }}
+                          style={{
+                            background: 'var(--color-neutral-100)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            color: 'var(--color-neutral-700)',
+                            width: '28px',
+                            height: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            touchAction: 'manipulation',
+                          }}
+                          aria-label="Pindah urutan ke atas"
+                          title="Naik"
+                        >
+                          ▲
+                        </button>
+                      )}
+                      {index < floorRooms.length - 1 && (
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveRoom(index, 'down'); }}
+                          style={{
+                            background: 'var(--color-neutral-100)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '6px',
+                            color: 'var(--color-neutral-700)',
+                            width: '28px',
+                            height: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            touchAction: 'manipulation',
+                          }}
+                          aria-label="Pindah urutan ke bawah"
+                          title="Turun"
+                        >
+                          ▼
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className={styles.roomInfo} style={{ paddingLeft: '8px' }}>
+                <h4 className={styles.roomName}>{room.name}</h4>
+                <p className={styles.roomCode}>{room.code}</p>
+
+                {isChecked && check && (
+                  <div className={styles.checkDetails}>
+                    <span className={styles.checkTime} suppressHydrationWarning>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                      {mounted && check.checkedAt ? (() => {
+                        try {
+                          const d = new Date(check.checkedAt);
+                          return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                        } catch { return ''; }
+                      })() : ''}
+                    </span>
+                    {room.hasAc && (
+                      <span className={`${styles.checkTag} ${check.acStatus === 'on' ? styles.tagOn : styles.tagOff}`}>
+                        AC {check.acStatus === 'on' ? 'ON' : 'OFF'}
+                      </span>
+                    )}
+                    {room.hasLight && (
+                      <span className={`${styles.checkTag} ${check.lightStatus === 'on' ? styles.tagOn : styles.tagOff}`}>
+                        Lampu {check.lightStatus === 'on' ? 'ON' : 'OFF'}
+                      </span>
+                    )}
+                    {(check.checklistValues?.['Music'] || check.checklistValues?.['music']) && (
+                      <span className={`${styles.checkTag} ${(check.checklistValues?.['Music'] === 'on' || check.checklistValues?.['music'] === 'on') ? styles.tagOn : styles.tagOff}`}>
+                        Music {(check.checklistValues?.['Music'] === 'on' || check.checklistValues?.['music'] === 'on') ? 'ON' : 'OFF'}
+                      </span>
+                    )}
+                    {check.condition === 'finding' && (
+                      <span className={`${styles.checkTag} ${styles.tagFinding}`}>
+                        Ada Temuan
+                      </span>
                     )}
                   </div>
+                )}
 
-                  <div className={styles.roomInfo} style={{ paddingLeft: '8px' }}>
-                    <h4 className={styles.roomName}>{room.name}</h4>
-                    <p className={styles.roomCode}>{room.code}</p>
+                {isNext && (
+                  <p className={styles.nextHint}>
+                    <span className="status-dot status-dot-info" />
+                    Ruangan berikutnya
+                  </p>
+                )}
+              </div>
 
-                    {isChecked && check && (
-                      <div className={styles.checkDetails}>
-                        <span className={styles.checkTime} suppressHydrationWarning>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                          </svg>
-                          {mounted && check.checkedAt ? (() => {
-                            try {
-                              const d = new Date(check.checkedAt);
-                              return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-                            } catch { return ''; }
-                          })() : ''}
-                        </span>
-                        {room.hasAc && (
-                          <span className={`${styles.checkTag} ${check.acStatus === 'on' ? styles.tagOn : styles.tagOff}`}>
-                            AC {check.acStatus === 'on' ? 'ON' : 'OFF'}
-                          </span>
-                        )}
-                        {room.hasLight && (
-                          <span className={`${styles.checkTag} ${check.lightStatus === 'on' ? styles.tagOn : styles.tagOff}`}>
-                            Lampu {check.lightStatus === 'on' ? 'ON' : 'OFF'}
-                          </span>
-                        )}
-                        {(check.checklistValues?.['Music'] || check.checklistValues?.['music']) && (
-                          <span className={`${styles.checkTag} ${(check.checklistValues?.['Music'] === 'on' || check.checklistValues?.['music'] === 'on') ? styles.tagOn : styles.tagOff}`}>
-                            Music {(check.checklistValues?.['Music'] === 'on' || check.checklistValues?.['music'] === 'on') ? 'ON' : 'OFF'}
-                          </span>
-                        )}
-                        {check.condition === 'finding' && (
-                          <span className={`${styles.checkTag} ${styles.tagFinding}`}>
-                            Ada Temuan
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {isNext && (
-                      <p className={styles.nextHint}>
-                        <span className="status-dot status-dot-info" />
-                        Ruangan berikutnya
-                      </p>
-                    )}
-                  </div>
-
-                  <div className={styles.roomAction}>
-                    {isChecked ? (
-                      <button
-                        type="button"
-                        className="badge badge-success"
-                        style={{ cursor: 'pointer', border: 'none', background: 'var(--color-success-500, #10b981)', color: '#fff', padding: '5px 8px', borderRadius: '6px', fontSize: '12px' }}
-                        onClick={(e) => handleGoToRoom(room.id, e)}
-                        title="Klik untuk lihat / perbarui pemeriksaan"
-                      >
-                        ✓
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
-                        id={`btn-check-${room.code}`}
-                        onClick={(e) => handleGoToRoom(room.id, e)}
-                      >
-                        Periksa
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Continue CTA */}
-          {percent < 100 && nextRoom && (
-            <div className={styles.continueCta} style={{ marginTop: '1.5rem' }}>
-              <button
-                type="button"
-                className="btn btn-primary btn-xl"
-                id="btn-continue-patrol"
-                onClick={(e) => handleGoToRoom(nextRoom.id, e)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="16" />
-                  <line x1="8" y1="12" x2="16" y2="12" />
-                </svg>
-                Periksa {nextRoom.name}
-              </button>
+              <div className={styles.roomAction}>
+                {isChecked ? (
+                  <button
+                    type="button"
+                    className="badge badge-success"
+                    style={{ cursor: 'pointer', border: 'none', background: 'var(--color-success-500, #10b981)', color: '#fff', padding: '5px 8px', borderRadius: '6px', fontSize: '12px' }}
+                    onClick={(e) => handleGoToRoom(room.id, e)}
+                    title="Klik untuk lihat / perbarui pemeriksaan"
+                  >
+                    ✓
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    id={`btn-check-${room.code}`}
+                    onClick={(e) => handleGoToRoom(room.id, e)}
+                  >
+                    Periksa
+                  </button>
+                )}
+              </div>
             </div>
-          )}
+          );
+        })}
+      </div>
+
+      {/* Continue CTA */}
+      {percent < 100 && nextRoom && (
+        <div className={styles.continueCta} style={{ marginTop: '1.5rem' }}>
+          <button
+            type="button"
+            className="btn btn-primary btn-xl"
+            id="btn-continue-patrol"
+            onClick={(e) => handleGoToRoom(nextRoom.id, e)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="16" />
+              <line x1="8" y1="12" x2="16" y2="12" />
+            </svg>
+            Periksa {nextRoom.name}
+          </button>
+        </div>
+      )}
 
       {/* QR Validated or Scan CTA */}
       {(isFloorQrSatisfied && percent === 100) ? (
@@ -1156,7 +1205,7 @@ export default function FloorDetailPage({
             session={session}
             sessionFloor={sessionFloor}
             settings={settings}
-            isAllRoomsChecked={checked >= total}
+            isAllRoomsChecked={total > 0 && checked >= total}
             nextFloor={nextFloor}
             rooms={floorRooms}
             checks={[
@@ -1170,7 +1219,7 @@ export default function FloorDetailPage({
             onClose={() => setIsScanningQr(false)}
             onScanSuccess={() => {
               setHasSessionQr(true);
-              getOfflineQrScans().then(qrs => setOfflineQrs(qrs || [])).catch(() => {});
+              getOfflineQrScans().then(qrs => setOfflineQrs(qrs || [])).catch(() => { });
             }}
           />
         </div>

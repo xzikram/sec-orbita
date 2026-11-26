@@ -674,11 +674,57 @@ export default function RoomCheckPage({
               return m ? parseInt(m[0], 10) : 999;
             };
 
-            const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
+            const empIdForRoute = currentUser?.employeeId || 'guest';
+            const savedReversed = typeof window !== 'undefined'
+              ? (localStorage.getItem(`patrol-reversed-${empIdForRoute}`) ?? localStorage.getItem('patrol-reversed'))
+              : null;
+            const isReversed = savedReversed === 'true';
             const sortedFloors = [...floorsToOrder].sort((a, b) => isReversed ? getSortVal(b) - getSortVal(a) : getSortVal(a) - getSortVal(b));
             const currentFloorCode = (floor?.code || '').toUpperCase();
             const currentIdx = sortedFloors.findIndex(f => f.id === room.floorId || (currentFloorCode && String(f.code || '').toUpperCase() === currentFloorCode));
-            const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
+
+            const isOtherFloorDone = (fl: any): boolean => {
+              if (!fl) return true;
+              const flCode = String(fl.code || '').toUpperCase().trim();
+              const sf = currentSession.sessionFloors?.find((s: any) =>
+                s.floorId === fl.id ||
+                String(s.floorCodeSnapshot || s.floor?.code || '').toUpperCase().trim() === flCode
+              );
+              if (!sf) return false;
+              if (sf.status === 'completed') return true;
+              const flRooms = getRoomsByFloor(fl.id || flCode);
+              if (flRooms.length > 0) {
+                const doneCodes = new Set<string>();
+                if (Array.isArray(sf.patrolChecks)) {
+                  sf.patrolChecks.forEach((c: any) => {
+                    if (c.roomCodeSnapshot) doneCodes.add(String(c.roomCodeSnapshot).toUpperCase());
+                    else if (c.roomId) doneCodes.add(String(c.roomId));
+                  });
+                }
+                offlineChecks.forEach((c: any) => {
+                  if (c.sessionId && currentSession?.id && c.sessionId !== currentSession.id) return;
+                  const cFloor = String(c.floorCode || '').toUpperCase().trim();
+                  if (cFloor === flCode || c.floorId === fl.id || c.sessionFloorId === sf.id) {
+                    if (c.roomCode) doneCodes.add(String(c.roomCode).toUpperCase());
+                    else if (c.roomId) doneCodes.add(String(c.roomId));
+                  }
+                });
+                if (doneCodes.size >= flRooms.length) return true;
+              }
+              return false;
+            };
+
+            const nextFloor = (() => {
+              if (currentIdx === -1) return null;
+              const afterCandidate = sortedFloors.slice(currentIdx + 1).find(fl => !isOtherFloorDone(fl));
+              if (afterCandidate) return afterCandidate;
+              for (let i = currentIdx - 1; i >= 0; i--) {
+                if (!isOtherFloorDone(sortedFloors[i])) {
+                  return sortedFloors[i];
+                }
+              }
+              return null;
+            })();
 
             const isRequireQr = settings.require_qr !== 'false';
             const qrScanMode = settings.qr_scan_mode || 'session';

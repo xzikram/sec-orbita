@@ -40,18 +40,18 @@ export default function QRScanPage({
   const [cachedFloorsList, setCachedFloorsList] = useState<any[]>([]);
   const [cachedRooms, setCachedRooms] = useState<any[]>([]);
 
-  const fallbackFloor = getFloorById(id) || 
+  const fallbackFloor = getFloorById(id) ||
     (() => {
       let activeSource = session;
       if (!activeSource && typeof window !== 'undefined') {
         try {
           const cached = localStorage.getItem('cached-active-session');
           if (cached) activeSource = JSON.parse(cached);
-        } catch {}
+        } catch { }
       }
-      const match = activeSource?.sessionFloors?.find((sf: any) => 
-        sf.floorId === id || 
-        sf.id === id || 
+      const match = activeSource?.sessionFloors?.find((sf: any) =>
+        sf.floorId === id ||
+        sf.id === id ||
         String(sf.floorCodeSnapshot || '').toUpperCase() === String(id).toUpperCase() ||
         sf.floor?.id === id ||
         String(sf.floor?.code || '').toUpperCase() === String(id).toUpperCase()
@@ -96,7 +96,7 @@ export default function QRScanPage({
             const u = JSON.parse(cachedUser);
             currentUserId = u.id || null;
             setCurrentUser(u);
-          } catch {}
+          } catch { }
         }
 
         const cached = localStorage.getItem('cached-active-session');
@@ -116,14 +116,14 @@ export default function QRScanPage({
             } else {
               setSession(parsed);
             }
-          } catch {}
+          } catch { }
         }
 
         // 2. Read IndexedDB data
         try {
           const off = await getOfflineChecks();
           setOfflineChecks(off);
-        } catch {}
+        } catch { }
 
         let targetFloorIdentifier: string = id;
         try {
@@ -141,19 +141,19 @@ export default function QRScanPage({
             setDbFloor(matchedFloor);
             targetFloorIdentifier = matchedFloor.code || matchedFloor.id;
           }
-        } catch {}
+        } catch { }
 
         try {
           const rooms = await getResilientRoomsForFloor(targetFloorIdentifier);
           if (Array.isArray(rooms) && rooms.length > 0) {
             setCachedRooms(rooms);
           }
-        } catch {}
+        } catch { }
 
         // 3. Render immediately (< 25ms)
         setLoading(false);
 
-        fetchAndCacheSettings().then(s => setSettings(s)).catch(() => {});
+        fetchAndCacheSettings().then(s => setSettings(s)).catch(() => { });
 
         // 4. Background network update if online
         if (navigator.onLine) {
@@ -170,7 +170,7 @@ export default function QRScanPage({
               const active = sessions.find((s: any) => s.status === 'in_progress' && (!myId || s.userId === myId)) || null;
               if (active) {
                 setSession(active);
-                try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch {}
+                try { localStorage.setItem('cached-active-session', JSON.stringify(active)); } catch { }
               }
             }
           }).catch(() => {
@@ -192,7 +192,7 @@ export default function QRScanPage({
   }, [id]);
 
   const currentSession = session || { sessionFloors: [] };
-  const sessionFloor = currentSession.sessionFloors?.find((sf: any) => 
+  const sessionFloor = currentSession.sessionFloors?.find((sf: any) =>
     (floor && sf.floorCodeSnapshot === floor.code) || sf.id === id || sf.floorId === id
   );
 
@@ -210,14 +210,19 @@ export default function QRScanPage({
       if (cCode) uniqueChecked.add(cCode);
     });
   }
-  const isAllRoomsChecked = 
+  const isAllRoomsChecked =
     sessionFloor?.status === 'completed' ||
-    floorRooms.length === 0 || 
-    uniqueChecked.size >= floorRooms.length ||
-    (sessionFloor?.patrolChecks && sessionFloor.patrolChecks.length >= floorRooms.length);
+    (floorRooms.length > 0 && (
+      uniqueChecked.size >= floorRooms.length ||
+      Boolean(sessionFloor?.patrolChecks && sessionFloor.patrolChecks.length >= floorRooms.length)
+    ));
 
   // Calculate next floor based on user route direction
-  const isReversed = typeof window !== 'undefined' && localStorage.getItem('patrol-reversed') === 'true';
+  const empIdForRoute = currentUser?.employeeId || 'guest';
+  const savedReversed = typeof window !== 'undefined'
+    ? (localStorage.getItem(`patrol-reversed-${empIdForRoute}`) ?? localStorage.getItem('patrol-reversed'))
+    : null;
+  const isReversed = savedReversed === 'true';
   const availableFloors = (cachedFloorsList.length > 0 ? cachedFloorsList : floors).filter(Boolean);
   const getSortVal = (fl: any) => {
     if (!fl) return 999;
@@ -229,7 +234,49 @@ export default function QRScanPage({
   };
   const sortedFloors = [...availableFloors].sort((a, b) => isReversed ? getSortVal(b) - getSortVal(a) : getSortVal(a) - getSortVal(b));
   const currentIdx = sortedFloors.findIndex(f => f && (f.id === floor?.id || (floor?.code && f.code === floor?.code)));
-  const nextFloor = currentIdx !== -1 && currentIdx + 1 < sortedFloors.length ? sortedFloors[currentIdx + 1] : null;
+
+  const isOtherFloorDone = (fl: any): boolean => {
+    if (!fl) return true;
+    const flCode = String(fl.code || '').toUpperCase().trim();
+    const sf = currentSession.sessionFloors?.find((s: any) =>
+      s.floorId === fl.id ||
+      String(s.floorCodeSnapshot || s.floor?.code || '').toUpperCase().trim() === flCode
+    );
+    if (!sf) return false;
+    if (sf.status === 'completed') return true;
+    const flRooms = getRoomsByFloor(fl.id || flCode);
+    if (flRooms.length > 0) {
+      const doneCodes = new Set<string>();
+      if (Array.isArray(sf.patrolChecks)) {
+        sf.patrolChecks.forEach((c: any) => {
+          if (c.roomCodeSnapshot) doneCodes.add(String(c.roomCodeSnapshot).toUpperCase());
+          else if (c.roomId) doneCodes.add(String(c.roomId));
+        });
+      }
+      offlineChecks.forEach((c: any) => {
+        if (c.sessionId && currentSession?.id && c.sessionId !== currentSession.id) return;
+        const cFloor = String(c.floorCode || '').toUpperCase().trim();
+        if (cFloor === flCode || c.floorId === fl.id || c.sessionFloorId === sf.id) {
+          if (c.roomCode) doneCodes.add(String(c.roomCode).toUpperCase());
+          else if (c.roomId) doneCodes.add(String(c.roomId));
+        }
+      });
+      if (doneCodes.size >= flRooms.length) return true;
+    }
+    return false;
+  };
+
+  const nextFloor = (() => {
+    if (currentIdx === -1) return null;
+    const afterCandidate = sortedFloors.slice(currentIdx + 1).find(fl => !isOtherFloorDone(fl));
+    if (afterCandidate) return afterCandidate;
+    for (let i = currentIdx - 1; i >= 0; i--) {
+      if (!isOtherFloorDone(sortedFloors[i])) {
+        return sortedFloors[i];
+      }
+    }
+    return null;
+  })();
 
   if (loading) {
     return (
@@ -248,7 +295,7 @@ export default function QRScanPage({
         const sess = JSON.parse(cached);
         if (Array.isArray(sess.sessionFloors)) {
           const targetCode = floor ? floor.code : id;
-          const sf = sess.sessionFloors.find((f: any) => 
+          const sf = sess.sessionFloors.find((f: any) =>
             f.floorCodeSnapshot === targetCode || f.id === sessionFloor?.id || f.floorId === id || f.floor?.code === targetCode
           );
           if (sf) {
@@ -258,7 +305,7 @@ export default function QRScanPage({
           }
         }
       }
-    } catch {}
+    } catch { }
 
     const targetUrl = nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary';
     window.location.href = targetUrl;
@@ -270,7 +317,7 @@ export default function QRScanPage({
     try {
       const parsed = JSON.parse(rawTrimmed);
       if (parsed.token) tokenValue = String(parsed.token).trim();
-    } catch {}
+    } catch { }
 
     const targetFloorCode = floor ? floor.code : id;
     const anyOfficial = validateAnyOfficialFloorQr(tokenValue);
@@ -319,7 +366,7 @@ export default function QRScanPage({
         const sess = JSON.parse(cached);
         if (Array.isArray(sess.sessionFloors)) {
           // Mark current floor completed only if all rooms checked
-          const curSf = sess.sessionFloors.find((f: any) => 
+          const curSf = sess.sessionFloors.find((f: any) =>
             f.floorCodeSnapshot === currentFloorCode || f.id === sfId || f.floorId === id || f.floor?.code === currentFloorCode
           );
           if (curSf) {
@@ -352,9 +399,9 @@ export default function QRScanPage({
           localStorage.setItem('cached-active-session', JSON.stringify(sess));
         }
       }
-    } catch {}
+    } catch { }
 
-    try { localStorage.removeItem('lastPatrolState'); } catch {}
+    try { localStorage.removeItem('lastPatrolState'); } catch { }
 
     // 3. Immediately show success screen
     setIsOfflineScan(!navigator.onLine);
@@ -374,7 +421,7 @@ export default function QRScanPage({
 
     // 5. Transition: if rooms still need checking, return to floor; otherwise proceed to next floor or summary
     setTimeout(() => {
-      const targetUrl = !isAllRoomsChecked 
+      const targetUrl = !isAllRoomsChecked
         ? `/security/patrol/floor/${floor?.id || id}`
         : (nextFloor ? `/security/patrol/floor/${nextFloor.id}` : '/security/patrol/summary');
       window.location.href = targetUrl;

@@ -104,8 +104,8 @@ export async function POST(request: NextRequest) {
     const baseDir = process.env.APP_DIR || (process as any)['cwd']();
     const publicUploadDir = path.join(/*turbopackIgnore: true*/ baseDir, 'public', 'uploads', 'patrol');
     const rootUploadDir = path.join(/*turbopackIgnore: true*/ baseDir, 'uploads', 'patrol');
-    await fs.mkdir(publicUploadDir, { recursive: true }).catch(() => {});
-    await fs.mkdir(rootUploadDir, { recursive: true }).catch(() => {});
+    await fs.mkdir(publicUploadDir, { recursive: true }).catch(() => { });
+    await fs.mkdir(rootUploadDir, { recursive: true }).catch(() => { });
 
     // Pre-cache rooms map for fast batch lookups
     const allDbRooms = await prisma.room.findMany({
@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
             await fs.writeFile(filePath, buffer);
             try {
               await fs.writeFile(path.join(/*turbopackIgnore: true*/ rootUploadDir, fileName), buffer);
-            } catch {}
+            } catch { }
 
             // Check if photo record already exists
             const existingPhoto = await prisma.patrolPhoto.findFirst({
@@ -318,7 +318,7 @@ export async function POST(request: NextRequest) {
         try {
           const parsed = JSON.parse(rawToken);
           if (parsed.token) rawToken = String(parsed.token).trim();
-        } catch {}
+        } catch { }
 
         const targetSf = activeSession?.sessionFloors?.find(sf =>
           sf.id === q.sessionFloorId ||
@@ -354,11 +354,28 @@ export async function POST(request: NextRequest) {
           }
 
           if (sfToUpdate) {
+            const totalActiveRooms = await prisma.room.count({
+              where: { floorId: sfToUpdate.floorId, isActive: true },
+            });
+            const existingFloorChecks = await prisma.patrolCheck.findMany({
+              where: { sessionFloorId: sfToUpdate.id },
+              select: { roomId: true, roomCodeSnapshot: true },
+            });
+            const uniqueCheckedFloorRooms = new Set(
+              existingFloorChecks.map(c => c.roomId || c.roomCodeSnapshot)
+            );
+            const isFloorFullyChecked = totalActiveRooms > 0 && uniqueCheckedFloorRooms.size >= totalActiveRooms;
+            const nextStatus = isFloorFullyChecked
+              ? 'completed'
+              : (sfToUpdate.status === 'completed' ? 'completed' : 'in_progress');
+
             await prisma.patrolSessionFloor.update({
               where: { id: sfToUpdate.id },
               data: {
-                status: 'completed',
-                completedAt: scanTimestamp,
+                status: nextStatus,
+                ...(nextStatus === 'completed'
+                  ? { completedAt: sfToUpdate.completedAt || scanTimestamp }
+                  : { startedAt: sfToUpdate.startedAt || scanTimestamp }),
                 qrValidated: true,
                 qrScannedAt: scanTimestamp,
                 qrTokenUsed: tokenToSave,
@@ -378,7 +395,7 @@ export async function POST(request: NextRequest) {
       const refreshedFloors = await prisma.patrolSessionFloor.findMany({
         where: { sessionId: activeSession.id },
       });
-      const allCompleted = refreshedFloors.length > 0 && refreshedFloors.every(sf => sf.status === 'completed' || sf.qrValidated);
+      const allCompleted = refreshedFloors.length > 0 && refreshedFloors.every(sf => sf.status === 'completed');
       const isClientCompleted = body.status === 'completed' || body.isCompleted === true;
       const isClientIncomplete = body.status === 'incomplete';
 
@@ -394,7 +411,7 @@ export async function POST(request: NextRequest) {
         activeSession = { ...activeSession, ...updated };
         await prisma.activityLog.create({
           data: { userId: auth.id, action: 'early_finish_patrol', entityType: 'patrol_session', entityId: activeSession.id },
-        }).catch(() => {});
+        }).catch(() => { });
       } else if (allCompleted || isClientCompleted) {
         const updated = await prisma.patrolSession.update({
           where: { id: activeSession.id },
@@ -406,7 +423,7 @@ export async function POST(request: NextRequest) {
         activeSession = { ...activeSession, ...updated };
         await prisma.activityLog.create({
           data: { userId: auth.id, action: 'complete_patrol', entityType: 'patrol_session', entityId: activeSession.id },
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
 
